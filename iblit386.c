@@ -23,6 +23,7 @@
 // -  Dec.11 2006  skywind  rewrite cpu detection method
 // -  Dec.27 2006  skywind  rewrite mask blitters 
 // -  Jan.28 2007  skywind  reform this file with new comment
+// -  Oct.03 2010  skywind  amd64 supported
 //
 //=====================================================================
 
@@ -33,14 +34,14 @@
 #include "iblit386.h"
 #include "ibitmapm.h"
 
-#ifdef __i386__
+#ifdef __x86__
 
 
 //---------------------------------------------------------------------
-// global definition
+// GLOBAL DEFINITION
 //---------------------------------------------------------------------
-unsigned long _cpu_feature[4] = { 0, 0, 0, 0 };
-unsigned long _cpu_cachesize;
+unsigned int _cpu_feature[4] = { 0, 0, 0, 0 };
+unsigned int _cpu_cachesize;
 int _cpu_level = -1;
 int _cpu_device = -1;
 int _cpu_vendor = X86_VENDOR_UNKNOWN;
@@ -51,9 +52,6 @@ int _cpu_cache_l1d = 0;
 int _cpu_cache_l2 = 0;
 
 
-//---------------------------------------------------------------------
-// _x86_cpu_types
-//---------------------------------------------------------------------
 struct _x86_cpu_types 
 {
 	int vendor;
@@ -61,9 +59,7 @@ struct _x86_cpu_types
 	char name[14];
 };
 
-//---------------------------------------------------------------------
-// _x86_cpu_ident
-//---------------------------------------------------------------------
+
 static struct _x86_cpu_types _x86_cpu_ident[] = {
 	{ X86_VENDOR_INTEL,     "GenuineIntel", "Intel" }, 
 	{ X86_VENDOR_CYRIX,     "CyrixInstead", "Cyrix" }, 
@@ -89,7 +85,9 @@ void _x86_cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
 	
 	#define mm_cpuid ASMCODE2(0x0F, 0xA2)	
 	#ifdef __INLINEGNU__
-	__asm__ __volatile__(
+	{
+		#ifdef __i386__
+		__asm__ __volatile__(
 		"	pushal\n"
 		"	movl %0, %%eax\n"
 		mm_cpuid
@@ -100,16 +98,52 @@ void _x86_cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
 		"	popal\n"
 		: "=m" (a), "=m" (b), "=m" (c), "=m" (d) 
 		: "a" (op): "memory");
+		#else
+		iulong x1, x2, x3, x4;
+		__asm__ __volatile__(
+		"	movq %%rax, %4\n"
+		"	movq %%rbx, %5\n"
+		"	movq %%rcx, %6\n"
+		"	movq %%rdx, %7\n"
+		"	movl %0, %%eax\n"
+		mm_cpuid
+		"	movl %%eax, %0\n"
+		"	movl %%ebx, %1\n"
+		"	movl %%ecx, %2\n"
+		"	movl %%edx, %3\n"
+		"	movq %4, %%rax\n"
+		"	movq %5, %%rbx\n"
+		"	movq %6, %%rcx\n"
+		"	movq %7, %%rdx\n"
+		: "=m" (a), "=m" (b), "=m" (c), "=m" (d),
+		  "=m" (x1), "=m" (x2), "=m" (x3), "=m" (x4)
+		: "a" (op): "memory");
+		#endif
+	}
 	#elif defined(__INLINEMSC__)
 	_asm {
+		#ifdef __i386__
 		pushad
+		#else
+		push rax
+		push rbx
+		push rcx
+		push rdx
+		#endif
 		mov eax, op
 		mm_cpuid
 		mov a, eax
 		mov b, ebx
 		mov c, ecx
 		mov d, edx
+		#ifdef __i386__
 		popad
+		#else
+		pop rdx
+		pop rcx
+		pop rbx
+		pop rax
+		#endif
 	}
 	#endif
 	#undef mm_cpuid
@@ -122,11 +156,12 @@ void _x86_cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
 //---------------------------------------------------------------------
 // _flag_changeable
 //---------------------------------------------------------------------
-static int _flag_changeable(unsigned long flag) 
+static int _flag_changeable(iulong flag) 
 { 
-	unsigned long f1 = 0, f2 = 0;
+	iulong f1 = 0, f2 = 0;
 	#ifdef __INLINEGNU__
 	__asm__ __volatile__ ( 
+		#ifndef __amd64__
 		"pushfl\n" 
 		"pushfl\n" 
 		"popl %0\n" 
@@ -137,10 +172,23 @@ static int _flag_changeable(unsigned long flag)
 		"pushfl\n" 
 		"popl %0\n" 
 		"popfl\n" 
+		#else
+		"pushfq\n"
+		"pushfq\n"
+		"popq %0\n"
+		"movq %0, %1\n"
+		"xorq %2, %0\n"
+		"pushq %0\n"
+		"popfq\n"
+		"pushfq\n"
+		"popq %0\n"
+		"popfq\n"
+		#endif
 		: "=&r" (f1), "=&r" (f2) 
 		: "ir" (flag) : "memory"); 
 	#elif defined(__INLINEMSC__)
 	_asm {
+		#ifndef __amd64__
 		pushfd
 		pushfd
 		pop eax
@@ -153,6 +201,20 @@ static int _flag_changeable(unsigned long flag)
 		pop eax
 		mov f1, eax
 		popfd
+		#else
+		pushfq
+		pushfq
+		pop rax
+		mov f1, rax
+		mov f2, rax
+		xor rax, flag
+		push rax
+		popfq
+		pushfq
+		pop rax
+		mov f1, rax
+		popfq
+		#endif
 	}
 	#endif
 	return ((f1^f2) & flag) != 0; 
@@ -163,7 +225,7 @@ static int _flag_changeable(unsigned long flag)
 //---------------------------------------------------------------------
 static void _x86_detect_cpu(void)
 {
-	unsigned long test = 0;
+	iulong test = 0;
 	int eax, edx, i;
 
 	// setup default value
@@ -178,7 +240,7 @@ static void _x86_detect_cpu(void)
 			_cpu_device = 0x00000400;	// 486
 		else 
 			_cpu_device = 0x00000300;	// 386
-
+		#ifndef __amd64__
 		if (_cpu_device == 0x00000400) {
 			#ifdef __INLINEGNU__
 			__asm__ __volatile__ (
@@ -192,7 +254,7 @@ static void _x86_detect_cpu(void)
 				"popl %%ebx\n"
 				:"=m"(test): :"memory");
 			#elif defined(__INLINEMSC__)
-			unsigned long flag = 0;
+			iulong flag = 0;
 			_asm {
 				mov eax, 5
 				mov ebx, 2
@@ -214,12 +276,13 @@ static void _x86_detect_cpu(void)
 				"movw $2, %%cx\n" 
 				"divw %%cx\n" 
 				"xorl %%eax, %%eax\n" 
-				"jnz x86_detect_cpu_l2\n" 
+				"jnz 1f\n" 
 				"movl $1, %%eax\n" 
-				"x86_detect_cpu_l2:\n" 
+				"1:\n" 
+				"mov %%eax, %0\n"
 				: "=a" (test) : : "cx", "dx" ); 
 			#elif defined(__INLINEMSC__)
-			unsigned long flag = 0;
+			iulong flag = 0;
 			_asm {
 				mov eax, 0x5555
 				xor dx, dx
@@ -235,11 +298,15 @@ static void _x86_detect_cpu(void)
 			#endif
 			if (test) memcpy(_cpu_vendor_name, "NexGenDriven", 13);
 		}
+		#endif
 	}	else {		// have cpuid
 		int regs[4];
 		char *p = (char*)regs;
 		_x86_cpuid(0, regs, regs + 1, regs + 2, regs + 3);
 		_cpu_level = regs[0];
+		#ifdef __amd64__
+		if (_cpu_level < 1) _cpu_level = 1;
+		#endif
 		for (i = 0; i < 12; i++) _cpu_vendor_name[i] = p[i + 4];
 		_cpu_vendor_name[i] = 0;
 
@@ -250,7 +317,6 @@ static void _x86_detect_cpu(void)
 			_cpu_device = 0x00000400;
 		}
 	}
-
 	for (i = 0; _x86_cpu_ident[i].vendor >= 0; i++) {
 		if (memcmp(_cpu_vendor_name, _x86_cpu_ident[i].ident, 12) == 0) {
 			_cpu_vendor = _x86_cpu_ident[i].vendor;
@@ -262,12 +328,16 @@ static void _x86_detect_cpu(void)
 
 	if (_cpu_level >= 1) {
 		_x86_cpuid(1, 0, 0, 0, &edx);
-		_cpu_feature[0] = (unsigned long)edx;
+		_cpu_feature[0] = (unsigned int)edx;
 		_x86_cpuid(0x80000000uL, &eax, 0, 0, 0);
-		if ((unsigned long)eax != 0x80000000ul) {
+		if ((unsigned int)eax != 0x80000000ul) {
 			_x86_cpuid(0x80000001uL, 0, 0, 0, &edx);
-			_cpu_feature[1] = (unsigned long)edx;
+			_cpu_feature[1] = (unsigned int)edx;
 		}
+		#ifdef __amd64__
+		_cpu_feature[0] |= (1 << X86_FEATURE_MMX);
+		_cpu_feature[0] |= (1 << X86_FEATURE_XMM);
+		#endif
 	}
 }
 
@@ -300,10 +370,7 @@ void _x86_choose_blitter(void)
 	}
 	if (X86_FEATURE(X86_FEATURE_MMX)) {
 		if (X86_FEATURE(X86_FEATURE_XMM)) {
-			if (X86_FEATURE(X86_FEATURE_XMM2))
-				ibitmap_funcset(1, (void*)iblit_mask_xmm);
-			else
-				ibitmap_funcset(1, (void*)iblit_mask_mix);
+			ibitmap_funcset(1, (void*)iblit_mask_mix);
 		}	else {
 			ibitmap_funcset(1, (void*)iblit_mask_mmx);
 		}
@@ -318,15 +385,18 @@ void _x86_choose_blitter(void)
 int iblit_386(char *dst, long pitch1, const char *src, 
 	int w, int h, long pitch2, int pixelbyte, long linesize)
 {
-	long linebytes = linesize;
-	long c1, c2;
+	volatile ilong linebytes = linesize;
+	volatile ilong hh = h;
+	volatile ilong c1, c2;
 
 	if (pixelbyte == 1) linebytes = w;
 	c1 = pitch1 - linesize;
 	c2 = pitch2 - linesize;
 
 	#ifdef __INLINEGNU__
-	__asm__ __volatile__ ("\n"
+	{
+		#ifndef __amd64__
+		__asm__ __volatile__ ("\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
 		"	movl %2, %%edi\n"
@@ -334,8 +404,7 @@ int iblit_386(char *dst, long pitch1, const char *src,
 		"	movl %4, %%ebx\n"
 		"	movl %5, %%edx\n"
 		"	cld\n"
-		__ALIGNC__
-		".blit_386n_loopline:\n"
+		"1:\n"
 		"	movl %%eax, %%ecx\n"
 		"	shrl $2, %%ecx\n"
 		"	rep movsl\n"
@@ -345,13 +414,55 @@ int iblit_386(char *dst, long pitch1, const char *src,
 		"	addl %%ebx, %%edi\n"
 		"	addl %%edx, %%esi\n"
 		"	decl %0\n"
-		"	jnz .blit_386n_loopline\n"
+		"	jnz 1b\n"
 			ASM_ENDUP
-		:"=m"(h)
+		:"=m"(hh)
 		:"m"(src), "m"(dst), "m"(linebytes), "m"(c1), "m"(c2)
 		:"memory", ASM_REGS);
+		#else
+		volatile iulong x1, x2, x3, x4, x5, x6;
+		volatile const char *ss = src;
+		volatile char *dd = dst;
+		__asm__ __volatile__ ("\n"
+			ASM_BEGIN
+		"	movq %%rax, %0\n"
+		"	movq %%rbx, %1\n"
+		"	movq %%rcx, %2\n"
+		"	movq %%rdx, %3\n"
+		"	movq %%rsi, %4\n"
+		"	movq %%rdi, %5\n"
+		"	movq %7, %%rsi\n"
+		"	movq %8, %%rdi\n"
+		"	movq %9, %%rax\n"
+		"	movq %10, %%rbx\n"
+		"	movq %11, %%rdx\n"
+		"	cld\n"
+		"1:\n"
+		"	movq %%rax, %%rcx\n"
+		"	shrq $3, %%rcx\n"
+		"	rep movsq\n"
+		"	movq %%rax, %%rcx\n"
+		"	andq $7, %%rcx\n"
+		"	rep movsb\n"
+		"	addq %%rbx, %%rdi\n"
+		"	addq %%rdx, %%rsi\n"
+		"	decq %6\n"
+		"	jnz 1b\n"
+		"	movq %0, %%rax\n"
+		"	movq %1, %%rbx\n"
+		"	movq %2, %%rcx\n"
+		"	movq %3, %%rdx\n"
+		"	movq %4, %%rsi\n"
+		"	movq %5, %%rdi\n"
+			ASM_ENDUP
+		:"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
+		:"m"(ss), "m"(dd), "m"(linebytes), "m"(c1), "m"(c2)
+		:"memory", ASM_REGS);
+		#endif
+	}
 	#elif defined(__INLINEMSC__)
 	_asm {
+	#ifndef __amd64__
 		mov esi, src
 		mov edi, dst
 		mov eax, linebytes
@@ -367,7 +478,24 @@ int iblit_386(char *dst, long pitch1, const char *src,
 		rep movsb
 		add edi, ebx
 		add esi, edx
-		dec h
+	#else
+		mov rsi, src
+		mov rdi, dst
+		mov rax, linebytes
+		mov rbx, c1
+		mov rdx, c2
+		cld
+	blit_386n_loopline:
+		mov rcx, rax
+		shr rcx, 3
+		rep movsq
+		mov rcx, rax
+		and rcx, 7
+		rep movsb
+		add rdi, rbx
+		add rsi, rdx
+	#endif
+		dec hh
 		jnz blit_386n_loopline
 	}
 	#else
@@ -389,7 +517,8 @@ int iblit_386(char *dst, long pitch1, const char *src,
 int iblit_mmx(char *dst, long pitch1, const char *src, 
 	int w, int h, long pitch2, int pixelbyte, long linesize)
 {
-	long c1, c2, m, n1, n2;
+	volatile ilong c1, c2, m, n1, n2;
+	volatile ilong hh = h;
 
 	if (pixelbyte == 1) linesize = w;
 
@@ -400,7 +529,9 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 	n2 = (linesize & 63) & 3;
 
 #if defined(__INLINEGNU__)
-	__asm__ __volatile__ ( "\n"
+	{
+	#ifndef __amd64__
+		__asm__ __volatile__ ( "\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
 		"	movl %2, %%edi\n"
@@ -408,13 +539,11 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 		"	movl %4, %%ebx\n"
 		"	movl %5, %%edx\n"
 		"	cld\n"
-		__ALIGNC__
-		".mmxn_loopline:\n"
+		"1:\n"
 		"	movl %%eax, %%ecx\n"
 		"	testl %%eax, %%eax\n"
-		"	jz .mmxn_last\n"
-		__ALIGNC__
-		".mmxn_looppixel:\n"
+		"	jz 3f\n"
+		"2:\n"
 		"	movq 0(%%esi), %%mm0\n"
 		"	movq 8(%%esi), %%mm1\n"
 		"	movq 16(%%esi), %%mm2\n"
@@ -434,9 +563,8 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 		"	addl $64, %%esi\n"
 		"	addl $64, %%edi\n"
 		"	decl %%ecx\n"
-		"	jnz .mmxn_looppixel\n"
-		__ALIGNC__
-		".mmxn_last:\n"
+		"	jnz 2b\n"
+		"3:\n"
 		"	movl %%ebx, %%ecx\n"
 		"	rep movsl\n"
 		"	movl %%edx, %%ecx\n"
@@ -444,27 +572,91 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 		"	addl %6, %%edi\n"
 		"	addl %7, %%esi\n"
 		"	decl %0\n"
-		"	jnz .mmxn_loopline\n"
+		"	jnz 1b\n"
 		"	emms\n"
 			ASM_ENDUP
-		:"=m"(h)
-		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2),"m"(h)
+		:"=m"(hh)
+		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
 		:"memory", ASM_REGS);
+	#else
+		volatile iulong x1, x2, x3, x4, x5, x6;
+		volatile const char *ss = src;
+		volatile char *dd = dst;
+		__asm__ __volatile__ ( "\n"
+			ASM_BEGIN
+		"	movq %%rax, %0\n"
+		"	movq %%rbx, %1\n"
+		"	movq %%rcx, %2\n"
+		"	movq %%rdx, %3\n"
+		"	movq %%rsi, %4\n"
+		"	movq %%rdi, %5\n"
+		"	mov %7, %%rsi\n"
+		"	mov %8, %%rdi\n"
+		"	mov %9, %%rax\n"
+		"	mov %10, %%rbx\n"
+		"	mov %11, %%rdx\n"
+		"	cld\n"
+		"1:\n"
+		"	mov %%rax, %%rcx\n"
+		"	test %%rax, %%rax\n"
+		"	jz 3f\n"
+		"2:\n"
+		"	movq 0(%%rsi), %%mm0\n"
+		"	movq 8(%%rsi), %%mm1\n"
+		"	movq 16(%%rsi), %%mm2\n"
+		"	movq 24(%%rsi), %%mm3\n"
+		"	movq 32(%%rsi), %%mm4\n"
+		"	movq 40(%%rsi), %%mm5\n"
+		"	movq 48(%%rsi), %%mm6\n"
+		"	movq 56(%%rsi), %%mm7\n"
+		"	movq %%mm0, 0(%%rdi)\n"
+		"	movq %%mm1, 8(%%rdi)\n"
+		"	movq %%mm2, 16(%%rdi)\n"
+		"	movq %%mm3, 24(%%rdi)\n"
+		"	movq %%mm4, 32(%%rdi)\n"
+		"	movq %%mm5, 40(%%rdi)\n"
+		"	movq %%mm6, 48(%%rdi)\n"
+		"	movq %%mm7, 56(%%rdi)\n"
+		"	add $64, %%rsi\n"
+		"	add $64, %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz 2b\n"
+		"3:\n"
+		"	mov %%rbx, %%rcx\n"
+		"	rep movsl\n"
+		"	mov %%rdx, %%rcx\n"
+		"	rep movsb\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	decq %6\n"
+		"	jnz 1b\n"
+		"	emms\n"
+		"	movq %0, %%rax\n"
+		"	movq %1, %%rbx\n"
+		"	movq %2, %%rcx\n"
+		"	movq %3, %%rdx\n"
+		"	movq %4, %%rsi\n"
+		"	movq %5, %%rdi\n"
+			ASM_ENDUP
+		:"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
+		:"m"(ss),"m"(dd),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
+		:"memory", ASM_REGS);
+	#endif
+	}
 
 #elif defined(__INLINEMSC__)
 	_asm {
+	#ifndef __amd64__
 		mov esi, src
 		mov edi, dst
 		mov eax, m
 		mov ebx, n1
 		mov edx, n2
 		cld
-	__ALIGNC__
 	loop_line:
 		mov ecx, eax
 		test eax, eax
 		jz jmp_next
-	__ALIGNC__
 	loop_pixel:
 		movq mm0, [esi + 0]
 		movq mm1, [esi + 8]
@@ -486,7 +678,6 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 		add edi, 64
 		dec ecx
 		jnz loop_pixel
-	__ALIGNC__
 	jmp_next:
 		mov ecx, ebx
 		rep movsd
@@ -494,7 +685,47 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 		rep movsb
 		add edi, c1
 		add esi, c2
-		dec h
+	#else
+		mov rsi, src
+		mov rdi, dst
+		mov rax, m
+		mov rbx, n1
+		mov rdx, n2
+		cld
+	loop_line:
+		mov rcx, rax
+		test rax, rax
+		jz jmp_next
+	loop_pixel:
+		movq mm0, [rsi + 0]
+		movq mm1, [rsi + 8]
+		movq mm2, [rsi + 16]
+		movq mm3, [rsi + 24]
+		movq mm4, [rsi + 32]
+		movq mm5, [rsi + 40]
+		movq mm6, [rsi + 48]
+		movq mm7, [rsi + 56]
+		movq [rdi + 0], mm0
+		movq [rdi + 8], mm1
+		movq [rdi + 16], mm2
+		movq [rdi + 24], mm3
+		movq [rdi + 32], mm4
+		movq [rdi + 40], mm5
+		movq [rdi + 48], mm6
+		movq [rdi + 56], mm7
+		add rsi, 64
+		add rdi, 64
+		dec rcx
+		jnz loop_pixel
+	jmp_next:
+		mov rcx, rbx
+		rep movsd
+		mov rcx, rdx
+		rep movsb
+		add rdi, c1
+		add rsi, c2
+	#endif
+		dec hh
 		jnz loop_line
 		emms
 	}
@@ -514,7 +745,8 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 int iblit_sse(char *dst, long pitch1, const char *src, 
 	int w, int h, long pitch2, int pixelbyte, long linesize)
 {
-	long c1, c2, m, n1, n2;
+	volatile ilong c1, c2, m, n1, n2;
+	volatile ilong hh = (ilong)h;
 
 	if (pixelbyte == 1) linesize = w;
 	c1 = pitch1 - linesize;
@@ -524,7 +756,9 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 	n2 = (linesize & 63) & 3;
 
 #if defined(__INLINEGNU__)
-	__asm__ __volatile__ ( "\n"
+	{
+	#ifndef __amd64__
+		__asm__ __volatile__ ( "\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
 		"	movl %2, %%edi\n"
@@ -534,7 +768,6 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 			mm_prefetch_esi_n(0)
 		"	shll $3, %%eax\n"
 		"	cld\n"
-		__ALIGNC__
 		".ssen_loop_line:\n"
 			mm_prefetch_esi_n(32)
 		"	movl %%eax, %%ecx\n"
@@ -544,7 +777,6 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 		"	testl %%eax, %%eax\n"
 		"	jz .ssen_next\n"
 			mm_prefetch_esi_8cx_n(0)
-		__ALIGNC__
 		".ssen_loop_pixel:\n"
 			mm_prefetch_esi_8cx_n(256)
 		"	movq 0(%%esi, %%ecx, 8), %%mm0\n"
@@ -567,7 +799,6 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 		"	addl $8, %%ecx\n"
 			mm_prefetch_esi_8cx_n(64)
 		"	jnz .ssen_loop_pixel\n"
-		__ALIGNC__
 		".ssen_next:\n"
 			mm_prefetch_esi_n(0)
 		"	movl %%ebx, %%ecx\n"
@@ -582,11 +813,88 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 			mm_sfence
 		"	emms\n"
 			ASM_ENDUP
-		:"=m"(h)
-		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2),"m"(h)
+		:"=m"(hh)
+		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
 		:"memory", ASM_REGS);
-	#elif defined(__INLINEMSC__)
+		#else
+		volatile iulong x1, x2, x3, x4, x5, x6;
+		volatile const char *ss = src;
+		volatile char *dd = dst;
+		__asm__ __volatile__ ( "\n"
+			ASM_BEGIN
+		"	movq %%rax, %0\n"
+		"	movq %%rbx, %1\n"
+		"	movq %%rcx, %2\n"
+		"	movq %%rdx, %3\n"
+		"	movq %%rsi, %4\n"
+		"	movq %%rdi, %5\n"
+		"	mov %7, %%rsi\n"
+		"	mov %8, %%rdi\n"
+		"	mov %9, %%rax\n"
+		"	mov %10, %%rbx\n"
+		"	mov %11, %%rdx\n"
+		"	prefetchnta (%%rsi)\n"
+		"	shl $3, %%rax\n"
+		"	cld\n"
+		".ssen_loop_line:\n"
+		"	prefetchnta 32(%%esi)\n"
+		"	mov %%rax, %%rcx\n"
+		"	neg %%rcx\n"
+		"	lea 0(%%rsi, %%rax, 8), %%rsi\n"
+		"	lea 0(%%rdi, %%rax, 8), %%rdi\n"
+		"	test %%rax, %%rax\n"
+		"	jz .ssen_next\n"
+		"	prefetchnta (%%rsi, %%rcx, 8)\n"
+		".ssen_loop_pixel:\n"
+		"	prefetchnta 256(%%rsi, %%rcx, 8)\n"
+		"	movq 0(%%rsi, %%rcx, 8), %%mm0\n"
+		"	movq 8(%%rsi, %%rcx, 8), %%mm1\n"
+		"	movq 16(%%rsi, %%rcx, 8), %%mm2\n"
+		"	movq 24(%%rsi, %%rcx, 8), %%mm3\n"
+		"	movq 32(%%rsi, %%rcx, 8), %%mm4\n"
+		"	movq 40(%%rsi, %%rcx, 8), %%mm5\n"
+		"	movq 48(%%rsi, %%rcx, 8), %%mm6\n"
+		"	movq 56(%%rsi, %%rcx, 8), %%mm7\n"
+		"	prefetchnta 128(%%rsi, %%rcx, 8)\n"
+		"	movntq %%mm0, 0(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm1, 8(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm2, 16(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm3, 24(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm4, 32(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm5, 40(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm6, 48(%%rdi, %%rcx, 8)\n"
+		"	movntq %%mm7, 56(%%rdi, %%rcx, 8)\n"
+		"	add $8, %%rcx\n"
+		"	prefetchnta 64(%%rsi, %%rcx, 8)\n"
+		"	jnz .ssen_loop_pixel\n"
+		".ssen_next:\n"
+		"	prefetchnta 0(%%rsi)\n"
+		"	mov %%rbx, %%rcx\n"
+		"	rep movsl\n"
+		"	mov %%rdx, %%rcx\n"
+		"	rep movsb\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	prefetchnta 0(%%rsi)\n"
+		"	decq %6\n"
+		"	jnz .ssen_loop_line\n"
+		"	sfence\n"
+		"	emms\n"
+		"	movq %0, %%rax\n"
+		"	movq %1, %%rbx\n"
+		"	movq %2, %%rcx\n"
+		"	movq %3, %%rdx\n"
+		"	movq %4, %%rsi\n"
+		"	movq %5, %%rdi\n"
+			ASM_ENDUP
+		:"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
+		:"m"(ss),"m"(dd),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
+		:"memory", ASM_REGS);
+	#endif
+	}
+#elif defined(__INLINEMSC__)
 	_asm {
+	#ifndef __amd64__
 		mov esi, src
 		mov edi, dst
 		mm_prefetch_esi_n(64)
@@ -598,7 +906,6 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 		mov ebx, n1
 		mov edx, n2
 		cld
-	__ALIGNC__
 	ssen_loop_line:
 		mm_prefetch_esi
 		mm_prefetch_esi_n(64)
@@ -610,7 +917,6 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 		lea edi, [edi + eax * 8]
 		test eax, eax
 		jz ssen_jmp_next
-	__ALIGNC__
 	ssen_loop_pixel:
 		mm_prefetch_esi_8cx_n(256)
 		mm_prefetch_esi_8cx_n(128)
@@ -632,7 +938,6 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 		mm_movntq_edi_8cx_56_m7 
 		add ecx, 8
 		jnz ssen_loop_pixel
-	__ALIGNC__
 	ssen_jmp_next:
 		mm_prefetch_esi
 		mov ecx, ebx
@@ -642,7 +947,61 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 		add edi, c1
 		add esi, c2
 		mm_prefetch_esi
-		dec h
+	#else
+		mov rsi, src
+		mov rdi, dst
+		prefetchnta [rsi + 64]
+		prefetchnta [rdi + 64]
+		prefetchnta [rsi]
+		prefetchnta [rdi]
+		mov rax, m
+		shl rax, 3
+		mov rbx, n1
+		mov rdx, n2
+		cld
+	ssen_loop_line:
+		prefetchnta [rsi]
+		prefetchnta [rsi + 64]
+		prefetchnta [rsi + 128]
+		prefetchnta [rsi + 192]
+		mov rcx, rax
+		neg rcx
+		lea rsi, [rsi + rax * 8]
+		lea rdi, [rdi + rax * 8]
+		test rax, rax
+		jz ssen_jmp_next
+	ssen_loop_pixel:
+		prefetchnta [rsi + rcx * 8 + 256]
+		prefetchnta [rsi + rcx * 8 + 128]
+		movq mm0, [rsi + rcx * 8 +  0]
+		movq mm1, [rsi + rcx * 8 +  8]
+		movq mm2, [rsi + rcx * 8 + 16]
+		movq mm3, [rsi + rcx * 8 + 24]
+		movq mm4, [rsi + rcx * 8 + 32]
+		movq mm5, [rsi + rcx * 8 + 40]
+		movq mm6, [rsi + rcx * 8 + 48]
+		movq mm7, [rsi + rcx * 8 + 56]
+		movntq [rdi + rcx * 8 +  0], mm0
+		movntq [rdi + rcx * 8 +  8], mm1
+		movntq [rdi + rcx * 8 + 16], mm2
+		movntq [rdi + rcx * 8 + 24], mm3
+		movntq [rdi + rcx * 8 + 32], mm4
+		movntq [rdi + rcx * 8 + 40], mm5
+		movntq [rdi + rcx * 8 + 48], mm6
+		movntq [rdi + rcx * 8 + 56], mm7
+		add rcx, 8
+		jnz ssen_loop_pixel
+	ssen_jmp_next:
+		prefetchnta [rsi]
+		mov rcx, rbx
+		rep movsd
+		mov rcx, rdx
+		rep movsb
+		add rdi, c1
+		add rsi, c2
+		prefetchnta [rsi]
+	#endif
+		dec hh
 		jnz ssen_loop_line
 		mm_sfence
 		emms
@@ -662,7 +1021,8 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 int iblit_mix(char *dst, long pitch1, const char *src, 
 	int w, int h, long pitch2, int pixelbyte, long linesize)
 {
-	long c1, c2, m, n1, n2;
+	volatile ilong c1, c2, m, n1, n2;
+	volatile ilong hh = (ilong)h;
 
 	if (pixelbyte == 1) linesize = w;
 
@@ -673,7 +1033,9 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 	n2 = (linesize & 63) & 3;
 
 #if defined(__INLINEGNU__)
-	__asm__ __volatile__ ( "\n"
+	{
+	#ifndef __amd64__
+		__asm__ __volatile__ ( "\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
 		"	movl %2, %%edi\n"
@@ -681,12 +1043,10 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 		"	movl %4, %%ebx\n"
 		"	movl %5, %%edx\n"
 		"	cld\n"
-		__ALIGNC__
 		".mixn_loopline:\n"
 		"	movl %%eax, %%ecx\n"
 		"	testl %%eax, %%eax\n"
 		"	jz .mixn_last\n"
-		__ALIGNC__
 		".mixn_looppixel:\n"
 			mm_prefetch_esi_n(512)
 		"	movq 0(%%esi), %%mm0\n"
@@ -709,7 +1069,6 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 		"	addl $64, %%edi\n"
 		"	decl %%ecx\n"
 		"	jnz .mixn_looppixel\n"
-		__ALIGNC__
 		".mixn_last:\n"
 		"	movl %%ebx, %%ecx\n"
 		"	rep movsl\n"
@@ -722,24 +1081,89 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 		"	jnz .mixn_loopline\n"
 		"	emms\n"
 			ASM_ENDUP
-		:"=m"(h)
-		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2),"m"(h)
+		:"=m"(hh)
+		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
 		:"memory", ASM_REGS);
-
+		#else
+		volatile iulong x1, x2, x3, x4, x5, x6;
+		volatile const char *ss = src;
+		volatile char *dd = dst;
+		__asm__ __volatile__ ( "\n"
+			ASM_BEGIN
+		"	movq %%rax, %0\n"
+		"	movq %%rbx, %1\n"
+		"	movq %%rcx, %2\n"
+		"	movq %%rdx, %3\n"
+		"	movq %%rsi, %4\n"
+		"	movq %%rdi, %5\n"
+		"	mov %7, %%rsi\n"
+		"	mov %8, %%rdi\n"
+		"	mov %9, %%rax\n"
+		"	mov %10, %%rbx\n"
+		"	mov %11, %%rdx\n"
+		"	cld\n"
+		".mixn_loopline:\n"
+		"	mov %%rax, %%rcx\n"
+		"	test %%rax, %%rax\n"
+		"	jz .mixn_last\n"
+		".mixn_looppixel:\n"
+		"	prefetchnta 512(%%rsi)\n"
+		"	movq 0(%%rsi), %%mm0\n"
+		"	movq 8(%%rsi), %%mm1\n"
+		"	movq 16(%%rsi), %%mm2\n"
+		"	movq 24(%%rsi), %%mm3\n"
+		"	movq 32(%%rsi), %%mm4\n"
+		"	movq 40(%%rsi), %%mm5\n"
+		"	movq 48(%%rsi), %%mm6\n"
+		"	movq 56(%%rsi), %%mm7\n"
+		"	movq %%mm0, 0(%%rdi)\n"
+		"	movq %%mm1, 8(%%rdi)\n"
+		"	movq %%mm2, 16(%%rdi)\n"
+		"	movq %%mm3, 24(%%rdi)\n"
+		"	movq %%mm4, 32(%%rdi)\n"
+		"	movq %%mm5, 40(%%rdi)\n"
+		"	movq %%mm6, 48(%%rdi)\n"
+		"	movq %%mm7, 56(%%rdi)\n"
+		"	add $64, %%rsi\n"
+		"	add $64, %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz .mixn_looppixel\n"
+		".mixn_last:\n"
+		"	mov %%rbx, %%rcx\n"
+		"	rep movsl\n"
+		"	mov %%rdx, %%rcx\n"
+		"	rep movsb\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	prefetchnta 64(%%rsi)\n"
+		"	decq %6\n"
+		"	jnz .mixn_loopline\n"
+		"	emms\n"
+		"	movq %0, %%rax\n"
+		"	movq %1, %%rbx\n"
+		"	movq %2, %%rcx\n"
+		"	movq %3, %%rdx\n"
+		"	movq %4, %%rsi\n"
+		"	movq %5, %%rdi\n"
+			ASM_ENDUP
+		:"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
+		:"m"(ss),"m"(dd),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
+		:"memory", ASM_REGS);
+		#endif
+	}
 #elif defined(__INLINEMSC__)
 	_asm {
+	#ifndef __amd64__
 		mov esi, src
 		mov edi, dst
 		mov eax, m
 		mov ebx, n1
 		mov edx, n2
 		cld
-	__ALIGNC__
 	mixn_loop_line:
 		mov ecx, eax
 		test eax, eax
 		jz mixn_jmp_next
-	__ALIGNC__
 	mixn_loop_pixel:
 		mm_prefetch_esi_n(512)
 		movq mm0, [esi + 0]
@@ -762,7 +1186,6 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 		add edi, 64
 		dec ecx
 		jnz mixn_loop_pixel
-	__ALIGNC__
 	mixn_jmp_next:
 		mov ecx, ebx
 		rep movsd
@@ -771,7 +1194,49 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 		add edi, c1
 		add esi, c2
 		mm_prefetch_esi_n(64)
-		dec h
+	#else
+		mov rsi, src
+		mov rdi, dst
+		mov rax, m
+		mov rbx, n1
+		mov rdx, n2
+		cld
+	mixn_loop_line:
+		mov rcx, rax
+		test rax, rax
+		jz mixn_jmp_next
+	mixn_loop_pixel:
+		prefetchnta [rsi + 512]
+		movq mm0, [rsi + 0]
+		movq mm1, [rsi + 8]
+		movq mm2, [rsi + 16]
+		movq mm3, [rsi + 24]
+		movq mm4, [rsi + 32]
+		movq mm5, [rsi + 40]
+		movq mm6, [rsi + 48]
+		movq mm7, [rsi + 56]
+		movq [rdi + 0], mm0
+		movq [rdi + 8], mm1
+		movq [rdi + 16], mm2
+		movq [rdi + 24], mm3
+		movq [rdi + 32], mm4
+		movq [rdi + 40], mm5
+		movq [rdi + 48], mm6
+		movq [rdi + 56], mm7
+		add rsi, 64
+		add rdi, 64
+		dec rcx
+		jnz mixn_loop_pixel
+	mixn_jmp_next:
+		mov rcx, rbx
+		rep movsd
+		mov rcx, rdx
+		rep movsb
+		add rdi, c1
+		add rsi, c2
+		prefetchnta [rsi + 64]
+	#endif
+		dec hh
 		jnz mixn_loop_line
 		emms
 	}
@@ -791,9 +1256,10 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h, 
 		long pitch2, int pixelbyte, long linesize, unsigned long ckey)
 {
-	long linebytes = linesize;
-	long c1, c2, m, n, pb;
-	unsigned long mask;
+	volatile ilong linebytes = linesize;
+	volatile ilong c1, c2, m, n, pb;
+	volatile ilong hh = h;
+	volatile iulong mask;
 
 	switch (pixelbyte) {
 	case 1:
@@ -832,7 +1298,9 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 	pb = pixelbyte;
 
 #if defined(__INLINEGNU__)
-	__asm__ __volatile__ ("\n"
+	{
+	#ifndef __amd64__
+		__asm__ __volatile__ ("\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
 		"	movl %2, %%edi\n"
@@ -855,7 +1323,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		"	movl %4, %%ecx\n"
 		"	testl %%ecx, %%ecx\n"
 		"	jz bmaskmmx8_last\n"
-		__ALIGNC__
 		"bmaskmmx8_looppixel:\n"
 		"	movq 0(%%esi), %%mm0\n"
 		"	movq 8(%%esi), %%mm4\n"
@@ -902,7 +1369,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		"	movl %4, %%ecx\n"
 		"	testl %%ecx, %%ecx\n"
 		"	jz bmaskmmx16_last\n"
-		__ALIGNC__
 		"bmaskmmx16_looppixel:\n"
 		"	movq 0(%%esi), %%mm0\n"
 		"	movq 8(%%esi), %%mm4\n"
@@ -949,7 +1415,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		"	movl %4, %%ecx\n"
 		"	testl %%ecx, %%ecx\n"
 		"	jz bmaskmmx32_last\n"
-		__ALIGNC__
 		"bmaskmmx32_looppixel:\n"
 		"	movq 0(%%esi), %%mm0\n"
 		"	movq 8(%%esi), %%mm4\n"
@@ -1023,10 +1488,218 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		"bmaskmmx_endup:\n"
 		"	emms\n"
 			ASM_ENDUP
-		:"=m"(h)
+		:"=m"(hh)
 		:"m"(src),"m"(dst),"m"(mask),"m"(m),"m"(n),"m"(c1),"m"(c2),"m"(pb)
 		:"memory", ASM_REGS);
-
+	#else
+		volatile iulong x1, x2, x3, x4, x5, x6;
+		volatile const char *ss = src;
+		volatile char *dd = dst;
+		__asm__ __volatile__ ("\n"
+			ASM_BEGIN
+		"	movq %%rax, %0\n"
+		"	movq %%rbx, %1\n"
+		"	movq %%rcx, %2\n"
+		"	movq %%rdx, %3\n"
+		"	movq %%rsi, %4\n"
+		"	movq %%rdi, %5\n"
+		"	mov %7, %%rsi\n"
+		"	mov %8, %%rdi\n"
+		"	movq %9, %%mm7\n"
+		"	movq %9, %%mm6\n"
+		"	mov %9, %%rbx\n"
+		"	psllq $32, %%mm7\n"
+		"	por %%mm6, %%mm7\n"
+		"	cld\n"
+		"	mov %14, %%rax\n"
+		"	cmp $2, %%eax\n"
+		"	jz bmaskmmx16_loopline\n"
+		"	cmp $4, %%eax\n"
+		"	jz bmaskmmx32_loopline\n"
+		"	cmp $1, %%eax\n"
+		"	jz bmaskmmx8_loopline\n"
+		"	jmp bmaskmmx24_loopline\n"
+		__ALIGNC__		/* bmaskmmx8_loopline */
+		"bmaskmmx8_loopline:\n"
+		"	mov %10, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx8_last\n"
+		"bmaskmmx8_looppixel:\n"
+		"	movq 0(%%rsi), %%mm0\n"
+		"	movq 8(%%rsi), %%mm4\n"
+		"	movq %%mm0, %%mm1\n"
+		"	movq %%mm4, %%mm5\n"
+		"	pcmpeqb %%mm7, %%mm0\n"
+		"	pcmpeqb %%mm7, %%mm4\n"
+		"	add $16, %%rsi\n"
+		"	add $16, %%rdi\n"
+		"	movq %%mm0, %%mm2\n"
+		"	movq %%mm4, %%mm6\n"
+		"	pandn %%mm1, %%mm0\n"
+		"	pandn %%mm5, %%mm4\n"
+		"	pand -16(%%rdi), %%mm2\n"
+		"	pand -8(%%rdi), %%mm6\n"
+		"	por %%mm0, %%mm2\n"
+		"	por %%mm4, %%mm6\n"
+		"	movq %%mm2, -16(%%rdi)\n"
+		"	movq %%mm6, -8(%%rdi)\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx8_looppixel\n"
+		"bmaskmmx8_last:\n"
+		"	mov %11, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx8_linend\n"
+		"	movd %%mm7, %%ebx\n"
+		"bmaskmmx8_l2:\n"
+		"	lodsb\n"
+		"	cmpb %%al, %%bl\n"
+		"	jz bmaskmmx8_l3\n"
+		"	movb %%al, (%%rdi)\n"
+		"bmaskmmx8_l3:\n"
+		"	inc %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx8_l2\n"
+		"bmaskmmx8_linend:\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	decq %6\n"
+		"	jnz bmaskmmx8_loopline\n"
+		"	jmp bmaskmmx_endup\n"
+		__ALIGNC__		/* bmaskmmx16_loopline */
+		"bmaskmmx16_loopline:\n"
+		"	mov %10, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx16_last\n"
+		"bmaskmmx16_looppixel:\n"
+		"	movq 0(%%rsi), %%mm0\n"
+		"	movq 8(%%rsi), %%mm4\n"
+		"	movq %%mm0, %%mm1\n"
+		"	movq %%mm4, %%mm5\n"
+		"	pcmpeqw %%mm7, %%mm0\n"
+		"	pcmpeqw %%mm7, %%mm4\n"
+		"	add $16, %%rsi\n"
+		"	add $16, %%rdi\n"
+		"	movq %%mm0, %%mm2\n"
+		"	movq %%mm4, %%mm6\n"
+		"	pandn %%mm1, %%mm0\n"
+		"	pandn %%mm5, %%mm4\n"
+		"	pand -16(%%rdi), %%mm2\n"
+		"	pand -8(%%rdi), %%mm6\n"
+		"	por %%mm0, %%mm2\n"
+		"	por %%mm4, %%mm6\n"
+		"	movq %%mm2, -16(%%rdi)\n"
+		"	movq %%mm6, -8(%%rdi)\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx16_looppixel\n"
+		"bmaskmmx16_last:\n"
+		"	mov %11, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx16_linend\n"
+		"	movd %%mm7, %%ebx\n"
+		"bmaskmmx16_l2:\n"
+		"	lodsw\n"
+		"	cmpw %%ax, %%bx\n"
+		"	jz bmaskmmx16_l3\n"
+		"	movw %%ax, (%%rdi)\n"
+		"bmaskmmx16_l3:\n"
+		"	add $2, %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx16_l2\n"
+		"bmaskmmx16_linend:\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	decq %6\n"
+		"	jnz bmaskmmx16_loopline\n"
+		"	jmp bmaskmmx_endup\n"
+		__ALIGNC__		/* bmaskmmx32_loopline */
+		"bmaskmmx32_loopline:\n"
+		"	mov %10, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx32_last\n"
+		"bmaskmmx32_looppixel:\n"
+		"	movq 0(%%rsi), %%mm0\n"
+		"	movq 8(%%rsi), %%mm4\n"
+		"	movq %%mm0, %%mm1\n"
+		"	movq %%mm4, %%mm5\n"
+		"	pcmpeqd %%mm7, %%mm0\n"
+		"	pcmpeqd %%mm7, %%mm4\n"
+		"	add $16, %%rsi\n"
+		"	add $16, %%rdi\n"
+		"	movq %%mm0, %%mm2\n"
+		"	movq %%mm4, %%mm6\n"
+		"	pandn %%mm1, %%mm0\n"
+		"	pandn %%mm5, %%mm4\n"
+		"	pand -16(%%rdi), %%mm2\n"
+		"	pand -8(%%rdi), %%mm6\n"
+		"	por %%mm0, %%mm2\n"
+		"	por %%mm4, %%mm6\n"
+		"	movq %%mm2, -16(%%rdi)\n"
+		"	movq %%mm6, -8(%%rdi)\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx32_looppixel\n"
+		"bmaskmmx32_last:\n"
+		"	mov %11, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx32_linend\n"
+		"	movd %%mm7, %%ebx\n"
+		"bmaskmmx32_l2:\n"
+		"	lodsl\n"
+		"	cmpl %%eax, %%ebx\n"
+		"	jz bmaskmmx32_l3\n"
+		"	movl %%eax, (%%rdi)\n"
+		"bmaskmmx32_l3:\n"
+		"	add $4, %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx32_l2\n"
+		"bmaskmmx32_linend:\n"
+		"	addq %12, %%rdi\n"
+		"	addq %13, %%rsi\n"
+		"	decq %6\n"
+		"	jnz bmaskmmx32_loopline\n"
+		"	jmp bmaskmmx_endup\n"
+		__ALIGNC__		/* bmaskmmx24_loopline */
+		"bmaskmmx24_loopline:\n"
+		"	mov %11, %%rcx\n"
+		"	test %%rcx, %%rcx\n"
+		"	jz bmaskmmx24_linend\n"
+		"	and $0xffffff, %%rbx\n"
+		"bmaskmmx24_looppixel:\n"
+		"	movb 2(%%rsi), %%al\n"
+		"	movw 0(%%rsi), %%dx\n"
+		"	shll $16, %%eax\n"
+		"	add $3, %%rsi\n"
+		"	movw %%dx, %%ax\n"
+		"	and $0xffffff, %%eax\n"
+		"	cmpl %%ebx, %%eax\n"
+		"	jz bmaskmmx24_skip\n"
+		"	movw %%ax, (%%rdi)\n"
+		"	shrl $16, %%eax\n"
+		"	movb %%al, 2(%%rdi)\n"
+		"bmaskmmx24_skip:\n"
+		"	add $3, %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz bmaskmmx24_looppixel\n"
+		"bmaskmmx24_linend:\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	decq %6\n"
+		"	jnz bmaskmmx24_loopline\n"
+		"	jmp bmaskmmx_endup\n"
+		__ALIGNC__		/* bmaskmmx_endup */
+		"bmaskmmx_endup:\n"
+		"	emms\n"
+		"	movq %0, %%rax\n"
+		"	movq %1, %%rbx\n"
+		"	movq %2, %%rcx\n"
+		"	movq %3, %%rdx\n"
+		"	movq %4, %%rsi\n"
+		"	movq %5, %%rdi\n"
+			ASM_ENDUP
+		:"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
+		:"m"(ss),"m"(dd),"m"(mask),"m"(m),"m"(n),"m"(c1),"m"(c2),"m"(pb)
+		:"memory", ASM_REGS);
+	#endif
+	}
 #elif defined(__INLINEMSC__)
 	_asm {
 		mov esi, src
@@ -1045,7 +1718,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		mov ecx, m
 		test ecx, ecx
 		jz bmaskmmx8_last
-	__ALIGNC__
 	bmaskmmx8_looppixel:
 		movq mm0, [esi + 0]
 		movq mm4, [esi + 8]
@@ -1083,7 +1755,7 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 	bmaskmmx8_linend:
 		add edi, c1
 		add esi, c2
-		dec h
+		dec hh
 		jnz bmaskmmx8_loopline
 	bmaskmmx16_check:
 		mov eax, pb
@@ -1094,7 +1766,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		mov ecx, m
 		test ecx, ecx
 		jz bmaskmmx16_last
-	__ALIGNC__
 	bmaskmmx16_looppixel:
 		movq mm0, [esi + 0]
 		movq mm4, [esi + 8]
@@ -1132,7 +1803,7 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 	bmaskmmx16_linend:
 		add edi, c1
 		add esi, c2
-		dec h
+		dec hh
 		jnz bmaskmmx16_loopline
 	bmaskmmx32_check:
 		mov eax, pb
@@ -1143,7 +1814,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		mov ecx, m
 		test ecx, ecx
 		jz bmaskmmx32_last
-	__ALIGNC__
 	bmaskmmx32_looppixel:
 		movq mm0, [esi + 0]
 		movq mm4, [esi + 8]
@@ -1181,7 +1851,7 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 	bmaskmmx32_linend:
 		add edi, c1
 		add esi, c2
-		dec h
+		dec hh
 		jnz bmaskmmx32_loopline
 		jmp bmaskmmx_endup
 	bmaskmmx24_check:
@@ -1194,7 +1864,6 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		test ecx, ecx
 		jz bmaskmmx24_linend
 		and ebx, 0xffffff
-	__ALIGNC__
 	bmaskmmx24_looppixel:
 		lodsd
 		dec esi
@@ -2128,528 +2797,6 @@ int iblit_mask_mix(char *dst, long pitch1, const char *src, int w, int h,
 	__ALIGNC__
 	bmaskmix_endup:
 		emms
-	}
-#else
-	return -1;
-#endif
-	return 0;
-}
-
-
-//---------------------------------------------------------------------
-// iblit_mask_xmm - mmx & sse mixed mask blitter 
-// this routine is designed to support mmx mask blit
-//---------------------------------------------------------------------
-int iblit_mask_xmm(char *dst, long pitch1, const char *src, int w, int h, 
-		long pitch2, int pixelbyte, long linesize, unsigned long ckey)
-{
-	long linebytes = (long)linesize;
-	long c1, c2, m, n, pb;
-	unsigned long mask;
-
-	switch (pixelbyte) {
-	case 1:
-		m = w >> 5;
-		n = w & 31;
-		mask = (ckey | (ckey << 8)) & 0xffff;
-		mask = mask | (mask << 16);
-		break;
-	case 2: 
-		linebytes = (((long)w) << 1); 
-		m = w >> 4;
-		n = w & 15;
-		mask = ckey | (ckey << 16);
-		break;
-	case 3:
-		linebytes = (((long)w) << 1) + w; 
-		m = 0;
-		n = w;
-		mask = ckey;
-		break;
-	case 4: 
-		linebytes = (((long)w) << 2); 
-		m = w >> 3;
-		n = w & 7;
-		mask = ckey;
-		break;
-	default: 
-		linebytes = -1; 
-		break;
-	}
-
-	if (linebytes < 0) return -1;
-
-	c1 = pitch1 - linebytes;
-	c2 = pitch2 - linebytes;
-	pb = pixelbyte;
-
-#if defined(__INLINEGNU__)
-	__asm__ __volatile__ ("\n"
-			ASM_BEGIN
-		"	movl %1, %%esi\n"
-		"	movl %2, %%edi\n"
-		"	movd %3, %%mm7\n"
-		"	movd %3, %%mm6\n"
-		"	movl %3, %%ebx\n"
-		"	psllq $32, %%mm7\n"
-		"	por %%mm6, %%mm7\n"
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xff)	// movq2dq %mm7, %xmm7
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xf7)	// movq2dq %mm7, %xmm6
-			ASMCODE5(0x66, 0x0f, 0x73, 0xff, 0x08)	// pslldq $8, %xmm7
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xfe)	// por %xmm6, %xmm7
-		"	cld\n"
-		"	movl %8, %%eax\n"
-		"	cmpl $2, %%eax\n"
-		"	jz bmaskxmm16_loopline\n"
-		"	cmpl $4, %%eax\n"
-		"	jz bmaskxmm32_loopline\n"
-		"	cmpl $3, %%eax\n"
-		"	jz bmaskxmm24_loopline\n"
-		"	jmp bmaskxmm8_loopline\n"
-		__ALIGNC__		/* bmaskxmm8_loopline */
-		"bmaskxmm8_loopline:\n"
-		"	movl %4, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm8_last\n"
-		__ALIGNC__
-		"bmaskxmm8_looppixel:\n"
-			ASMCODE4(0xf3, 0x0f, 0x6f, 0x06)	// movdqu xmm0, [esi]
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x66, 0x10)	// movdqu xmm4, [esi+16]
-			mm_prefetch_esi_n(256)				
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xc8)	// movdqa xmm1, xmm0
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xec)	// movdqa xmm5, xmm4
-			ASMCODE4(0x66, 0x0f, 0x74, 0xc7)	// pcmpeqb xmm0, xmm7
-			ASMCODE4(0x66, 0x0f, 0x74, 0xe7)	// pcmpeqb xmm4, xmm7
-		"	addl $32, %%esi\n"
-		"	addl $32, %%edi\n"
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xd0)	// movdqa xmm2, xmm0
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xf4)	// movdqa xmm6, xmm4
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xc1)	// pandn xmm0, xmm1
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xe5)	// pandn xmm4, xmm5
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x4f, 0xe0)	// movdqu xmm1, [edi-32]
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x6f, 0xf0)	// movdqu xmm5, [edi-16]
-			mm_prefetch_esi_n(128)	
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xd1)	// pand xmm2, xmm1
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xf5)	// pand xmm6, xmm5
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xd0)	// por xmm2, xmm0
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xf4)	// por xmm6, xmm4
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x57, 0xe0)	// movdqu [edi-32], xmm2
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x77, 0xf0)	// movdqu [edi-16], xmm6
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm8_looppixel\n"
-		"bmaskxmm8_last:\n"
-		"	movl %5, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm8_linend\n"
-		"	movd %%mm7, %%ebx\n"
-		__ALIGNC__
-		"bmaskxmm8_l2:\n"
-		"	lodsb\n"
-		"	cmpb %%al, %%bl\n"
-		"	jz bmaskxmm8_l3\n"
-		"	movb %%al, (%%edi)\n"
-		__ALIGNC__
-		"bmaskxmm8_l3:\n"
-		"	incl %%edi\n"
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm8_l2\n"
-		__ALIGNC__
-		"bmaskxmm8_linend:\n"
-		"	addl %6, %%edi\n"
-		"	addl %7, %%esi\n"
-		"	decl %0\n"
-		"	jnz bmaskxmm8_loopline\n"
-		"	jmp bmaskxmm_endup\n"
-		__ALIGNC__		/* bmaskxmm16_loopline */
-		"bmaskxmm16_loopline:\n"
-		"	movl %4, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm16_last\n"
-		__ALIGNC__
-		"bmaskxmm16_looppixel:\n"
-			ASMCODE4(0xf3, 0x0f, 0x6f, 0x06)	// movdqu xmm0, [esi]
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x66, 0x10)	// movdqu xmm4, [esi+16]
-			mm_prefetch_esi_n(256)		
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xc8)	// movdqa xmm1, xmm0
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xec)	// movdqa xmm5, xmm4
-			ASMCODE4(0x66, 0x0f, 0x75, 0xc7)	// pcmpeqw xmm0, xmm7
-			ASMCODE4(0x66, 0x0f, 0x75, 0xe7)	// pcmpeqw xmm4, xmm7
-		"	addl $32, %%esi\n"
-		"	addl $32, %%edi\n"
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xd0)	// movdqa xmm2, xmm0
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xf4)	// movdqa xmm6, xmm4
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xc1)	// pandn xmm0, xmm1
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xe5)	// pandn xmm4, xmm5
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x4f, 0xe0)	// movdqu xmm1, [edi-32]
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x6f, 0xf0)	// movdqu xmm5, [edi-16]
-			mm_prefetch_esi_n(128)	
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xd1)	// pand xmm2, xmm1
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xf5)	// pand xmm6, xmm5
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xd0)	// por xmm2, xmm0
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xf4)	// por xmm6, xmm4
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x57, 0xe0)	// movdqu [edi-32], xmm2
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x77, 0xf0)	// movdqu [edi-16], xmm6
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm16_looppixel\n"
-		"bmaskxmm16_last:\n"
-		"	movl %5, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm16_linend\n"
-		"	movd %%mm7, %%ebx\n"
-		__ALIGNC__
-		"bmaskxmm16_l2:\n"
-		"	lodsw\n"
-		"	cmpw %%ax, %%bx\n"
-		"	jz bmaskxmm16_l3\n"
-		"	movw %%ax, (%%edi)\n"
-		__ALIGNC__
-		"bmaskxmm16_l3:\n"
-		"	addl $2, %%edi\n"
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm16_l2\n"
-		__ALIGNC__
-		"bmaskxmm16_linend:\n"
-		"	addl %6, %%edi\n"
-		"	addl %7, %%esi\n"
-		"	decl %0\n"
-		"	jnz bmaskxmm16_loopline\n"
-		"	jmp bmaskxmm_endup\n"
-		__ALIGNC__		/* bmaskxmm32_loopline */
-		"bmaskxmm32_loopline:\n"
-		"	movl %4, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm32_last\n"
-		__ALIGNC__
-		"bmaskxmm32_looppixel:\n"
-			ASMCODE4(0xf3, 0x0f, 0x6f, 0x06)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x66, 0x10)	
-			mm_prefetch_esi_n(256)				
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xc8)	
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xec)	// movdqa xmm5, xmm4
-			ASMCODE4(0x66, 0x0f, 0x76, 0xc7)	// pcmpeqd xmm0, xmm7
-			ASMCODE4(0x66, 0x0f, 0x76, 0xe7)	// pcmpeqd xmm4, xmm7
-		"	addl $32, %%esi\n"
-		"	addl $32, %%edi\n"
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xd0)	// movdqa xmm2, xmm0
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xf4)	// movdqa xmm6, xmm4
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xc1)	// pandn xmm0, xmm1
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xe5)	// pandn xmm4, xmm5
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x4f, 0xe0)	// movdqu xmm1, [edi-32]
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x6f, 0xf0)	// movdqu xmm5, [edi-16]
-			mm_prefetch_esi_n(128)	
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xd1)	// pand xmm2, xmm1
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xf5)	// pand xmm6, xmm5
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xd0)	// por xmm2, xmm0
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xf4)	// por xmm6, xmm4
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x57, 0xe0)	// movdqu [edi-32], xmm2
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x77, 0xf0)	// movdqu [edi-16], xmm6
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm32_looppixel\n"
-		"bmaskxmm32_last:\n"
-		"	movl %5, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm32_linend\n"
-		"	movd %%mm7, %%ebx\n"
-		__ALIGNC__
-		"bmaskxmm32_l2:\n"
-		"	lodsl\n"
-		"	cmpl %%eax, %%ebx\n"
-		"	jz bmaskxmm32_l3\n"
-		"	movl %%eax, (%%edi)\n"
-		__ALIGNC__
-		"bmaskxmm32_l3:\n"
-		"	addl $4, %%edi\n"
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm32_l2\n"
-		__ALIGNC__
-		"bmaskxmm32_linend:\n"
-		"	addl %6, %%edi\n"
-		"	addl %7, %%esi\n"
-		"	decl %0\n"
-		"	jnz bmaskxmm32_loopline\n"
-		"	jmp bmaskxmm_endup\n"
-		__ALIGNC__		/* bmaskxmm24_loopline */
-		"bmaskxmm24_loopline:\n"
-		"	movl %5, %%ecx\n"
-		"	testl %%ecx, %%ecx\n"
-		"	jz bmaskxmm24_linend\n"
-		"	andl $0xffffff, %%ebx\n"
-		"bmaskxmm24_looppixel:\n"
-		"	movb 2(%%esi), %%al\n"
-		"	movw 0(%%esi), %%dx\n"
-		"	shll $16, %%eax\n"
-		"	addl $3, %%esi\n"
-		"	movw %%dx, %%ax\n"
-			mm_prefetch_esi_n(64)
-		"	andl $0xffffff, %%eax\n"
-		"	cmpl %%ebx, %%eax\n"
-		"	jz bmaskxmm24_skip\n"
-		"	movw %%ax, (%%edi)\n"
-		"	shrl $16, %%eax\n"
-		"	movb %%al, 2(%%edi)\n"
-		__ALIGNC__
-		"bmaskxmm24_skip:\n"
-		"	addl $3, %%edi\n"
-		"	decl %%ecx\n"
-		"	jnz bmaskxmm24_looppixel\n"
-		__ALIGNC__
-		"bmaskxmm24_linend:\n"
-		"	addl %6, %%edi\n"
-		"	addl %7, %%esi\n"
-		"	decl %0\n"
-		"	jnz bmaskxmm24_loopline\n"
-		"	jmp bmaskxmm_endup\n"
-		__ALIGNC__		/* bmaskxmm_endup */
-		"bmaskxmm_endup:\n"
-			mm_sfence
-		"	emms\n"
-			ASM_ENDUP
-		:"=m"(h)
-		:"m"(src),"m"(dst),"m"(mask),"m"(m),"m"(n),"m"(c1),"m"(c2),"m"(pb)
-		:"memory", ASM_REGS);
-
-#elif defined(__INLINEMSC__)
-	if (pb == 1) {	// 8 bits pixel
-		_asm {
-			mov esi, src
-			mov edi, dst
-			movd mm7, mask
-			movd mm6, mask
-			mov ebx, mask
-			psllq mm7, 32
-			por mm7, mm6
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xff)
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xf7)
-			ASMCODE5(0x66, 0x0f, 0x73, 0xff, 0x08)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xfe)
-			cld
-		__ALIGNC__		/* bmaskxmm8_loopline */
-		bmaskxmm8_loopline:
-			mov ecx, m
-			test ecx, ecx
-			jz bmaskxmm8_last
-		__ALIGNC__
-		bmaskxmm8_looppixel:
-			ASMCODE4(0xf3, 0x0f, 0x6f, 0x06)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x66, 0x10)
-			mm_prefetch_esi_n(256)				
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xc8)
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xec)
-			ASMCODE4(0x66, 0x0f, 0x74, 0xc7)
-			ASMCODE4(0x66, 0x0f, 0x74, 0xe7)
-			add esi, 32	
-			add edi, 32	
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xd0)
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xf4)
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xc1)
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xe5)	
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x4f, 0xe0)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x6f, 0xf0)
-			mm_prefetch_esi_n(128)
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xd1)
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xf5)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xd0)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xf4)
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x57, 0xe0)
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x77, 0xf0)
-			dec ecx
-			jnz bmaskxmm8_looppixel
-		__ALIGNC__
-		bmaskxmm8_last:
-			mov ecx, n
-			test ecx, ecx
-			jz bmaskxmm8_linend
-		bmaskxmm8_l2:
-			lodsb
-			cmp al, bl
-			jz bmaskxmm8_l3
-			mov [edi], al
-		bmaskxmm8_l3:
-			inc edi
-			dec ecx
-			jnz bmaskxmm8_l2
-		__ALIGNC__
-		bmaskxmm8_linend:
-			add edi, c1
-			add esi, c2
-			dec h
-			jnz bmaskxmm8_loopline
-			mm_sfence
-			emms
-		}
-	}	else
-	if (pb == 2) {	// 16 bits pixel
-		_asm {
-			mov esi, src
-			mov edi, dst
-			movd mm7, mask
-			movd mm6, mask
-			mov ebx, mask
-			psllq mm7, 32
-			por mm7, mm6
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xff)
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xf7)
-			ASMCODE5(0x66, 0x0f, 0x73, 0xff, 0x08)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xfe)
-			cld
-		__ALIGNC__		/* bmaskxmm16_loopline */
-		bmaskxmm16_loopline:
-			mov ecx, m
-			test ecx, ecx
-			jz bmaskxmm16_last
-		__ALIGNC__
-		bmaskxmm16_looppixel:
-			ASMCODE4(0xf3, 0x0f, 0x6f, 0x06)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x66, 0x10)
-			mm_prefetch_esi_n(256)				
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xc8)
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xec)
-			ASMCODE4(0x66, 0x0f, 0x75, 0xc7)
-			ASMCODE4(0x66, 0x0f, 0x75, 0xe7)
-			add esi, 32	
-			add edi, 32	
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xd0)
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xf4)
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xc1)
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xe5)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x4f, 0xe0)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x6f, 0xf0)
-			mm_prefetch_esi_n(128)	
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xd1)
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xf5)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xd0)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xf4)
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x57, 0xe0)
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x77, 0xf0)
-			dec ecx
-			jnz bmaskxmm16_looppixel
-		__ALIGNC__
-		bmaskxmm16_last:
-			mov ecx, n
-			test ecx, ecx
-			jz bmaskxmm16_linend
-		bmaskxmm16_l2:
-			lodsw
-			cmp ax, bx
-			jz bmaskxmm16_l3
-			mov [edi], ax
-		bmaskxmm16_l3:
-			add edi, 2
-			dec ecx
-			jnz bmaskxmm16_l2
-		__ALIGNC__
-		bmaskxmm16_linend:
-			add edi, c1
-			add esi, c2
-			dec h
-			jnz bmaskxmm16_loopline
-			mm_sfence
-			emms
-		}
-	}	else
-	if (pb == 4) {	// 32 bits pixel
-		_asm {
-			mov esi, src
-			mov edi, dst
-			movd mm7, mask
-			movd mm6, mask
-			mov ebx, mask
-			psllq mm7, 32
-			por mm7, mm6
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xff)
-			ASMCODE4(0xf3, 0x0f, 0xd6, 0xf7)
-			ASMCODE5(0x66, 0x0f, 0x73, 0xff, 0x08)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xfe)
-			cld
-		__ALIGNC__		/* bmaskxmm32_loopline */
-		bmaskxmm32_loopline:
-			mov ecx, m
-			test ecx, ecx
-			jz bmaskxmm32_last
-		__ALIGNC__
-		bmaskxmm32_looppixel:
-			ASMCODE4(0xf3, 0x0f, 0x6f, 0x06)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x66, 0x10)
-			mm_prefetch_esi_n(256)				
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xc8)
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xec)
-			ASMCODE4(0x66, 0x0f, 0x76, 0xc7)
-			ASMCODE4(0x66, 0x0f, 0x76, 0xe7)
-			add esi, 32
-			add edi, 32
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xd0)
-			ASMCODE4(0x66, 0x0f, 0x6f, 0xf4)
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xc1)
-			ASMCODE4(0x66, 0x0f, 0xdf, 0xe5)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x4f, 0xe0)
-			ASMCODE5(0xf3, 0x0f, 0x6f, 0x6f, 0xf0)
-			mm_prefetch_esi_n(128)	
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xd1)
-			ASMCODE4(0x66, 0x0f, 0xdb, 0xf5)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xd0)
-			ASMCODE4(0x66, 0x0f, 0xeb, 0xf4)
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x57, 0xe0)
-			ASMCODE5(0xf3, 0x0f, 0x7f, 0x77, 0xf0)
-			dec ecx
-			jnz bmaskxmm32_looppixel
-		__ALIGNC__
-		bmaskxmm32_last:
-			mov ecx, n
-			test ecx, ecx
-			jz bmaskxmm32_linend
-		bmaskxmm32_l2:
-			lodsd
-			cmp eax, ebx
-			jz bmaskxmm32_l3
-			mov [edi], eax
-		bmaskxmm32_l3:
-			add edi, 4
-			dec ecx
-			jnz bmaskxmm32_l2
-		__ALIGNC__
-		bmaskxmm32_linend:
-			add edi, c1
-			add esi, c2
-			dec h
-			jnz bmaskxmm32_loopline
-			mm_sfence
-			emms
-		}
-	}	else
-	if (pb == 3) {	// 24 bits pixel
-		_asm {
-			mov esi, src
-			mov edi, dst
-		__ALIGNC__		/* bmaskmix24_loopline */
-		bmaskxmm24_loopline:
-			mov ecx, n
-			test ecx, ecx
-			jz bmaskxmm24_linend
-			and ebx, 0xffffff
-		__ALIGNC__
-		bmaskxmm24_looppixel:
-			mm_prefetch_esi_n(256)
-			lodsd
-			dec esi
-			and eax, 0xffffff
-			cmp eax, ebx
-			jz bmaskxmm24_skip
-			mov [edi], ax
-			shr eax, 16
-			mov [edi + 2], al
-		__ALIGNC__
-		bmaskxmm24_skip:
-			add edi, 3
-			dec ecx
-			jnz bmaskxmm24_looppixel
-		__ALIGNC__
-		bmaskxmm24_linend:
-			add edi, c1
-			add esi, c2
-			dec h
-			jnz bmaskxmm24_loopline
-			emms
-		}
 	}
 #else
 	return -1;

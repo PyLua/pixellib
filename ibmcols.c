@@ -137,7 +137,8 @@ const unsigned char _IMINMAX8[770] = {
   255, 255, 255, 255, 255,
 };
 
-const unsigned char*_iminmax8 = &_IMINMAX8[256];
+const unsigned char *_iminmax8 = &_IMINMAX8[256];
+const unsigned char *_iclip256 = &_IMINMAX8[256];
 
 
 #if defined(__BORLANDC__) && !defined(__MSDOS__)
@@ -1630,7 +1631,19 @@ void _ibinary_fill(unsigned char *ptr, long pitch, int w, int h,
 	}
 }
 
+void _iblit_fastfill(unsigned char *ptr, long pitch, int w, int h, 
+	ICOLORD color, int fmt)
+{
+	IBLIT_FILL_PROC proc = _iblit_fill_proc[fmt];
+	if (proc != NULL) {
+		if (proc(ptr, pitch, w, h, color) == 0)
+			return;
+	}
+	_ibinary_fill(ptr, pitch, w, h, color, fmt);
+}
+
 #endif
+
 
 
 /**********************************************************************
@@ -1763,7 +1776,7 @@ int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 			if (a1 == 0) continue;
 
 			if (destalpha == 0) {
-				if (a1 == 256) {
+				if (a1 == 255) {
 					r2 = r1; g2 = g1; b2 = b1; a2 = 255;
 				}	else {
 					IBLEND_STATIC(r1, g1, b1, a1, r2, g2, b2, a2);

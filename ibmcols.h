@@ -118,6 +118,7 @@ extern int _icolorconv;
 /* 8 bits min/max saturation table */
 extern const unsigned char _IMINMAX8[];
 extern const unsigned char*_iminmax8;
+extern const unsigned char*_iclip256;
 
 
 /**********************************************************************
@@ -238,31 +239,35 @@ extern const unsigned char*_iminmax8;
 #define _im_getig888(c) _im_getig24(c)
 #define _im_getib888(c) _im_getib24(c)
 
-#define _im_unpack_rgb(col, bpp, r, g, b)  \
-		(r) = _im_getir##bpp(col), \
-		(g) = _im_getig##bpp(col), \
-		(b) = _im_getib##bpp(col)
+#define _im_unpack_rgb(col, bpp, r, g, b) do { \
+		(r) = _im_getir##bpp(col); \
+		(g) = _im_getig##bpp(col); \
+		(b) = _im_getib##bpp(col); \
+	}	while (0)
 
-#define _im_unpack_argb(col, bpp, a, r, g, b) \
-		(a) = _im_getia##bpp(col), \
-		(r) = _im_getir##bpp(col), \
-		(g) = _im_getig##bpp(col), \
-		(b) = _im_getib##bpp(col) 
+#define _im_unpack_argb(col, bpp, a, r, g, b) do { \
+		(a) = _im_getia##bpp(col); \
+		(r) = _im_getir##bpp(col); \
+		(g) = _im_getig##bpp(col); \
+		(b) = _im_getib##bpp(col); \
+	}	while (0)
 
 
-#define _im_scale_rgb(col, bpp, r, g, b)  \
-		(r) = _im_getr##bpp(col), \
-		(g) = _im_getg##bpp(col), \
-		(b) = _im_getb##bpp(col)
+#define _im_scale_rgb(col, bpp, r, g, b) do { \
+		(r) = _im_getr##bpp(col); \
+		(g) = _im_getg##bpp(col); \
+		(b) = _im_getb##bpp(col); \
+	}	while (0)
 
 #define _im_scale_bgr(col, bpp, r, g, b) \
 		_im_scale_rgb(col, bpp, b, g, r)
 
-#define _im_scale_argb(col, bpp, a, r, g, b) \
-		(a) = _im_geta##bpp(col), \
-		(r) = _im_getr##bpp(col), \
-		(g) = _im_getg##bpp(col), \
-		(b) = _im_getb##bpp(col) 
+#define _im_scale_argb(col, bpp, a, r, g, b) do { \
+		(a) = _im_geta##bpp(col); \
+		(r) = _im_getr##bpp(col); \
+		(g) = _im_getg##bpp(col); \
+		(b) = _im_getb##bpp(col); \
+	}	while (0)
 
 #define _im_scale_abgr(col, bpp, a, r, g, b) \
 		_im_scale_argb(col, bpp, a, b, g, r)
@@ -374,7 +379,7 @@ extern const unsigned char*_iminmax8;
 		((ICOLORB*)(p))[0] = (ICOLORB)(((c) >> _ishift_data_b1) & 0xFF); \
 		((ICOLORB*)(p))[1] = (ICOLORB)(((c) >> _ishift_data_b2) & 0xFF); \
 		((ICOLORB*)(p))[2] = (ICOLORB)(((c) >> _ishift_data_b3) & 0xFF); \
-}	while (0)
+	}	while (0)
 
 
 #define ICOLORCONV_MASK_TRANS	1
@@ -541,9 +546,7 @@ typedef struct IBITMAP IBITMAP;
 		((c & 0xff)); \
 	}	while (0)	
 
-/* clip area */
-#define _ibitmap_set_clip(bmp, ptr) (bmp)->code = (unsigned long)(ptr)
-#define _ibitmap_clip(bmp) ((int*)((bmp)->code))
+
 
 
 /**********************************************************************
@@ -818,7 +821,7 @@ void _iconvert_argb(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 /* filling driver */
 typedef int (*IBLIT_FILL_PROC)(unsigned char *ptr, long pitch, int w, int h, ICOLORD color);
 
-/* blending driver */
+/* blending driver: returns zero for successful non-zero for failed */
 typedef int (*IBLIT_BLEND_PROC)(unsigned char *dst, long dpitch, 
 	const unsigned char *src, long spitch, int w, int h, ICOLORD color,
 	int dfmt, int sfmt, ICOLORD mask, int flags);
@@ -829,6 +832,8 @@ extern IBLIT_FILL_PROC _iblit_fill_proc[];
 /* external blend proc by pixfmt [dst][src] */
 extern IBLIT_BLEND_PROC _iblit_blend_proc[24][24];
 
+void _iblit_fastfill(unsigned char *ptr, long pitch, int w, int h, 
+	ICOLORD color, int fmt);
 
 void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 
@@ -979,8 +984,31 @@ int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 #define IPIX_READ_RGBA_5551(ptr)	_ipixel_get(2, ptr)
 #define IPIX_READ_BGRA_5551(ptr)	_ipixel_get(2, ptr)
 
+#define IPIX_WRITE_8(ptr, c)		_ipixel_put(1, ptr, c)
+#define IPIX_WRITE_RGB15(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_BGR15(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_RGB16(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_BGR16(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_RGB24(ptr, c)	_ipixel_put(3, ptr, c)
+#define IPIX_WRITE_BGR24(ptr, c)	_ipixel_put(3, ptr, c)
+#define IPIX_WRITE_RGB32(ptr, c)	_ipixel_put(4, ptr, c)
+#define IPIX_WRITE_BGR32(ptr, c)	_ipixel_put(4, ptr, c)
+#define IPIX_WRITE_ARGB32(ptr, c)	_ipixel_put(4, ptr, c)
+#define IPIX_WRITE_ABGR32(ptr, c)	_ipixel_put(4, ptr, c)
+#define IPIX_WRITE_RGBA32(ptr, c)	_ipixel_put(4, ptr, c)
+#define IPIX_WRITE_BGRA32(ptr, c)	_ipixel_put(4, ptr, c)
+#define IPIX_WRITE_ARGB_4444(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_ABGR_4444(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_RGBA_4444(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_BGRA_4444(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_ARGB_1555(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_ABGR_1555(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_RGBA_5551(ptr, c)	_ipixel_put(2, ptr, c)
+#define IPIX_WRITE_BGRA_5551(ptr, c)	_ipixel_put(2, ptr, c)
+
 #define IPIX_FMT_SIZE(fmt) IPIX_SIZE_##fmt
 #define IPIX_FMT_READ(fmt, ptr) IPIX_READ_##fmt(ptr)
+#define IPIX_FMT_WRITE(fmt, ptr, c) IPIX_WRITE_##fmt(ptr, c)
 
 #define IPIX_FMT_READ_RGBA(fmt, ptr, r, g, b, a) { \
 	ICOLORD col = IPIX_FMT_READ(fmt, ptr); \
@@ -1020,6 +1048,24 @@ int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	dr = (((((int)sr) - ((int)dr)) * SA) >> 8) + dr; \
 	dg = (((((int)sg) - ((int)dg)) * SA) >> 8) + dg; \
 	db = (((((int)sb) - ((int)db)) * SA) >> 8) + db; \
+}	while (0)
+
+#define IBLEND_ADDITIVE(sr, sg, sb, sa, dr, dg, db, da) do { \
+	int xa = _iblend_norm_fast(sa); \
+	int xr = sr * xa; \
+	int xg = sg * xa; \
+	int xb = sb * xa; \
+	xr = xr >> 8; \
+	xg = xg >> 8; \
+	xb = xb >> 8; \
+	xa = sa + da; \
+	xr += dr; \
+	xg += dg; \
+	xb += db; \
+	dr = _iclip256[xr]; \
+	dg = _iclip256[xg]; \
+	db = _iclip256[xb]; \
+	da = _iclip256[xa]; \
 }	while (0)
 
 

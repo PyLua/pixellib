@@ -50,19 +50,9 @@ typedef struct IRECT
 	int bottom;
 }	IRECT;
 
-typedef struct ISPAN
-{
-	int x;
-	int y;
-	int w;
-	ICOLORD color;
-	unsigned char *conver;
-}	ISPAN;
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+
 //---------------------------------------------------------------------
 // Basic Texture Macro
 //---------------------------------------------------------------------
@@ -78,16 +68,16 @@ extern "C" {
 
 #define ITEX_NORMGET(c, fmt, ui, vi, ptr, pitch, w, h) do { \
 	unsigned int pos = vi * pitch + ui * IPIX_FMT_SIZE(fmt); \
-	int condition = (ui | vi | (w - 1 - ui) | (h - 1 - vi); \
+	int condition = (ui | vi | (w - 1 - ui) | (h - 1 - vi)); \
 	ICOLORB *p = ptr + pos; \
 	c = (condition >= 0)? IPIX_FMT_READ(fmt, p) : 0; \
 }	while (0)
 
-#define ITEX_GETCOL_LINEAR(c, fmt, u, v, ptr, pitch, endpos) do { \
+#define ITEX_GETCOL_LINEAR(c, fmt, u, v, ptr, pitch, w, h) do { \
 	ICOLORD raw, r, g, b, a; \
 	int ui = u >> 16; \
 	int vi = v >> 16; \
-	ITEX_NORMGET(raw, fmt, ui, vi, ptr, pitch, endpos); \
+	ITEX_NORMGET(raw, fmt, ui, vi, ptr, pitch, w, h); \
 	IRGBA_FROM_PIXEL(raw, fmt, r, g, b, a); \
 	c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
 }	while (0)
@@ -189,15 +179,72 @@ static inline int ibitmap_pixfmt(IBITMAP *src) {
 
 #define ITEX_UVGETCOL_LINEAR(c, fmt, u, v, ptr, shift, umask, vmask) do { \
 	ICOLORD r, g, b, a; \
-	ptr = ITEX_UV_PTR(ptr, fmt, (u >> 16), (v >> 16), shift, umask, vmask); \
-	IPIX_FMT_READ_RGBA(fmt, ptr, r, g, b, a); \
-	c = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
+	ICOLORB *src; \
+	src = ITEX_UVPTR(ptr, fmt, (u >> 16), (v >> 16), shift, umask, vmask); \
+	IPIX_FMT_READ_RGBA(fmt, src, r, g, b, a); \
+	c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
 }	while (0)
 
 
 #define ITEX_UVGETCOL_BILINEAR(c, fmt, u, v, ptr, shift, umask, vmask) do { \
+	ICOLORD text00, text11, text01, text10, c1, c2, c3, c4; \
+	ICOLORD r00, g00, b00, a00, r01, g01, b01, a01; \
+	ICOLORD r10, g10, b10, a10, r11, g11, b11, a11; \
+	ICOLORB *p00, *p01, *p10, *p11; \
+	ICOLORD r, g, b, a; \
+	int f00, f01, f10, f11, sum; \
+	int umid = u - 0x8000; \
+	int vmid = v - 0x8000; \
+	int umidfloor = iFixFloor(umid); \
+	int vmidfloor = iFixFloor(vmid); \
+	int ufactor = ((umid - umidfloor) & 0xfffe + 1) >> 1; \
+	int vfactor = ((vmid - vmidfloor) & 0xfffe + 1) >> 1; \
+	int umint = umidfloor >> 16; \
+	int vmint = vmidfloor >> 16; \
+	int pi0 = (umint & umask) * IPIX_FMT_SIZE(fmt); \
+	int pi1 = ((umint + 1) & umask) * IPIX_FMT_SIZE(fmt); \
+	int pi2 = (vmint & vmask) << shift; \
+	int pi3 = ((vmint + 1) & vmask) << shift; \
+	p00 = texture + pi0 + pi2; \
+	p01 = texture + pi1 + pi2; \
+	p10 = texture + pi0 + pi3; \
+	p11 = texture + pi1 + pi3; \
+	c1 = IPIX_FMT_READ(fmt, p00); \
+	c2 = IPIX_FMT_READ(fmt, p01); \
+	c3 = IPIX_FMT_READ(fmt, p10); \
+	c4 = IPIX_FMT_READ(fmt, p11); \
+	IRGBA_FROM_PIXEL(c1, fmt, r00, g00, b00, a00); \
+	IRGBA_FROM_PIXEL(c2, fmt, r01, g01, b01, a01); \
+	IRGBA_FROM_PIXEL(c3, fmt, r10, g10, b10, a10); \
+	IRGBA_FROM_PIXEL(c4, fmt, r11, g11, b11, a11); \
+	sum = a00 + a01 + a10 + a11; \
+	f00 = ((0x8000 - ufactor) * (0x8000 - vfactor)) >> 14; \
+	f01 = (ufactor * (0x8000 - vfactor)) >> 14;  \
+	f10 = ((0x8000 - ufactor) * vfactor) >> 14;  \
+	f11 = (ufactor * vfactor) >> 14; \
+	if (sum == 0) c = 0; \
+	else {	\
+		if (sum == 255 * 4) { a = 255; } \
+		else { a = (a00 * f00 + a01 * f01 + a10 * f10 + a11 * f11) >> 16; } \
+		r = (r00 * f00 + r01 * f01 + r10 * f10 + r11 * f11) >> 16; \
+		g = (g00 * f00 + g01 * f01 + g10 * f10 + g11 * f11) >> 16; \
+		b = (b00 * f00 + b01 * f01 + b10 * f10 + b11 * f11) >> 16; \
+		c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
+	}	\
 }	while (0)
 
+
+//---------------------------------------------------------------------
+// Inline Utilities
+//---------------------------------------------------------------------
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+//---------------------------------------------------------------------
+// Interfaces
+//---------------------------------------------------------------------
 
 
 #ifdef __cplusplus

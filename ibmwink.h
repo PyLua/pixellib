@@ -18,7 +18,9 @@
 //---------------------------------------------------------------------
 // Rectangle
 //---------------------------------------------------------------------
-
+/* clip area */
+#define _ibitmap_set_clip(bmp, ptr) (bmp)->code = (unsigned long)(ptr)
+#define _ibitmap_clip(bmp) ((int*)((bmp)->code))
 
 #ifdef __cplusplus
 extern "C" {
