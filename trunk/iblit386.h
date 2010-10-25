@@ -23,6 +23,8 @@
 // -  Dec.11 2006  skywind  rewrite cpu detection method
 // -  Dec.27 2006  skywind  rewrite mask blitters 
 // -  Jan.28 2007  skywind  reform this file with new comment
+// -  Sep.09 2010  skywind  add 64bits & mmx macros
+// -  Oct.03 2010  skywind  amd64 supported
 //
 //=====================================================================
 
@@ -39,7 +41,7 @@
 	#define _WIN32 WIN32
 #endif
 
-#if (defined(_WIN32) && !defined(_MSC_VER))
+#if (defined(_WIN32) && !defined(_MSC_VER) && !defined(_WIN64))
 	#ifndef __i386__
 	#define __i386__
 	#endif
@@ -59,13 +61,36 @@
 	#define __I386__
 #endif
 
+#if (defined(__x86_64__) && !defined(__x86_64))
+	#define __x86_64
+#endif
 
+#if (defined(__x86_64) && !defined(__x86_64__))
+	#define __x86_64__
+#endif
 
+#if (defined(_M_AMD64)) && (!defined(__amd64__))
+	#define __amd64__
+#endif
+
+#if (defined(__amd64) && !defined(__amd64__))
+	#define __amd64__
+#endif
+
+#if (defined(__amd64__) && !defined(__amd64))
+	#define __amd64
+#endif
+
+#if (defined(__i386__) || defined(__amd64__)) && (!defined(__x86__))
+	#if !(defined(_MSC_VER) && defined(__amd64__))	
+		#define __x86__  // MSVC doesn't support inline assembly in x64
+	#endif
+#endif
 
 //=====================================================================
 // i386 archtech support
 //=====================================================================
-#ifdef __i386__
+#ifdef __x86__
 
 
 #ifndef ASMCODE
@@ -87,11 +112,21 @@
 #ifndef __MACH__
 #define ASM_BEGIN
 #define ASM_ENDUP
+#ifdef __i386__
 #define ASM_REGS                "esi", "edi", "eax", "ebx", "ecx", "edx"
 #else
+#define ASM_REGS                "rsi", "rdi", "rax", "rbx", "rcx", "rdx"
+#endif
+#else
+#ifdef __i386__
 #define ASM_BEGIN               "    pushl %%ebx\n"
 #define ASM_ENDUP               "    popl %%ebx\n"
 #define ASM_REGS                "esi", "edi", "eax", "ecx", "edx"
+#else
+#define ASM_BEGIN               "    push %%rbx\n"
+#define ASM_ENDUP               "    pop %%rbx\n"
+#define ASM_REGS				"rsi", "rdi", "rax", "rcx", "rdx"
+#endif
 #endif
 
 #elif defined(_MSC_VER)
@@ -269,8 +304,8 @@ extern "C" {
 //---------------------------------------------------------------------
 // cpu global information
 //---------------------------------------------------------------------
-extern unsigned long _cpu_feature[];
-extern unsigned long _cpu_cachesize;
+extern unsigned int _cpu_feature[];
+extern unsigned int _cpu_cachesize;
 extern int _cpu_level;
 extern int _cpu_device;
 extern int _cpu_vendor;
@@ -279,7 +314,7 @@ extern int _cpu_cache_l1i;
 extern int _cpu_cache_l1d;
 extern int _cpu_cache_l2;
 
-#define _TEST_BIT(p, x) (((unsigned long*)(p))[(x) >> 5] & (1 << ((x) & 31)))
+#define _TEST_BIT(p, x) (((unsigned int*)(p))[(x) >> 5] & (1 << ((x) & 31)))
 #define X86_FEATURE(x) _TEST_BIT(_cpu_feature, x)
 
 #ifndef IMASK32
@@ -288,6 +323,34 @@ extern int _cpu_cache_l2;
 
 #ifndef ISRCPTR
 #define ISRCPTR const char *
+#endif
+
+#ifdef __amd64__
+typedef unsigned int IDWORD;
+typedef unsigned long IQWORD;
+#else
+typedef unsigned long IDWORD;
+#if defined(_MSC_VER) || defined(__BORLANDC__)
+typedef unsigned __int64 IQWORD;
+#else
+typedef unsigned long long IQWORD;
+#endif
+#endif
+
+#ifndef __IULONG_DEFINED
+#define __IULONG_DEFINED
+#if defined(WIN64) || defined(_WIN64)		/* LLP64 mode */
+#ifdef _MSC_VER
+typedef unsigned __int64 iulong;
+typedef __int64 ilong;
+#else										/* LP64 or 32/16 mode */
+typedef unsigned long long iulong;
+typedef long long ilong;
+#endif
+#else
+typedef unsigned long iulong;
+typedef long ilong;
+#endif
 #endif
 
 void _x86_cpuid(int op, int *eax, int *ebx, int *ecx, int *edx);
@@ -303,14 +366,477 @@ int iblit_mix(char*, long, const char*, int, int, long, int, long);
 int iblit_mask_mmx(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
 int iblit_mask_sse(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
 int iblit_mask_mix(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
-int iblit_mask_xmm(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
-
 
 
 #ifdef __cplusplus
 }
 #endif
 
+
+
+
+
+//=====================================================================
+// MMX INLINE INSTRUCTIONS
+//=====================================================================
+#if defined(__GNUC__)
+#define immx_op(op)	\
+	__asm__ __volatile__ (#op "" : : : "memory")
+#define immx_op_r_r(op, regd, regs) \
+	__asm__ __volatile__ (#op " %%" #regs ", %%" #regd : : : "memory")
+#define immx_op_r_i(op, regd, imm) \
+	__asm__ __volatile__ (#op " %0, %%" #regd : : "i"(imm) : "memory")
+#define immx_op_r_m(op, regd, mem) \
+	__asm__ __volatile__ (#op " %0, %%" #regd : : "m"(*(mem)) : "memory")
+#define immx_op_m_r(op, mem, regs) \
+	__asm__ __volatile__ (#op " %%" #regs ", %0" : : "m"(*(mem)) : "memory")
+#define immx_op_r_m32(op, regd, mem32) \
+	immx_op_r_m(op, regd, mem32)
+#define immx_op_m32_r(op, mem32, regs) \
+	immx_op_m_r(op, mem32, regs)
+#define immx_op_r_v(op, regd, vars) \
+	immx_op_r_m(op, regd, &(vars))
+#define immx_op_v_r(op, vard, regs) \
+	immx_op_m_r(op, &(vard), regs)
+typedef unsigned long long immx_uint64;
+typedef unsigned int immx_uint32;
+typedef long long immx_int64;
+typedef int immx_int32;
+#elif defined(_MSC_VER) || defined(__BORLANDC__)
+#define immx_op(op)  \
+	_asm { op }
+#define immx_op_r_r(op, regd, regs) \
+	_asm { op regd, regs }
+#define immx_op_r_i(op, regd, imm) \
+	_asm { op regd, imm }
+#define immx_op_r_m(op, regd, mem) \
+	{ register __int64 var = *(__int64*)(mem); _asm { op regd, var } }
+#define immx_op_m_r(op, mem, regs) \
+	{ register __int64 var; _asm { op var, regs }; *(__int64*)(mem) = var; }
+#define immx_op_r_m32(op, regd, mem32) \
+	{ register int var = *(int*)(mem32); _asm { op regd, var } }
+#define immx_op_m32_r(op, mem32, regs) \
+	{ register int var; _asm { op var, regs }; *(int*)(mem32) = var; }
+#define immx_op_r_v(op, regd, vars) \
+	_asm { op regd, vars }
+#define immx_op_v_r(op, vard, regs) \
+	_asm { op vard, regs }
+typedef unsigned __int64 immx_uint64;
+typedef unsigned int immx_uint32;
+typedef __int64 immx_int64;
+typedef int immx_int32;
+#endif
+
+
+
+//---------------------------------------------------------------------
+// MMX Instruction Tracing
+//---------------------------------------------------------------------
+#ifdef immx_op
+
+typedef union {
+	immx_uint64 uq;
+	immx_int64 q;
+	immx_uint32 ud[2];
+	immx_int32 d[2];
+	unsigned short uw[4];
+	short w[4];
+	unsigned char ub[8];
+	char b[8];
+	float s[2];
+}	immx_t;
+
+#define immx_op_trace(op) { \
+		printf(#op "\n"); \
+		immx_op(op); \
+	}
+
+#define immx_op_m_m(op, memd, mems) { \
+		immx_op_r_m(movq, mm0, memd); \
+		immx_op_r_m(op, mm0, mems); \
+		immx_op_m_r(movq, memd, mm0); \
+	}
+
+#define immx_op_m32_m32(op, memd, mems) { \
+		immx_op_r_m32(movd, mm0, memd); \
+		immx_op_r_m32(movd, mm1, mems); \
+		immx_op_r_r(op, mm0, mm1); \
+		immx_op_m_r(movd, memd, mm0); \
+	}
+
+#define immx_op_trace_r_r(op, regd, regs) { \
+		immx_t mmx_trace; \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#op "_r_r(" #regd "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_m_r(movq, &mmx_trace, regs); \
+		printf(#regs "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_r_r(op, regd, regs); \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#regd "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_r_i(op, regd, imm) { \
+		immx_t mmx_trace; \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#op "_r_i(" #regd "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		mmx_trace.uq = (imm); \
+		printf(#imm "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_r_i(op, regd, imm); \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#regd "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_r_m(op, regd, mem) { \
+		immx_t mmx_trace; \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#op "_r_m(" #regd "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		mmx_trace.uq = *(immx_int64*)(mem); \
+		printf(#mem "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_r_m(op, regd, mem); \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#regd "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_m_r(op, mem, regs) { \
+		immx_t mmx_trace; \
+		mmx_trace.uq = *(immx_int64*)(mem); \
+		printf(#op "_m_r(" #mem "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_m_r(movq, &mmx_trace, regs); \
+		printf(#regs "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_m_r(op, mem, regs); \
+		mmx_trace.uq = *(immx_int64*)(mem); \
+		printf(#mem "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_r_m32(op, regd, mem) { \
+		immx_t mmx_trace; \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#op "_r_m32(" #regd "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		mmx_trace.d[0] = *(immx_int32*)(mem); \
+		mmx_trace.d[1] = 0; \
+		printf(#mem "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_r_m32(op, regd, mem); \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#regd "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_m32_r(op, mem, regs) { \
+		immx_t mmx_trace; \
+		mmx_trace.d[0] = *(immx_int32*)(mem); \
+		mmx_trace.d[1] = 0; \
+		printf(#op "_m32_r(" #mem "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_m_r(movq, &mmx_trace, regs); \
+		printf(#regs "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_m32_r(op, mem, regs); \
+		mmx_trace.d[0] = *(immx_int32*)(mem); \
+		mmx_trace.d[1] = 0; \
+		printf(#mem "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_m_m(op, memd, mems) { \
+		immx_t mmx_trace1, mmx_trace2; \
+		immx_op_r_m(movq, mm0, memd); \
+		immx_op_r_m(movq, mm1, mems); \
+		immx_op_m_r(movq, &mmx_trace1, mm0); \
+		immx_op_m_r(movq, &mmx_trace2, mm1); \
+		printf(#op "_m_m(" #memd "=0x%08x%08x, ", \
+			mmx_trace1.d[1], mmx_trace1.d[0]); \
+		printf(#mems "=0x%08x%08x) => ", \
+			mmx_trace2.d[1], mmx_trace2.d[0]); \
+		immx_op_m_m(op, memd, mems); \
+		immx_op_r_m(movq, mm0, memd); \
+		immx_op_m_r(movq, &mmx_trace1, mm0); \
+		printf(#memd "=0x%08x%08x\n", \
+			mmx_trace1.d[1], mmx_trace1.d[0]); \
+	}
+
+#define immx_op_trace_m32_m32(op, memd, mems) { \
+		immx_t mmx_trace1, mmx_trace2; \
+		immx_op_r_m32(movd, mm0, memd); \
+		immx_op_r_m32(movd, mm1, mems); \
+		immx_op_m_r(movq, immx_addr(mmx_trace1), mm0); \
+		immx_op_m_r(movq, immx_addr(mmx_trace2), mm1); \
+		printf(#op "_m_m(" #memd "=0x%08x, ", mmx_trace1.d[0]); \
+		printf(#mems "=0x%08x) => ", mmx_trace2.d[0]); \
+		immx_op_m_m(op, memd, mems); \
+		immx_op_r_m32(movd, mm0, memd); \
+		immx_op_m_r(movq, immx_addr(mmx_trace1), mm0); \
+		printf(#memd "=0x%08x\n", mmx_trace1.d[0]); \
+	}
+
+#define immx_op_trace_r_v(op, regd, vars) { \
+		immx_t mmx_trace; \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#op "_r_v(" #regd "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		mmx_trace.uq = (immx_int64)(vars); \
+		printf(#vars "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_r_v(op, regd, vars); \
+		immx_op_m_r(movq, &mmx_trace, regd); \
+		printf(#regd "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_op_trace_v_r(op, vard, regs) { \
+		immx_t mmx_trace; \
+		mmx_trace.uq = (immx_int64)(vard); \
+		printf(#op "_v_r(" #vard "=0x%08x%08x, ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_m_r(movq, &mmx_trace, regs); \
+		printf(#regs "=0x%08x%08x) => ", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+		immx_op_v_r(op, vard, regs); \
+		mmx_trace.uq = (immx_int64)(vard); \
+		printf(#vard "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+
+#define immx_trace_print_reg(regs) { \
+		immx_t mmx_trace; \
+		immx_op_m_r(movq, immx_addr(mmx_trace), regs); \
+		printf(#regs "=0x%08x%08x\n", \
+			mmx_trace.d[1], mmx_trace.d[0]); \
+	}
+			
+#endif
+
+
+#ifndef IMMX_TRACE
+#define immx_inst(op)					immx_op(op)
+#define immx_inst_r_r(op, regd, regs)	immx_op_r_r(op, regd, regs)
+#define immx_inst_r_i(op, regd, imm)	immx_op_r_i(op, regd, imm)
+#define immx_inst_r_m(op, regd, mem)	immx_op_r_m(op, regd, mem)
+#define immx_inst_m_r(op, mem, regs)	immx_op_m_r(op, mem, regs)
+#define immx_inst_r_m32(op, regd, mem)	immx_op_r_m32(op, regd, mem)
+#define immx_inst_m32_r(op, mem, regs)	immx_op_m32_r(op, mem, regs)
+#define immx_inst_r_v(op, regd, vars)	immx_op_r_v(op, regd, vars)
+#define immx_inst_v_r(op, vard, regs)	immx_op_v_r(op, vard, regs)
+#define immx_inst_m_m(op, memd, mems)	immx_op_m_m(op, memd, mems)
+#define immx_inst_m32_m32(op, m1, m2)	immx_op_m32_m32(op, m1, m2)
+#define immx_trace_reg(reg)	
+#else
+#define immx_inst(op)					immx_op_trace(op)
+#define immx_inst_r_r(op, regd, regs)	immx_op_trace_r_r(op, regd, regs)
+#define immx_inst_r_i(op, regd, imm)	immx_op_trace_r_i(op, regd, imm)
+#define immx_inst_r_m(op, regd, mem)	immx_op_trace_r_m(op, regd, mem)
+#define immx_inst_m_r(op, mem, regs)	immx_op_trace_m_r(op, mem, regs)
+#define immx_inst_r_m32(op, regd, mem)	immx_op_trace_r_m32(op, regd, mem)
+#define immx_inst_m32_r(op, mem, regs)	immx_op_trace_m32_r(op, mem, regs)
+#define immx_inst_r_v(op, regd, vars)	immx_op_trace_r_v(op, regd, vars)
+#define immx_inst_v_r(op, vard, regs)	immx_op_trace_v_r(op, vard, regs)
+#define immx_inst_m_m(op, memd, mems)	immx_op_trace_m_m(op, memd, mems)
+#define immx_inst_m32_m32(op, m1, m2)	immx_op_trace_m32_m32(op, m1, m2)
+#define immx_trace_reg(reg)				immx_trace_print_reg(reg)
+#endif
+
+
+//---------------------------------------------------------------------
+// MMX instructions (generated by python)
+//---------------------------------------------------------------------
+#define movq_r_r(regd, regs)		immx_inst_r_r(movq, regd, regs)
+#define movq_r_m(regd, mem)			immx_inst_r_m(movq, regd, mem)
+#define movq_m_r(mem, regs)			immx_inst_m_r(movq, mem, regs)
+#define movq_m_m(memd, mems)		immx_inst_m_m(movq, memd, mems)
+#define movq_r_v(regd, vars)		immx_inst_r_v(movq, regd, vars)
+#define movq_v_r(vard, regs)		immx_inst_v_r(movq, vard, regs)
+
+#define movd_r_r(regd, regs)		immx_inst_r_r(movd, regd, regs)
+#define movd_r_m(regd, mem)			immx_inst_r_m32(movd, regd, mem)
+#define movd_m_r(mem, regs)			immx_inst_m32_r(movd, mem, regs)
+#define movd_m_m(memd, mems)		immx_inst_m_m(movd, memd, mems)
+#define movd_r_v(regd, vars)		immx_inst_r_v(movd, regd, vars)
+#define movd_v_r(vard, regs)		immx_inst_v_r(movd, vard, regs)
+
+#define paddd_r_m(regd, mem)       immx_inst_r_m(paddd, regd, mem)
+#define paddd_r_r(regd, regs)      immx_inst_r_r(paddd, regd, regs)
+#define paddd_m_m(memd, mems)      immx_inst_m_m(paddd, memd, mems)
+#define paddw_r_m(regd, mem)       immx_inst_r_m(paddw, regd, mem)
+#define paddw_r_r(regd, regs)      immx_inst_r_r(paddw, regd, regs)
+#define paddw_m_m(memd, mems)      immx_inst_m_m(paddw, memd, mems)
+#define paddb_r_m(regd, mem)       immx_inst_r_m(paddb, regd, mem)
+#define paddb_r_r(regd, regs)      immx_inst_r_r(paddb, regd, regs)
+#define paddb_m_m(memd, mems)      immx_inst_m_m(paddb, memd, mems)
+
+#define paddsw_r_m(regd, mem)      immx_inst_r_m(paddsw, regd, mem)
+#define paddsw_r_r(regd, regs)     immx_inst_r_r(paddsw, regd, regs)
+#define paddsw_m_m(memd, mems)     immx_inst_m_m(paddsw, memd, mems)
+#define paddsb_r_m(regd, mem)      immx_inst_r_m(paddsb, regd, mem)
+#define paddsb_r_r(regd, regs)     immx_inst_r_r(paddsb, regd, regs)
+#define paddsb_m_m(memd, mems)     immx_inst_m_m(paddsb, memd, mems)
+
+#define paddusw_r_m(regd, mem)     immx_inst_r_m(paddusw, regd, mem)
+#define paddusw_r_r(regd, regs)    immx_inst_r_r(paddusw, regd, regs)
+#define paddusw_m_m(memd, mems)    immx_inst_m_m(paddusw, memd, mems)
+#define paddusb_r_m(regd, mem)     immx_inst_r_m(paddusb, regd, mem)
+#define paddusb_r_r(regd, regs)    immx_inst_r_r(paddusb, regd, regs)
+#define paddusb_m_m(memd, mems)    immx_inst_m_m(paddusb, memd, mems)
+
+#define psubd_r_m(regd, mem)       immx_inst_r_m(psubd, regd, mem)
+#define psubd_r_r(regd, regs)      immx_inst_r_r(psubd, regd, regs)
+#define psubd_m_m(memd, mems)      immx_inst_m_m(psubd, memd, mems)
+#define psubw_r_m(regd, mem)       immx_inst_r_m(psubw, regd, mem)
+#define psubw_r_r(regd, regs)      immx_inst_r_r(psubw, regd, regs)
+#define psubw_m_m(memd, mems)      immx_inst_m_m(psubw, memd, mems)
+#define psubb_r_m(regd, mem)       immx_inst_r_m(psubb, regd, mem)
+#define psubb_r_r(regd, regs)      immx_inst_r_r(psubb, regd, regs)
+#define psubb_m_m(memd, mems)      immx_inst_m_m(psubb, memd, mems)
+
+#define psubsw_r_m(regd, mem)      immx_inst_r_m(psubsw, regd, mem)
+#define psubsw_r_r(regd, regs)     immx_inst_r_r(psubsw, regd, regs)
+#define psubsw_m_m(memd, mems)     immx_inst_m_m(psubsw, memd, mems)
+#define psubsb_r_m(regd, mem)      immx_inst_r_m(psubsb, regd, mem)
+#define psubsb_r_r(regd, regs)     immx_inst_r_r(psubsb, regd, regs)
+#define psubsb_m_m(memd, mems)     immx_inst_m_m(psubsb, memd, mems)
+
+#define psubusw_r_m(regd, mem)     immx_inst_r_m(psubusw, regd, mem)
+#define psubusw_r_r(regd, regs)    immx_inst_r_r(psubusw, regd, regs)
+#define psubusw_m_m(memd, mems)    immx_inst_m_m(psubusw, memd, mems)
+#define psubusb_r_m(regd, mem)     immx_inst_r_m(psubusb, regd, mem)
+#define psubusb_r_r(regd, regs)    immx_inst_r_r(psubusb, regd, regs)
+#define psubusb_m_m(memd, mems)    immx_inst_m_m(psubusb, memd, mems)
+
+#define pmullw_r_m(regd, mem)      immx_inst_r_m(pmullw, regd, mem)
+#define pmullw_r_r(regd, regs)     immx_inst_r_r(pmullw, regd, regs)
+#define pmullw_m_m(memd, mems)     immx_inst_m_m(pmullw, memd, mems)
+
+#define pmulhw_r_m(regd, mem)      immx_inst_r_m(pmulhw, regd, mem)
+#define pmulhw_r_r(regd, regs)     immx_inst_r_r(pmulhw, regd, regs)
+#define pmulhw_m_m(memd, mems)     immx_inst_m_m(pmulhw, memd, mems)
+
+#define pmaddwd_r_m(regd, mem)     immx_inst_r_m(pmaddwd, regd, mem)
+#define pmaddwd_r_r(regd, regs)    immx_inst_r_r(pmaddwd, regd, regs)
+#define pmaddwd_m_m(memd, mems)    immx_inst_m_m(pmaddwd, memd, mems)
+
+#define pand_r_m(regd, mem)        immx_inst_r_m(pand, regd, mem)
+#define pand_r_r(regd, regs)       immx_inst_r_r(pand, regd, regs)
+#define pand_m_m(memd, mems)       immx_inst_m_m(pand, memd, mems)
+
+#define pandn_r_m(regd, mem)       immx_inst_r_m(pandn, regd, mem)
+#define pandn_r_r(regd, regs)      immx_inst_r_r(pandn, regd, regs)
+#define pandn_m_m(memd, mems)      immx_inst_m_m(pandn, memd, mems)
+
+#define por_r_m(regd, mem)         immx_inst_r_m(por, regd, mem)
+#define por_r_r(regd, regs)        immx_inst_r_r(por, regd, regs)
+#define por_m_m(memd, mems)        immx_inst_m_m(por, memd, mems)
+
+#define pxor_r_m(regd, mem)        immx_inst_r_m(pxor, regd, mem)
+#define pxor_r_r(regd, regs)       immx_inst_r_r(pxor, regd, regs)
+#define pxor_m_m(memd, mems)       immx_inst_m_m(pxor, memd, mems)
+
+#define pcmpeqd_r_m(regd, mem)     immx_inst_r_m(pcmpeqd, regd, mem)
+#define pcmpeqd_r_r(regd, regs)    immx_inst_r_r(pcmpeqd, regd, regs)
+#define pcmpeqd_m_m(memd, mems)    immx_inst_m_m(pcmpeqd, memd, mems)
+#define pcmpeqw_r_m(regd, mem)     immx_inst_r_m(pcmpeqw, regd, mem)
+#define pcmpeqw_r_r(regd, regs)    immx_inst_r_r(pcmpeqw, regd, regs)
+#define pcmpeqw_m_m(memd, mems)    immx_inst_m_m(pcmpeqw, memd, mems)
+#define pcmpeqb_r_m(regd, mem)     immx_inst_r_m(pcmpeqb, regd, mem)
+#define pcmpeqb_r_r(regd, regs)    immx_inst_r_r(pcmpeqb, regd, regs)
+#define pcmpeqb_m_m(memd, mems)    immx_inst_m_m(pcmpeqb, memd, mems)
+
+#define pcmpgtd_r_m(regd, mem)     immx_inst_r_m(pcmpgtd, regd, mem)
+#define pcmpgtd_r_r(regd, regs)    immx_inst_r_r(pcmpgtd, regd, regs)
+#define pcmpgtd_m_m(memd, mems)    immx_inst_m_m(pcmpgtd, memd, mems)
+#define pcmpgtw_r_m(regd, mem)     immx_inst_r_m(pcmpgtw, regd, mem)
+#define pcmpgtw_r_r(regd, regs)    immx_inst_r_r(pcmpgtw, regd, regs)
+#define pcmpgtw_m_m(memd, mems)    immx_inst_m_m(pcmpgtw, memd, mems)
+#define pcmpgtb_r_m(regd, mem)     immx_inst_r_m(pcmpgtb, regd, mem)
+#define pcmpgtb_r_r(regd, regs)    immx_inst_r_r(pcmpgtb, regd, regs)
+#define pcmpgtb_m_m(memd, mems)    immx_inst_m_m(pcmpgtb, memd, mems)
+
+#define psllq_r_i(regd, imm)       immx_inst_r_i(psllq, regd, imm)
+#define psllq_r_m(regd, mem)       immx_inst_r_m(psllq, regd, mem)
+#define psllq_r_r(regd, regs)      immx_inst_r_r(psllq, regd, regs)
+#define psllq_m_m(memd, mems)      immx_inst_m_m(psllq, memd, mems)
+#define pslld_r_i(regd, imm)       immx_inst_r_i(pslld, regd, imm)
+#define pslld_r_m(regd, mem)       immx_inst_r_m(pslld, regd, mem)
+#define pslld_r_r(regd, regs)      immx_inst_r_r(pslld, regd, regs)
+#define pslld_m_m(memd, mems)      immx_inst_m_m(pslld, memd, mems)
+#define psllw_r_i(regd, imm)       immx_inst_r_i(psllw, regd, imm)
+#define psllw_r_m(regd, mem)       immx_inst_r_m(psllw, regd, mem)
+#define psllw_r_r(regd, regs)      immx_inst_r_r(psllw, regd, regs)
+#define psllw_m_m(memd, mems)      immx_inst_m_m(psllw, memd, mems)
+
+#define psrlq_r_i(regd, imm)       immx_inst_r_i(psrlq, regd, imm)
+#define psrlq_r_m(regd, mem)       immx_inst_r_m(psrlq, regd, mem)
+#define psrlq_r_r(regd, regs)      immx_inst_r_r(psrlq, regd, regs)
+#define psrlq_m_m(memd, mems)      immx_inst_m_m(psrlq, memd, mems)
+#define psrld_r_i(regd, imm)       immx_inst_r_i(psrld, regd, imm)
+#define psrld_r_m(regd, mem)       immx_inst_r_m(psrld, regd, mem)
+#define psrld_r_r(regd, regs)      immx_inst_r_r(psrld, regd, regs)
+#define psrld_m_m(memd, mems)      immx_inst_m_m(psrld, memd, mems)
+#define psrlw_r_i(regd, imm)       immx_inst_r_i(psrlw, regd, imm)
+#define psrlw_r_m(regd, mem)       immx_inst_r_m(psrlw, regd, mem)
+#define psrlw_r_r(regd, regs)      immx_inst_r_r(psrlw, regd, regs)
+#define psrlw_m_m(memd, mems)      immx_inst_m_m(psrlw, memd, mems)
+
+#define psrad_r_i(regd, imm)       immx_inst_r_i(psrad, regd, imm)
+#define psrad_r_m(regd, mem)       immx_inst_r_m(psrad, regd, mem)
+#define psrad_r_r(regd, regs)      immx_inst_r_r(psrad, regd, regs)
+#define psrad_m_m(memd, mems)      immx_inst_m_m(psrad, memd, mems)
+#define psraw_r_i(regd, imm)       immx_inst_r_i(psraw, regd, imm)
+#define psraw_r_m(regd, mem)       immx_inst_r_m(psraw, regd, mem)
+#define psraw_r_r(regd, regs)      immx_inst_r_r(psraw, regd, regs)
+#define psraw_m_m(memd, mems)      immx_inst_m_m(psraw, memd, mems)
+
+#define packssdw_r_m(regd, mem)    immx_inst_r_m(packssdw, regd, mem)
+#define packssdw_r_r(regd, regs)   immx_inst_r_r(packssdw, regd, regs)
+#define packssdw_m_m(memd, mems)   immx_inst_m_m(packssdw, memd, mems)
+#define packsswb_r_m(regd, mem)    immx_inst_r_m(packsswb, regd, mem)
+#define packsswb_r_r(regd, regs)   immx_inst_r_r(packsswb, regd, regs)
+#define packsswb_m_m(memd, mems)   immx_inst_m_m(packsswb, memd, mems)
+
+#define packuswb_r_m(regd, mem)    immx_inst_r_m(packuswb, regd, mem)
+#define packuswb_r_r(regd, regs)   immx_inst_r_r(packuswb, regd, regs)
+#define packuswb_m_m(memd, mems)   immx_inst_m_m(packuswb, memd, mems)
+
+#define punpckldq_r_m(regd, mem)   immx_inst_r_m(punpckldq, regd, mem)
+#define punpckldq_r_r(regd, regs)  immx_inst_r_r(punpckldq, regd, regs)
+#define punpckldq_m_m(memd, mems)  immx_inst_m_m(punpckldq, memd, mems)
+#define punpcklwd_r_m(regd, mem)   immx_inst_r_m(punpcklwd, regd, mem)
+#define punpcklwd_r_r(regd, regs)  immx_inst_r_r(punpcklwd, regd, regs)
+#define punpcklwd_m_m(memd, mems)  immx_inst_m_m(punpcklwd, memd, mems)
+#define punpcklbw_r_m(regd, mem)   immx_inst_r_m(punpcklbw, regd, mem)
+#define punpcklbw_r_r(regd, regs)  immx_inst_r_r(punpcklbw, regd, regs)
+#define punpcklbw_m_m(memd, mems)  immx_inst_m_m(punpcklbw, memd, mems)
+
+#define punpckhdq_r_m(regd, mem)   immx_inst_r_m(punpckhdq, regd, mem)
+#define punpckhdq_r_r(regd, regs)  immx_inst_r_r(punpckhdq, regd, regs)
+#define punpckhdq_m_m(memd, mems)  immx_inst_m_m(punpckhdq, memd, mems)
+#define punpckhwd_r_m(regd, mem)   immx_inst_r_m(punpckhwd, regd, mem)
+#define punpckhwd_r_r(regd, regs)  immx_inst_r_r(punpckhwd, regd, regs)
+#define punpckhwd_m_m(memd, mems)  immx_inst_m_m(punpckhwd, memd, mems)
+#define punpckhbw_r_m(regd, mem)   immx_inst_r_m(punpckhbw, regd, mem)
+#define punpckhbw_r_r(regd, regs)  immx_inst_r_r(punpckhbw, regd, regs)
+#define punpckhbw_m_m(memd, mems)  immx_inst_m_m(punpckhbw, memd, mems)
+
+#define immx_emms()		immx_inst(emms)
+
+
+#if (defined(__i386__) || defined(__amd64__) || defined(_M_IA64))
+	#ifdef immx_inst
+		#define ASMMMX_ENABLE
+		#define __asmmmx__
+	#endif
+#endif
 
 #endif
 
