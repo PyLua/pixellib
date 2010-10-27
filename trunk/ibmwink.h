@@ -49,10 +49,6 @@ void ibitmap_box(IBITMAP *bmp, int x, int y, int w, int h, ICOLORD c);
 //---------------------------------------------------------------------
 // Bitmap Transform
 //---------------------------------------------------------------------
-#define ISTRETCH_FAST		256
-
-int ibitmap_scale(IBITMAP *dst, int dx, int dy, int dw, int dh,
-	const IBITMAP *src, int sx, int sy, int sw, int sh, int flags);
 
 
 #ifdef __cplusplus

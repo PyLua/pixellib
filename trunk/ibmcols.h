@@ -326,6 +326,11 @@ extern const unsigned char*_iclip256;
 			((ICOLORW)((b) & 0xf0) >> 4) | \
 			((ICOLORW)((a) & 0xf0) << 8)))
 
+#define _im_pack_a8 (a, r, g, b) _im_pack_c8(r, g, b)
+#define _im_pack_a15(a, r, g, b) _im_pack_c15(r, g, b)
+#define _im_pack_a16(a, r, g, b) _im_pack_c16(r, g, b)
+#define _im_pack_a24(a, r, g, b) _im_pack_c24(r, g, b)
+
 #define _im_pack_rgb(bpp, r, g, b) \
 			_im_pack_c##bpp(r, g, b)
 
@@ -802,16 +807,11 @@ typedef int (*ICONVERTER)(unsigned char *dst, long dpitch, int dfmt,
 	ICOLORD mask, int flags);
 
 /* converter list: external converter [dst][src] */
+/* _iconvert_blit will call it first, returns zero for success */
+/* returns non-zero will cause _iconvert_blit use default converter */
 extern ICONVERTER _iconverter[24][24];
 
 
-
-#ifndef IDISABLE_CONVERT
-
-void _iconvert_argb(IBITMAP *dst, int dx, int dy, IBITMAP *src,
-	int sx, int sy, int w, int h, IRGB *pal, int ismask);
-
-#endif
 
 
 /**********************************************************************
@@ -837,8 +837,7 @@ void _iblit_fastfill(unsigned char *ptr, long pitch, int w, int h,
 
 void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 
-int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src, 
-	int sx, int sy, int w, int h, ICOLORD color, int flags);
+
 
 
 /**********************************************************************
@@ -1068,6 +1067,12 @@ int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	da = _iclip256[xa]; \
 }	while (0)
 
+
+/**********************************************************************
+ * DEFAULT ALPHA BLENDING (SLOW)
+ **********************************************************************/
+int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src, 
+	int sx, int sy, int w, int h, ICOLORD color, int flags);
 
 
 /**********************************************************************
