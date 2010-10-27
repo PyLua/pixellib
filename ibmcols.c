@@ -426,19 +426,6 @@ void _igenerate_convert_table(void)
 	ICOLORD checkendian = 0x11223344;
 	int be, i;
 
-	#define ICONVERT_SAVE_RGB(sbits, dbits, dtype) do { \
-		_im_scale_rgb(c1, sbits, r1, g1, b1); \
-		_im_scale_rgb(c2, sbits, r2, g2, b2); \
-		_iconvert_rgb_##sbits##_##dbits[i] = (dtype) \
-			_im_pack_rgb(dbits, r1, g1, b1); \
-		_iconvert_rgb_##sbits##_##dbits[i + 256] = (dtype) \
-			_im_pack_rgb(dbits, r2, g2, b2); \
-		_iconvert_rgb_##sbits##_##dbits[i + 512] = (dtype) \
-			_im_pack_rgb(dbits, b1, g1, r1); \
-		_iconvert_rgb_##sbits##_##dbits[i + 768] = (dtype) \
-			_im_pack_rgb(dbits, b2, g2, r2); \
-	}	while (0)
-
 	#define ICONVERT_SAVE_RGBA(sbits, dbits, dtype) do { \
 		_im_scale_argb(c1, sbits, a1, r1, g1, b1); \
 		_im_scale_argb(c2, sbits, a2, r2, g2, b2); \
@@ -470,10 +457,10 @@ void _igenerate_convert_table(void)
 		ICONVERT_SAVE_RGBA(16, 32, ICOLORD);
 
 		#ifndef IDISABLE_CONVERT
-		ICONVERT_SAVE_RGB(15, 16, ICOLORW);
-		ICONVERT_SAVE_RGB(16, 15, ICOLORW);
-		ICONVERT_SAVE_RGB(15, 15, ICOLORW);
-		ICONVERT_SAVE_RGB(16, 16, ICOLORW);
+		ICONVERT_SAVE_RGBA(15, 16, ICOLORW);
+		ICONVERT_SAVE_RGBA(16, 15, ICOLORW);
+		ICONVERT_SAVE_RGBA(15, 15, ICOLORW);
+		ICONVERT_SAVE_RGBA(16, 16, ICOLORW);
 		ICONVERT_SAVE_RGBA(1555, 4444, ICOLORW);
 		ICONVERT_SAVE_RGBA(4444, 1555, ICOLORW);
 		ICONVERT_SAVE_RGBA(1555, 8888, ICOLORD);
@@ -615,7 +602,7 @@ void _iconvert_pixfmt(IBITMAP *dst, int dx, int dy, IBITMAP *src, int sx,
 				break;
 			case IPIX_FMT_BGR32:
 				c = _im_get4b(s); 
-				_im_scale_bgr(c, 32, b, g, r);
+				_im_scale_rgb(c, 32, b, g, r);
 				break;
 			case IPIX_FMT_ARGB32:
 				c = _im_get4b(s); 
@@ -1055,6 +1042,168 @@ static void _iconvert_blit_scale(IBITMAP *dst, int dx, int dy, IBITMAP
 
 
 /**********************************************************************
+ * ALPHA-RGB CONVERTERS
+ **********************************************************************/
+#define _ICONVERT_ARGB(dfmt, dsize, sfmt, ssize) { \
+	ICOLORD c1, c2, r1, g1, b1, a1, r2, g2, b2, a2; \
+	const IRGB *_ipaletted = pal;		\
+	int y; \
+	if ((flags & ICONV_MASK) == 0) { \
+		for (y = 0; y < h; y++) { \
+			unsigned char *dd = _ilineptr(dst, dy + y) + dx * dsize; \
+			unsigned char *ss = _ilineptr(src, sy + y) + sx * ssize; \
+			ILINS_LOOP_DOUBLE( \
+				{ \
+					c1 = _ipixel_get(ssize, ss); \
+					ss += ssize; \
+					IRGBA_FROM_PIXEL(c1, sfmt, r1, g1, b1, a1); \
+					c1 = IRGBA_TO_PIXEL(dfmt, r1, g1, b1, a1); \
+					_ipixel_put(dsize, dd, c1); \
+					dd += dsize; \
+				}, \
+				{ \
+					c1 = _ipixel_get(ssize, ss); \
+					ss += ssize; \
+					c2 = _ipixel_get(ssize, ss); \
+					ss += ssize; \
+					IRGBA_FROM_PIXEL(c1, sfmt, r1, g1, b1, a1); \
+					IRGBA_FROM_PIXEL(c1, sfmt, r2, g2, b2, a2); \
+					c1 = IRGBA_TO_PIXEL(dfmt, r1, g1, b1, a1); \
+					c2 = IRGBA_TO_PIXEL(dfmt, r2, g2, b2, a2); \
+					_ipixel_put(dsize, dd, c1); \
+					dd += dsize; \
+					_ipixel_put(dsize, dd, c1); \
+					dd += dsize; \
+				}, \
+				w \
+			); \
+		} \
+	}	else { \
+		ICOLORD mask = src->mask; \
+		for (y = 0; y < h; y++) { \
+			unsigned char *dd = _ilineptr(dst, dy + y) + dx * dsize; \
+			unsigned char *ss = _ilineptr(src, sy + y) + sx * ssize; \
+			ILINS_LOOP_ONCE( \
+				{ \
+					c1 = _ipixel_get(ssize, ss); \
+					ss += ssize; \
+					if (c1 != mask) { \
+						IRGBA_FROM_PIXEL(c1, sfmt, r1, g1, b1, a1); \
+						c1 = IRGBA_TO_PIXEL(dfmt, r1, g1, b1, a1); \
+						_ipixel_put(dsize, dd, c1); \
+					} \
+					dd += dsize; \
+				}, \
+				w \
+			); \
+		} \
+	} \
+	_ipaletted = _ipaletted; \
+}
+
+#ifndef IDISABLE_CONVERT
+static int _iconvert_fmt_to_ARGB32(IBITMAP *dst, int dx, int dy, 
+	IBITMAP *src, int sx, int sy, int w, int h, const IRGB *pal, int flags)
+{
+	int retval = 0;
+	assert(_ibitmap_pixfmt(dst) == IPIX_FMT_ARGB32);
+
+	switch (_ibitmap_pixfmt(src))
+	{
+	case IPIX_FMT_8: _ICONVERT_ARGB(ARGB32, 4, 8, 1); break;
+	case IPIX_FMT_RGB15: _ICONVERT_ARGB(ARGB32, 4, RGB15, 2); break;
+	case IPIX_FMT_BGR15: _ICONVERT_ARGB(ARGB32, 4, BGR15, 2); break;
+	case IPIX_FMT_RGB16: _ICONVERT_ARGB(ARGB32, 4, RGB16, 2); break;
+	case IPIX_FMT_BGR16: _ICONVERT_ARGB(ARGB32, 4, BGR16, 2); break;
+	case IPIX_FMT_RGB24: _ICONVERT_ARGB(ARGB32, 4, RGB24, 3); break;
+	case IPIX_FMT_BGR24: _ICONVERT_ARGB(ARGB32, 4, BGR24, 3); break;
+	case IPIX_FMT_RGB32: _ICONVERT_ARGB(ARGB32, 4, RGB32, 4); break;
+	case IPIX_FMT_BGR32: _ICONVERT_ARGB(ARGB32, 4, BGR32, 4); break;
+	case IPIX_FMT_ARGB32: _ICONVERT_ARGB(ARGB32, 4, ARGB32, 4); break;
+	case IPIX_FMT_ABGR32: _ICONVERT_ARGB(ARGB32, 4, ABGR32, 4); break;
+	case IPIX_FMT_RGBA32: _ICONVERT_ARGB(ARGB32, 4, RGBA32, 4); break;
+	case IPIX_FMT_BGRA32: _ICONVERT_ARGB(ARGB32, 4, RGBA32, 4); break;
+	case IPIX_FMT_ARGB_4444: _ICONVERT_ARGB(ARGB32, 4, ARGB_4444, 2); break;
+	case IPIX_FMT_ABGR_4444: _ICONVERT_ARGB(ARGB32, 4, ABGR_4444, 2); break;
+	case IPIX_FMT_RGBA_4444: _ICONVERT_ARGB(ARGB32, 4, RGBA_4444, 2); break;
+	case IPIX_FMT_BGRA_4444: _ICONVERT_ARGB(ARGB32, 4, BGRA_4444, 2); break;
+	case IPIX_FMT_ARGB_1555: _ICONVERT_ARGB(ARGB32, 4, ARGB_1555, 2); break;
+	case IPIX_FMT_ABGR_1555: _ICONVERT_ARGB(ARGB32, 4, ABGR_1555, 2); break;
+	case IPIX_FMT_RGBA_5551: _ICONVERT_ARGB(ARGB32, 4, RGBA_5551, 2); break;
+	case IPIX_FMT_BGRA_5551: _ICONVERT_ARGB(ARGB32, 4, BGRA_5551, 2); break;
+	default:
+		retval = -1;
+		break;
+	}
+	return retval;
+}
+
+static int _iconvert_fmt_from_ARGB32(IBITMAP *dst, int dx, int dy, 
+	IBITMAP *src, int sx, int sy, int w, int h, const IRGB *pal, int flags)
+{
+	int retval = 0;
+	assert(_ibitmap_pixfmt(src) == IPIX_FMT_ARGB32);
+	switch (_ibitmap_pixfmt(dst))
+	{
+	case IPIX_FMT_RGB15: _ICONVERT_ARGB(RGB15, 2, ARGB32, 4); break;
+	case IPIX_FMT_BGR15: _ICONVERT_ARGB(BGR15, 2, ARGB32, 4); break;
+	case IPIX_FMT_RGB16: _ICONVERT_ARGB(RGB16, 2, ARGB32, 4); break;
+	case IPIX_FMT_BGR16: _ICONVERT_ARGB(BGR16, 2, ARGB32, 4); break;
+	case IPIX_FMT_RGB24: _ICONVERT_ARGB(RGB24, 3, ARGB32, 4); break;
+	case IPIX_FMT_BGR24: _ICONVERT_ARGB(BGR24, 3, ARGB32, 4); break;
+	case IPIX_FMT_RGB32: _ICONVERT_ARGB(RGB32, 4, ARGB32, 4); break;
+	case IPIX_FMT_BGR32: _ICONVERT_ARGB(BGR32, 4, ARGB32, 4); break;
+	case IPIX_FMT_ARGB32: _ICONVERT_ARGB(ARGB32, 4, ARGB32, 4); break;
+	case IPIX_FMT_ABGR32: _ICONVERT_ARGB(ABGR32, 4, ARGB32, 4); break;
+	case IPIX_FMT_RGBA32: _ICONVERT_ARGB(RGBA32, 4, ARGB32, 4); break;
+	case IPIX_FMT_BGRA32: _ICONVERT_ARGB(BGRA32, 4, ARGB32, 4); break;
+	case IPIX_FMT_ARGB_4444: _ICONVERT_ARGB(ARGB_4444, 2, ARGB32, 4); break;
+	case IPIX_FMT_ABGR_4444: _ICONVERT_ARGB(ABGR_4444, 2, ARGB32, 4); break;
+	case IPIX_FMT_RGBA_4444: _ICONVERT_ARGB(RGBA_4444, 2, ARGB32, 4); break;
+	case IPIX_FMT_BGRA_4444: _ICONVERT_ARGB(BGRA_4444, 2, ARGB32, 4); break;
+	case IPIX_FMT_ARGB_1555: _ICONVERT_ARGB(ARGB_1555, 2, ARGB32, 4); break;
+	case IPIX_FMT_ABGR_1555: _ICONVERT_ARGB(ABGR_1555, 2, ARGB32, 4); break;
+	case IPIX_FMT_RGBA_5551: _ICONVERT_ARGB(RGBA_5551, 2, ARGB32, 4); break;
+	case IPIX_FMT_BGRA_5551: _ICONVERT_ARGB(BGRA_5551, 2, ARGB32, 4); break;
+	default:
+		retval = -1;
+		break;
+	}
+	return retval;
+}
+
+
+/* speedup ARGB32 mode */
+static int _iconvert_speedup(IBITMAP *dst, int dx, int dy, IBITMAP *src,
+	int sx, int sy, int w, int h, const IRGB *dpal, const IRGB *spal,
+	int flags)
+{
+	int dfmt = _ibitmap_pixfmt(dst);
+	int sfmt = _ibitmap_pixfmt(src);
+	int retval = 0;
+
+	if (sfmt == IPIX_FMT_ARGB32) {
+		if (dpal == NULL) dpal = _ipaletted;
+		retval = _iconvert_fmt_from_ARGB32(dst, dx, dy, src, sx, sy, 
+			w, h, dpal, flags);
+	}	
+	else if (dfmt == IPIX_FMT_ARGB32) {
+		retval = _iconvert_fmt_to_ARGB32(dst, dx, dy, src, sx, sy, 
+			w, h, spal, flags);
+	}
+	else {
+		retval = -1;
+	}
+
+	return retval;
+}
+
+
+#endif
+
+
+
+/**********************************************************************
  * COLOR CONVERTERS
  **********************************************************************/
 ICONVERTER _iconverter[24][24] = {
@@ -1135,6 +1284,8 @@ void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 		return;
 	}
 
+	flags &= ~(ICONV_RGB2BGR | ICONV_ALPHALOW);
+
 	/* check if need convert rgb -> bgr */
 	if (ipixel_fmt[sfmt].use_bgr != ipixel_fmt[dfmt].use_bgr) {
 		flags |= ICONV_RGB2BGR;
@@ -1146,7 +1297,7 @@ void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	}
 
 	conv = _iconverter[dfmt][sfmt];
-	mask = ICONV_HFLIP | ICONV_VFLIP | ICONV_DEFAULT;
+	mask = ICONV_DEFAULT;
 
 	if (conv != NULL && ((flags & mask) == 0)) {
 		long spixelsize = _ibitmap_npixelbytes(src);
@@ -1155,7 +1306,7 @@ void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 		unsigned char *d = _ilineptr(dst, dy) + dx * dpixelsize;
 		r = conv(d, dst->pitch, dfmt, s, src->pitch, sfmt, 
 			w, h, src->mask, flags);
-		if (r != 0) 
+		if (r == 0) 
 			return;
 	}
 
@@ -1166,6 +1317,8 @@ void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 			if (flags & (ICONV_SHIFT | ICONV_MASK))
 				condition++;
 			else if (ipixel_fmt[sfmt].has_alpha) 
+				condition++;
+			else if (ipixel_fmt[dfmt].has_alpha && dst->bpp != 32)
 				condition++;
 			if (condition == 0) {
 				_iconvert_blit_scale(dst, dx, dy, src, sx, sy, w, h, 
@@ -1183,268 +1336,17 @@ void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 				(IRGB*)spal, flags);
 			return;
 		}
+		if (sfmt == IPIX_FMT_ARGB32 || dfmt == IPIX_FMT_ARGB32) {
+			if (_iconvert_speedup(dst, dx, dy, src, sx, sy, w, h,
+				spal, dpal, flags) == 0) {
+				return;
+			}
+		}
 	}
 	#endif
 	_iconvert_pixfmt(dst, dx, dy, src, sx, sy, w, h, spal, dpal, flags);
 }
 
-
-#ifndef IDISABLE_CONVERT
-/**********************************************************************
- * _ICONVERT_BLIT_ARGB
- **********************************************************************/
-#define _ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, mode) \
-{	\
-	ICOLORD sdelta = ssize * s_x;		\
-	ICOLORD ddelta = dsize * d_x;		\
-	unsigned char *s, *d;	\
-	ICOLORD c1, a1, r1, g1, b1; \
-	ICOLORD c2, a2, r2, g2, b2; \
-	ICOLORD smask;	\
-	long y;	\
-	IRGB *_ipaletted = pal;		\
-	if ((ismask) == 0) { \
-		for (y = 0; y < h; y++) { \
-			s = _ilineptr(src, s_y + y) + sdelta;	\
-			d = _ilineptr(dst, d_y + y) + ddelta;	\
-			ILINS_LOOP_DOUBLE( \
-				_iconvert_argb_x1(dbits, dsize, sbits, ssize, mode), \
-				_iconvert_argb_x2(dbits, dsize, sbits, ssize, mode), \
-				w); \
-		}	\
-	}	else { \
-		smask = src->mask;		\
-		for (y = 0; y < h; y++) { \
-			s = _ilineptr(src, s_y + y) + sdelta;	\
-			d = _ilineptr(dst, d_y + y) + ddelta;	\
-			ILINS_LOOP_ONCE( \
-				_iconvert_argb_mask(dbits, dsize, sbits, ssize, mode), \
-				w); \
-		}	\
-	} \
-	pal = _ipaletted; \
-}
-
-#define _iconvert_argb_x1(dbits, dsize, sbits, ssize, mode) { \
-	c1 = _im_get##ssize##b(s); \
-	s += ssize; \
-	_im_unpack_argb(c1, sbits, a1, r1, g1, b1); \
-	c1 = _im_pack_##mode(dbits, a1, r1, g1, b1); \
-	_im_put##dsize##b(d, c1); \
-	d += dsize; \
-}
-
-#define _iconvert_argb_x2(dbits, dsize, sbits, ssize, mode) { \
-	c1 = _im_get##ssize##b(s); \
-	s += ssize; \
-	c2 = _im_get##ssize##b(s); \
-	s += ssize; \
-	_im_unpack_argb(c1, sbits, a1, r1, g1, b1); \
-	_im_unpack_argb(c2, sbits, a2, r2, g2, b2); \
-	c1 = _im_pack_##mode(dbits, a1, r1, g1, b1); \
-	c2 = _im_pack_##mode(dbits, a2, r2, g2, b2); \
-	_im_put##dsize##b(d, c1); \
-	d += dsize; \
-	_im_put##dsize##b(d, c2); \
-	d += dsize; \
-}
-
-#define _iconvert_argb_mask(dbits, dsize, sbits, ssize, mode) { \
-	c1 = _im_get##ssize##b(s); \
-	_im_unpack_rgb(c1, sbits, r1, g1, b1); \
-	a1 = (c1 != smask)? 255 : 0; \
-	c1 = _im_pack_##mode(dbits, a1, r1, g1, b1); \
-	_im_put##dsize##b(d, c1); \
-	s += ssize; \
-	d += dsize; \
-}
-
-
-#define _ICONVERT_BLIT_ARGB(dbits, dsize, sbits, ssize, order) {\
-	if (order == 4123) { \
-		_ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, argb); \
-	}	else \
-	if (order == 4321) { \
-		_ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, abgr); \
-	}	\
-}
-
-#define _ICONVERT_BLIT_ARGB2(dbits, dsize, sbits, ssize, order) {\
-	if (order == 4123) { \
-		_ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, argb); \
-	}	else \
-	if (order == 4321) { \
-		_ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, abgr); \
-	}	else \
-	if (order == 1234) { \
-		_ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, rgba); \
-	}	else \
-	if (order == 3214) { \
-		_ICONVERT_BLIT_ARGB_EX(dbits, dsize, sbits, ssize, bgra); \
-	}	\
-}
-
-static void _iconvert_argb_to_8888(IBITMAP *dst, int d_x, int d_y, IBITMAP 
-	*src, int s_x, int s_y, int w, int h, IRGB *pal, int ismask, int inverse)
-{
-	pal = pal? pal : _ipaletted;
-	switch (_ibitmap_order(src)) {
-	case 1555: _ICONVERT_BLIT_ARGB2(8888, 4, 1555, 2, inverse); break;
-	case  555: _ICONVERT_BLIT_ARGB2(8888, 4,  555, 2, inverse); break;
-	case 4444: _ICONVERT_BLIT_ARGB2(8888, 4, 4444, 2, inverse); break;
-	case  565: _ICONVERT_BLIT_ARGB2(8888, 4,  565, 2, inverse); break;
-	case  888: _ICONVERT_BLIT_ARGB2(8888, 4,  888, 3, inverse); break;
-	}
-}
-
-static void _iconvert_argb_to_1555(IBITMAP *dst, int d_x, int d_y, IBITMAP 
-	*src, int s_x, int s_y, int w, int h, IRGB *pal, int ismask, int inverse)
-{
-	pal = pal? pal : _ipaletted;
-	switch (_ibitmap_order(src)) {
-	case  555: _ICONVERT_BLIT_ARGB(1555, 2,  555, 2, inverse); break;
-	case 4444: _ICONVERT_BLIT_ARGB(1555, 2, 4444, 2, inverse); break;
-	case  565: _ICONVERT_BLIT_ARGB(1555, 2,  565, 2, inverse); break;
-	case  888: _ICONVERT_BLIT_ARGB(1555, 2,  888, 3, inverse); break;
-	case 8888: _ICONVERT_BLIT_ARGB(1555, 2, 8888, 4, inverse); break;
-	}
-}
-
-static void _iconvert_argb_to_4444(IBITMAP *dst, int d_x, int d_y, IBITMAP 
-	*src, int s_x, int s_y, int w, int h, IRGB *pal, int ismask, int inverse)
-{
-	pal = pal? pal : _ipaletted;
-	switch (_ibitmap_order(src)) {
-	case 1555: _ICONVERT_BLIT_ARGB(4444, 2, 1555, 2, inverse); break;
-	case  555: _ICONVERT_BLIT_ARGB(4444, 2,  555, 2, inverse); break;
-	case  565: _ICONVERT_BLIT_ARGB(4444, 2,  565, 2, inverse); break;
-	case  888: _ICONVERT_BLIT_ARGB(4444, 2,  888, 3, inverse); break;
-	case 8888: _ICONVERT_BLIT_ARGB(4444, 2, 8888, 4, inverse); break;
-	}
-}
-
-static void _iconvert_argb_from_8(IBITMAP *dst, int d_x, int d_y, IBITMAP 
-	*src, int s_x, int s_y, int w, int h, IRGB *pal, int ismask, int inverse)
-{
-	pal = pal? pal : _ipaletted;
-	switch (_ibitmap_order(dst)) {
-	case 1555: _ICONVERT_BLIT_ARGB(1555, 2, 8, 1, inverse); break;
-	case 4444: _ICONVERT_BLIT_ARGB(4444, 2, 8, 1, inverse); break;
-	case 8888: _ICONVERT_BLIT_ARGB(8888, 4, 8, 1, inverse); break;
-	}
-}
-
-void _ibitmap_make_order(IBITMAP *bmp)
-{
-	if (_ibitmap_order(bmp) != 0) return;
-	if (_ibitmap_flags(bmp, IFLAG_HAVEALPHA) == 0) {
-		switch (bmp->bpp) 
-		{
-		case  8: _ibitmap_set_order(bmp,  332); break;
-		case 15: _ibitmap_set_order(bmp,  555); break;
-		case 16: _ibitmap_set_order(bmp,  565); break;
-		case 24: _ibitmap_set_order(bmp,  888); break;
-		case 32: _ibitmap_set_order(bmp, 8888); break;
-		default: _ibitmap_set_order(bmp,    0); break;
-		}
-		return;
-	}
-	switch (bmp->bpp)
-	{
-	case  8: _ibitmap_flags_clr(bmp, IFLAG_HAVEALPHA); break;
-	case 15: _ibitmap_set_order(bmp, 1555); break;
-	case 16: _ibitmap_set_order(bmp, 4444); break;
-	case 24: _ibitmap_flags_clr(bmp, IFLAG_HAVEALPHA); break;
-	case 32: _ibitmap_set_order(bmp, 8888); break;
-	}
-}
-
-int _ibitmap_check_inverse(IBITMAP *bmp) 
-{
-	int inverse = 0;
-	if (_ibitmap_flags(bmp, IFLAG_HAVEALPHA) == 0) {
-		inverse = _ibitmap_flags(bmp, IFLAG_USEBGR)? 4321 : 4123; 
-		return inverse;
-	}
-	if (_ibitmap_flags(bmp, IFLAG_ALPHALOW) == 0) 
-		inverse = _ibitmap_flags(bmp, IFLAG_USEBGR)? 4321 : 4123; 
-	else
-		inverse = _ibitmap_flags(bmp, IFLAG_USEBGR)? 3214 : 1234; 
-	if (bmp->bpp != 32) {
-		if (inverse == 3214) inverse = 4321;
-		if (inverse == 1234) inverse = 4123;
-	}
-	return inverse? inverse : 4123;
-}
-
-#undef _ICONVERT_BLIT_ARGB_EX
-
-
-/**********************************************************************
- * _iconvert_argb
- **********************************************************************/
-void _iconvert_argb(IBITMAP *dst, int dx, int dy, IBITMAP *src,
-	int sx, int sy, int w, int h, IRGB *pal, int ismask)
-{
-	int checksame;
-	int inverse1;
-	int inverse2;
-	int flags = 0, r;
-
-	assert(dst && src);
-
-	r = ibitmap_blitclip(dst, &dx, &dy, src, &sx, &sy, &w, &h, flags);
-	if (r) return;
-
-	checksame = IFLAG_USEBGR | IFLAG_HAVEALPHA | IFLAG_ALPHALOW;
-	if (dst->bpp == src->bpp && _ibitmap_flags(dst, checksame) == 
-		_ibitmap_flags(src, checksame)) {
-		ibitmap_blit(dst, dx, dy, src, sx, sy, w, h, src->mask, ismask);
-		return;
-	}
-
-	if (_ibitmap_flags(dst, IFLAG_HAVEALPHA) == 0 &&
-		_ibitmap_flags(src, IFLAG_HAVEALPHA) == 0) {
-		checksame = (_ibitmap_flags(dst, IFLAG_USEBGR) ==
-					 _ibitmap_flags(src, IFLAG_USEBGR))? 0 : 1;
-		flags = (checksame? ICONV_RGB2BGR : 0) | (ismask? ICONV_MASK : 0);
-		_iconvert_blit(dst, dx, dy, src, sx, sy, w, h, NULL, pal, flags);
-		return;
-	}
-
-	_ibitmap_make_order(dst);
-	_ibitmap_make_order(src);
-
-	inverse1 = _ibitmap_check_inverse(dst);
-	inverse2 = _ibitmap_check_inverse(src);
-
-	if (inverse1 == inverse2) r = 4123;
-	else r = inverse1;
-
-	if (src->bpp == 8) {
-		_iconvert_argb_from_8(dst, dx, dy, src, sx, sy, w, h, 
-			pal, ismask, r);
-		return;
-	}
-
-	switch (_ibitmap_order(dst)) 
-	{
-	case 8888:
-		_iconvert_argb_to_8888(dst, dx, dy, src, sx, sy, w, h, 
-			pal, ismask, r); 
-		break;
-	case 1555:
-		_iconvert_argb_to_1555(dst, dx, dy, src, sx, sy, w, h, 
-			pal, ismask, r); 
-		break;
-	case 4444:
-		_iconvert_argb_to_4444(dst, dx, dy, src, sx, sy, w, h, 
-			pal, ismask, r); 
-		break;
-	}
-}
-
-#endif
 
 
 /**********************************************************************
