@@ -16,6 +16,55 @@
 #include "ibmfast.h"
 
 
+//---------------------------------------------------------------------
+// GLOBAL DEFINITION
+//---------------------------------------------------------------------
+int ibicubic_lookup[IBICUBIC_SIZE * 2];
+int ibicubic_tables[(2 << IBICUBIC_BITS)][4];
+int ibicubic_inited = 0;
+
+void ibicubic_init(void)
+{
+	static int inited = 0;
+	int i, j, size;
+	if (inited != 0) return;
+	for (i = 0; i < IBICUBIC_SIZE; i++) {
+		float x = (i / ((double)(1 << IBICUBIC_BITS)));
+		float f1 = ikernel_bicubic(x);
+		float f2 = ikernel_cubic(x, -0.5f);
+		ibicubic_lookup[i] = (int)(f1 * 65536.0f);
+		ibicubic_lookup[i + IBICUBIC_SIZE] = (int)(f2 * 65536.0f);
+	}
+	size = (1 << IBICUBIC_BITS);
+	for (i = 0, j = size; i < size; i++, j++) {
+		float dx = i / ((float)size);
+		float f1 = ikernel_bicubic(-1 - dx + 0);
+		float f2 = ikernel_bicubic(-1 - dx + 1);
+		float f3 = ikernel_bicubic(-1 - dx + 2);
+		float f4 = ikernel_bicubic(-1 - dx + 3);
+		float f5 = ikernel_cubic(-1 - dx + 0, -0.5f);
+		float f6 = ikernel_cubic(-1 - dx + 1, -0.5f);
+		float f7 = ikernel_cubic(-1 - dx + 2, -0.5f);
+		float f8 = ikernel_cubic(-1 - dx + 3, -0.5f);
+		float k1 = f1 + f2 + f3 + f4;
+		float k2 = f5 + f6 + f7 + f8;
+		k1 = (k1 == 0.0f)? 0.0f : 65536.0f / k1;
+		k2 = (k2 == 0.0f)? 0.0f : 65536.0f / k2;
+		ibicubic_tables[i][0] = (int)(f1 * k1);
+		ibicubic_tables[i][1] = (int)(f2 * k1);
+		ibicubic_tables[i][2] = (int)(f3 * k1);
+		ibicubic_tables[i][3] = (int)(f4 * k1);
+		ibicubic_tables[j][0] = (int)(f5 * k2);
+		ibicubic_tables[j][1] = (int)(f6 * k2);
+		ibicubic_tables[j][2] = (int)(f7 * k2);
+		ibicubic_tables[j][3] = (int)(f8 * k2);
+	}
+	ibicubic_inited = 1;
+	inited = 1;
+}
+
+
+
 int ibitmap_blitclip(const IBITMAP *dst, int *dx, int *dy, 
 	const IBITMAP *src, int *sx, int *sy, int *sw, int *sh, int flags);
 
@@ -94,7 +143,7 @@ int ibitmap_scale_clip(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
 //---------------------------------------------------------------------
 // ibitmap_scale
 //---------------------------------------------------------------------
-int ibitmap_resize(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
+int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
 	const IBITMAP *src, const IRECT *rectsrc, int flags)
 {
 	int dx, dy, dw, dh, sx, sy, sw, sh, r;
@@ -300,6 +349,7 @@ static int ifilter_shrink_x_c(ICOLORB *dstpix, ICOLORB *srcpix, int height,
 				accumulate[1] = (ICOLORW)((*srcpix++ * xfrac) >> 16);
 				accumulate[2] = (ICOLORW)((*srcpix++ * xfrac) >> 16);
 				accumulate[3] = (ICOLORW)((*srcpix++ * xfrac) >> 16);
+				xcounter = xspace - xfrac;
 			}
 		}
 		srcpix += srcdiff;
@@ -389,8 +439,8 @@ static int ifilter_expand_x_c(ICOLORB *dstpix, ICOLORB *srcpix, int height,
 
 	for (x = 0; x < dstwidth; x++) {
 		xidx0[x] = x * (srcwidth - 1) / dstwidth;
-		xmult0[x] = 0x10000 * ((x * (srcwidth - 1)) % dstwidth) / dstwidth;
-		xmult1[x] = 0x10000 - xmult1[x];
+		xmult1[x] = 0x10000 * ((x * (srcwidth - 1)) % dstwidth) / dstwidth;
+		xmult0[x] = 0x10000 - xmult1[x];
 	}
 
 	for (y = 0; y < height; y++) {
@@ -429,7 +479,9 @@ static int ifilter_expand_y_c(ICOLORB *dstpix, ICOLORB *srcpix, int width,
 			*dstpix++ = (ICOLORB)(((*s0++ * ym0) + (*s1++ * ym1)) >> 16);
 			*dstpix++ = (ICOLORB)(((*s0++ * ym0) + (*s1++ * ym1)) >> 16);
 		}
+		dstpix += dstpitch - 4 * width;
 	}
+
 	return 0;
 }
 
@@ -448,6 +500,7 @@ static int ismooth_resize_32(ICOLORB *dstpix, ICOLORB *srcpix, int dstwidth,
 	}
 
 	temp = (ICOLORB*)malloc((long)srcwidth * dstheight * 4);
+
 	if (temp == NULL) return -1;
 
 	if (dstheight < srcheight) {
@@ -458,8 +511,6 @@ static int ismooth_resize_32(ICOLORB *dstpix, ICOLORB *srcpix, int dstwidth,
 		}
 	}
 	else if (dstheight > srcheight) {
-		ICOLORB *temp = (ICOLORB*)malloc((long)srcwidth * dstheight * 4);
-		if (temp == NULL) return -4;
 		if (ifilter_expand_y_c(temp, srcpix, srcwidth, srcwidth * 4,
 			srcpitch, dstheight, srcheight) != 0) {
 			free(temp);
@@ -495,6 +546,211 @@ static int ismooth_resize_32(ICOLORB *dstpix, ICOLORB *srcpix, int dstwidth,
 	}
 
 	free(temp);
+
+	return 0;
+}
+
+
+static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src, 
+						  const IRECT *rectsrc)
+{
+	unsigned char *ss;
+	unsigned char *dd;
+	int dstwidth, dstheight;
+	int srcwidth, srcheight;
+	int sfmt, dfmt;
+	int retval;
+	IBITMAP *tmp1, *tmp2;
+
+	sfmt = ibitmap_pixfmt(src);
+	dfmt = ibitmap_pixfmt(dst);
+
+	dstwidth = rectdst->right - rectdst->left;
+	srcwidth = rectsrc->right - rectsrc->left;
+	dstheight = rectdst->bottom - rectdst->top;
+	srcheight = rectsrc->bottom - rectsrc->top;
+
+	if (src->bpp == 32 && dst->bpp == 32 && sfmt == dfmt) {
+		dd = _ilineptr(dst, rectdst->top) + rectdst->left * 4;
+		ss = _ilineptr(src, rectsrc->top) + rectsrc->left * 4;
+		retval = ismooth_resize_32(dd, ss, dstwidth, srcwidth, dstheight,
+			srcheight, dst->pitch, src->pitch);
+		return retval;
+	}
+
+	if (src->bpp == 32) {
+		tmp1 = ibitmap_create(dstwidth, dstheight, 32);
+		if (tmp1 == 0) return -20;
+		ibitmap_set_pixfmt(tmp1, sfmt);
+		dd = _ilineptr(tmp1, 0);
+		ss = _ilineptr(src, rectsrc->top) + rectsrc->left * 4;
+		retval = ismooth_resize_32(dd, ss, dstwidth, srcwidth, 
+			dstheight, srcheight, tmp1->pitch, src->pitch);
+		if (retval == 0) {
+			_iconvert_blit(dst, rectdst->left, rectdst->top, tmp1, 
+				0, 0, dstwidth, dstheight, NULL, NULL, 0);
+		}
+		ibitmap_release(tmp1);
+		return 0;
+	}
+
+	if (dst->bpp == 32) {
+		tmp1 = ibitmap_create(srcwidth, srcheight, 32);
+		if (tmp1 == NULL) return -30;
+		ibitmap_set_pixfmt(tmp1, dfmt);
+		_iconvert_blit(tmp1, 0, 0, src, rectsrc->left, rectsrc->top,
+			srcwidth, srcheight, NULL, NULL, 0);
+		dd = _ilineptr(dst, rectdst->top) + rectdst->left * 4;
+		ss = _ilineptr(tmp1, 0);
+		retval = ismooth_resize_32(dd, ss, dstwidth, srcwidth,
+			dstheight, srcheight, dst->pitch, tmp1->pitch);
+		ibitmap_release(tmp1);
+		return retval;
+	}
+
+	tmp1 = ibitmap_create(dstwidth, dstheight, 32);
+	tmp2 = ibitmap_create(srcwidth, srcheight, 32);
+
+	if (tmp1 == NULL || tmp2 == NULL) {
+		if (tmp1) ibitmap_release(tmp1);
+		if (tmp2) ibitmap_release(tmp2);
+		return -40;
+	}
+
+	ibitmap_set_pixfmt(tmp1, IPIX_FMT_ARGB32);
+	ibitmap_set_pixfmt(tmp2, IPIX_FMT_ARGB32);
+
+	_iconvert_blit(tmp2, 0, 0, src, rectsrc->left, rectsrc->top,
+			srcwidth, srcheight, NULL, NULL, 0);
+
+	dd = _ilineptr(tmp1, 0);
+	ss = _ilineptr(tmp2, 0);
+
+	retval = ismooth_resize_32(dd, ss, dstwidth, srcwidth,
+		dstheight, srcheight, tmp1->pitch, tmp2->pitch);
+
+	if (retval == 0) {
+		_iconvert_blit(dst, rectdst->left, rectdst->top, tmp1, 
+			0, 0, dstwidth, dstheight, NULL, NULL, 0);
+	}
+
+	ibitmap_release(tmp1);
+	ibitmap_release(tmp2);
+
+	return retval;
+}
+
+
+//---------------------------------------------------------------------
+// Bitmap Bilinear / BiCubic Resize
+//---------------------------------------------------------------------
+#define ITEX_GETCOL_BICUBIC(c, fmt, u, v, texture, pitch, w, h) do { \
+	ICOLORB *p00, *p01, *p02, *p10, *p11, *p12, *p20, *p21, *p22; \
+	ICOLORD color[9], cc, cr, cg, cb, ca; \
+	int r, g, b, a, i, j, c, sum; \
+	int umid = u - 0x8000; \
+	int vmid = v - 0x8000; \
+	int umidfloor = iFixFloor(umid); \
+	int vmidfloor = iFixFloor(vmid); \
+	int ufactor = (((umid - umidfloor) & 0xfffe) + 1) >> 1; \
+	int vfactor = (((vmid - vmidfloor) & 0xfffe) + 1) >> 1; \
+	int umint = (umidfloor >> 16); \
+	int vmint = (vmidfloor >> 16); \
+	int um1 = umint - 1; \
+	int vm1 = vmint - 1; \
+	int umw = w - 2 - umint; \
+	int vmh = h - 2 - vmint; \
+	int condition; \
+	int alpha[9]; \
+	p11 = texture + vmint * pitch + IPIX_FMT_SIZE(fmt) * umint; \
+	p00 = p11 - pitch - IPIX_FMT_SIZE(fmt); \
+	p01 = p00 + IPIX_FMT_SIZE(fmt); \
+	p02 = p00 + IPIX_FMT_SIZE(fmt) * 2; \
+	p10 = p10 + pitch; \
+	p12 = p10 + IPIX_FMT_SIZE(fmt) * 2; \
+	p20 = p10 + pitch; \
+	p21 = p20 + IPIX_FMT_SIZE(fmt); \
+	p22 = p20 + IPIX_FMT_SIZE(fmt) * 2; \
+	condition = (um1 | vm1 | umw | vmh); \
+	if (condition >= 0) { \
+		color[0] = IPIX_FMT_READ(fmt, p00); \
+		color[1] = IPIX_FMT_READ(fmt, p01); \
+		color[2] = IPIX_FMT_READ(fmt, p02); \
+		color[3] = IPIX_FMT_READ(fmt, p10); \
+		color[4] = IPIX_FMT_READ(fmt, p11); \
+		color[5] = IPIX_FMT_READ(fmt, p12); \
+		color[6] = IPIX_FMT_READ(fmt, p20); \
+		color[7] = IPIX_FMT_READ(fmt, p21); \
+		color[8] = IPIX_FMT_READ(fmt, p22); \
+	}	else { \
+		ICOLORB *ptr = p00; \
+		long diff = pitch - IPIX_FMT_SIZE(fmt) * 3; \
+		for (j = -1, c = 0; j <= 1; j++, ptr += diff) { \
+			int y = vmint + j; \
+			if (y < 0 || y >= h) { \
+				color[c++] = 0; \
+				color[c++] = 0; \
+				color[c++] = 0; \
+				ptr += IPIX_FMT_SIZE(fmt) * 3; \
+			}	else { \
+				for (i = -1, i <= 1; i++) { \
+					int x = umint + i; \
+					if (x < 0 || x >= h) color[c++] = 0; \
+					else color[c++] = IPIX_FMT_READ(fmt, ptr); \
+					ptr += IPIX_FMT_SIZE(fmt); \
+				} \
+			} \
+		} \
+	}	\
+	ibicubic_alpha(umid, vmid, alpha); \
+	r = g = b = a = 0; \
+	for (i = 0; i < 9; i++) { \
+		cc = color[i]; \
+		aa = alpha[i]; \
+		IRGBA_FROM_PIXEL(cc, fmt, cr, cg, cb, ca); \
+		r += cr * aa; \
+		g += cg * aa; \
+		b += cb * aa; \
+		a += ca * aa; \
+	} \
+	r = (r + cr) >> 8; \
+	g = (g + cg) >> 8; \
+	b = (b + cb) >> 8; \
+	a = (a + ca) >> 8; \
+	c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
+}	while (0)
+
+
+//---------------------------------------------------------------------
+// 平滑缩放：支持BILINEAR, BICUBIC和SMOOTH几种算法，但是不支持关
+// 键色不支持 HFLIP, VFLIP等 blit特性，无混色。
+//---------------------------------------------------------------------
+int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst, 
+	const IRECT *clip, IBITMAP *src, const IRECT *rectsrc, int mode)
+{
+	int dx, dy, dw, dh, sx, sy, sw, sh, r;
+	IRECT drect;
+	IRECT srect;
+
+	irect_copy(&drect, rectdst);
+	irect_copy(&srect, rectsrc);
+
+	if (src->bpp != dst->bpp) 
+		return -100;
+
+	r = ibitmap_scale_clip(dst, &drect, clip, src, &srect);
+	if (r) return r;
+
+	dx = drect.left;
+	dy = drect.top;
+	dw = drect.right - dx;
+	dh = drect.bottom - dy;
+	sx = srect.left;
+	sy = srect.top;
+	sw = srect.right - sx;
+	sh = srect.bottom - sy;
+
+	ismooth_resize(dst, &drect, src, &srect);
 
 	return 0;
 }
