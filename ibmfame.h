@@ -14,7 +14,7 @@
 #ifndef __IBMFAME_H__
 #define __IBMFAME_H__
 
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
