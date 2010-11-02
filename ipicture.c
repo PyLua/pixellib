@@ -1431,6 +1431,19 @@ struct IBITMAP *ipic_convert(struct IBITMAP *src, int bpp, const IRGB *pal)
 	return bmp;
 }
 
+struct IBITMAP *ipic_convfmt(struct IBITMAP *src, int fmt, const IRGB *pal)
+{
+	IBITMAP *bmp;
+	IRGB *p = _idefault_pal;
+	if (src == NULL) return NULL;
+	if (pal != NULL) p = (IRGB*)pal;
+	bmp = ibitmap_create(src->w, src->h, ipixel_fmt[fmt].bpp);
+	if (bmp == NULL) return NULL;
+	ibitmap_set_pixfmt(bmp, fmt);
+	_iconvert_blit(bmp, 0, 0, src, 0, 0, src->w, src->h, NULL, p, 0);
+	return bmp;
+}
+
 struct IBITMAP *ipic_load_file(const char *file, long pos, IRGB *pal)
 {
 	IMDIO stream;

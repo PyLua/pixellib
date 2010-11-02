@@ -162,6 +162,7 @@ struct IBITMAP *ipic_load_file(const char *file, long pos, IRGB *pal);
 struct IBITMAP *ipic_load_mem(const void *ptr, long size, IRGB *pal);
 
 struct IBITMAP *ipic_convert(struct IBITMAP *src, int bpp, const IRGB *pal);
+struct IBITMAP *ipic_convfmt(struct IBITMAP *src, int fmt, const IRGB *pal);
 
 
 //---------------------------------------------------------------------

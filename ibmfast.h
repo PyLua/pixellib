@@ -9,6 +9,8 @@
 #ifndef __IBMFAST_H__
 #define __IBMFAST_H__
 
+#include <stddef.h>
+
 #include "ibitmap.h"
 #include "ibitmapm.h"
 #include "ibmcols.h"
@@ -142,6 +144,18 @@ static inline int ibitmap_pixfmt(IBITMAP *src) {
 	return _ibitmap_pixfmt(src);
 }
 
+static inline int ibitmap_pixfmt_const(const IBITMAP *src) {
+	int pixfmt = _ibitmap_pixfmt(src);
+	if (pixfmt == 0) {
+		if (src->bpp == 8) pixfmt = IPIX_FMT_8;
+		else if (src->bpp == 15) pixfmt = IPIX_FMT_RGB15;
+		else if (src->bpp == 16) pixfmt = IPIX_FMT_RGB16;
+		else if (src->bpp == 24) pixfmt = IPIX_FMT_RGB24;
+		else if (src->bpp == 32) pixfmt = IPIX_FMT_RGB32;
+	}
+	return pixfmt;
+}
+
 static inline void ibilinear_alpha(int u, int v, 
 	int *a00, int *a01, int *a10, int *a11)
 {
@@ -159,10 +173,17 @@ static inline void ibilinear_alpha(int u, int v,
 	ICOLORD raw, r, g, b, a; \
 	int ui = u >> 16; \
 	int vi = v >> 16; \
-	ITEX_NORMGET(raw, fmt, ui, vi, ptr, pitch, w, h); \
+	if (ioverflow_pos(&ui, &vi, w, h, om) == 0) { \
+		size_t pos = vi * pitch + ui * IPIX_FMT_SIZE(fmt); \
+		const ICOLORB *p = ptr + pos; \
+		raw = IPIX_FMT_READ(fmt, p); \
+	}	else { \
+		raw = dc; \
+	} \
 	IRGBA_FROM_PIXEL(raw, fmt, r, g, b, a); \
 	c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
 }	while (0)
+
 
 // (t00 * h1 + t01 * h2) * v1 + (t10 * h1 + t11 * h2) * v2
 // t00 * (h1 * v1) + t01 * (h2 * v1) + t10 * (h1 * v2) + t11 * (h2 * v2)
@@ -203,31 +224,40 @@ static inline void ibilinear_alpha(int u, int v,
 		IRGBA_FROM_PIXEL(c3, fmt, r10, g10, b10, a10); \
 		IRGBA_FROM_PIXEL(c4, fmt, r11, g11, b11, a11); \
 	}	else { \
-		int test1 = (umint >= 0 && umint < w); \
-		int test2 = (umint + 1 >= 0 && umint + 1 < w); \
-		r00 = g00 = b00 = a00 = 0; \
-		r01 = g01 = b01 = a01 = 0; \
-		r10 = g10 = b10 = a10 = 0; \
-		r11 = g11 = b11 = a11 = 0; \
-		if (vmint >= 0 && vmint < h) { \
-			if (test1) { \
-				c1 = IPIX_FMT_READ(fmt, p00); \
-				IRGBA_FROM_PIXEL(c1, fmt, r00, g00, b00, a00); \
-			} \
-			if (test2) { \
-				c2 = IPIX_FMT_READ(fmt, p01); \
-				IRGBA_FROM_PIXEL(c2, fmt, r01, g01, b01, a01); \
-			} \
+		int xx = umint; \
+		int yy = vmint; \
+		IRGBA_FROM_PIXEL(dc, ARGB32, r00, g00, b00, a00); \
+		if (ioverflow_pos(&xx, &yy, w, h, om) == 0) { \
+			p00 = ptr + yy * pitch + xx * IPIX_FMT_SIZE(fmt); \
+			c1 = IPIX_FMT_READ(fmt, p00); \
+			IRGBA_FROM_PIXEL(c1, fmt, r00, g00, b00, a00); \
+		}	else { \
+			IRGBA_FROM_PIXEL(dc, ARGB32, r00, g00, b00, a00); \
 		} \
-		if (vmint + 1 >= 0 && vmint + 1 < h) { \
-			if (test1) { \
-				c3 = IPIX_FMT_READ(fmt, p10);  \
-				IRGBA_FROM_PIXEL(c3, fmt, r10, g10, b10, a10); \
-			} \
-			if (test2) { \
-				c4 = IPIX_FMT_READ(fmt, p11);  \
-				IRGBA_FROM_PIXEL(c4, fmt, r11, g11, b11, a11); \
-			} \
+		xx = umint + 1; \
+		if (ioverflow_pos(&xx, &yy, w, h, om) == 0) { \
+			p01 = ptr + yy * pitch + xx * IPIX_FMT_SIZE(fmt); \
+			c2 = IPIX_FMT_READ(fmt, p00); \
+			IRGBA_FROM_PIXEL(c2, fmt, r01, g01, b01, a01); \
+		}	else { \
+			IRGBA_FROM_PIXEL(dc, ARGB32, r01, g01, b01, a01); \
+		} \
+		xx = umint; \
+		yy = vmint + 1; \
+		if (ioverflow_pos(&xx, &yy, w, h, om) == 0) { \
+			p10 = ptr + yy * pitch + xx * IPIX_FMT_SIZE(fmt); \
+			c3 = IPIX_FMT_READ(fmt, p00); \
+			IRGBA_FROM_PIXEL(c3, fmt, r10, g10, b10, a10); \
+		}	else { \
+			IRGBA_FROM_PIXEL(dc, ARGB32, r10, g10, b10, a10); \
+		} \
+		xx = umint + 1; \
+		if (ioverflow_pos(&xx, &yy, w, h, om) == 0) { \
+			p11 = ptr + yy * pitch + xx * IPIX_FMT_SIZE(fmt); \
+			c4 = IPIX_FMT_READ(fmt, p00); \
+			IRGBA_FROM_PIXEL(c4, fmt, r11, g11, b11, a11); \
+		}	else { \
+			IRGBA_FROM_PIXEL(dc, ARGB32, r11, g11, b11, a11); \
 		} \
 	}	\
 	sum = a00 + a01 + a10 + a11; \
@@ -235,7 +265,7 @@ static inline void ibilinear_alpha(int u, int v,
 	f01 = (ufactor * (0x8000 - vfactor)) >> 14;  \
 	f10 = ((0x8000 - ufactor) * vfactor) >> 14;  \
 	f11 = (ufactor * vfactor) >> 14; \
-	if (sum == 0) c = 0; \
+	if (sum == -1) c = 0; \
 	else {	\
 		if (sum == 255 * 4) { a = 255; } \
 		else { a = (a00 * f00 + a01 * f01 + a10 * f10 + a11 * f11) >> 16; } \
@@ -293,7 +323,7 @@ static inline void ibilinear_alpha(int u, int v,
 	f01 = (ufactor * (0x8000 - vfactor)) >> 14;  \
 	f10 = ((0x8000 - ufactor) * vfactor) >> 14;  \
 	f11 = (ufactor * vfactor) >> 14; \
-	if (sum == 0) c = 0; \
+	if (sum == -1) c = 0; \
 	else {	\
 		if (sum == 255 * 4) { a = 255; } \
 		else { a = (a00 * f00 + a01 * f01 + a10 * f10 + a11 * f11) >> 16; } \
@@ -303,58 +333,6 @@ static inline void ibilinear_alpha(int u, int v,
 		c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
 	}	\
 }	while (0)
-
-
-#define IGET_PIXEL_COLOR(fmt) \
-static inline ICOLORD interp_get_color_normal_##fmt(int u, int v, \
-	const unsigned char *src, long pitch, int w, int h) { \
-	ICOLORD c; \
-	ITEX_GETCOL_NORMAL(c, fmt, u, v, src, pitch, w, h); \
-	return c; \
-} \
-static inline ICOLORD interp_get_color_bilinear_##fmt(int u, int v, \
-	const unsigned char *src, long pitch, int w, int h) { \
-	ICOLORD c; \
-	ITEX_GETCOL_BILINEAR(c, fmt, u, v, src, pitch, w, h); \
-	return c; \
-} \
-static inline ICOLORD interp_texture_get_normal_##fmt(int u, int v, \
-	const unsigned char *src, int shift, int umask, int vmask) { \
-	ICOLORD c; \
-	ITEX_UVGETCOL_NORMAL(c, fmt, u, v, src, shift, umask, vmask); \
-	return c; \
-} \
-static inline ICOLORD interp_texture_get_bilinear_##fmt(int u, int v, \
-	const unsigned char *src, int shift, int umask, int vmask) { \
-	ICOLORD c; \
-	ITEX_UVGETCOL_BILINEAR(c, fmt, u, v, src, shift, umask, vmask); \
-	return c; \
-}
-
-
-//IGET_PIXEL_COLOR(ARGB32);
-
-
-//---------------------------------------------------------------------
-// Inline Utilities
-//---------------------------------------------------------------------
-static inline IRECT *irect_set(IRECT *rect, int l, int t, int r, int b)
-{
-	rect->left = l;
-	rect->top = t;
-	rect->right = r;
-	rect->bottom = b;
-	return rect;
-}
-
-static inline IRECT *irect_copy(IRECT *dst, const IRECT *src)
-{
-	dst->left = src->left;
-	dst->top = src->top;
-	dst->right = src->right;
-	dst->bottom = src->bottom;
-	return dst;
-}
 
 
 #ifdef __cplusplus
@@ -443,6 +421,111 @@ static inline int ibicubic_alpha(int u, int v, int *alphas, int n)
 }
 
 
+//---------------------------------------------------------------------
+// BICUBIC INTERPOLATION
+//---------------------------------------------------------------------
+#define ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, z, om, dc) do { \
+	const ICOLORB *src, *pos; \
+	ICOLORD colors[16], cc; \
+	int cr, cg, cb, ca; \
+	int r, g, b, a, i, j, k, aa; \
+	int umid = u - 0; \
+	int vmid = v - 0; \
+	int umidfloor = iFixFloor(umid); \
+	int vmidfloor = iFixFloor(vmid); \
+	int ufactor = (((umid - umidfloor) & 0xfffe) + 1); \
+	int vfactor = (((vmid - vmidfloor) & 0xfffe) + 1); \
+	int umint = (umidfloor >> 16); \
+	int vmint = (vmidfloor >> 16); \
+	int um1 = umint - 1; \
+	int vm1 = vmint - 1; \
+	int umw = w - 3 - umint; \
+	int vmh = h - 3 - vmint; \
+	int condition; \
+	int alphas[16]; \
+	src = ptr + (vmint - 1) * pitch + IPIX_FMT_SIZE(fmt) * (umint - 1); \
+	condition = (um1 | vm1 | umw | vmh); \
+	if (condition >= 0) { \
+		pos = src; \
+		colors[ 0] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 1] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 2] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 3] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		pos = src + pitch; \
+		colors[ 4] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 5] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 6] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 7] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		pos = src + pitch * 2; \
+		colors[ 8] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[ 9] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[10] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[11] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		pos = src + pitch * 3; \
+		colors[12] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[13] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[14] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+		colors[15] = IPIX_FMT_READ(fmt, pos); pos += IPIX_FMT_SIZE(fmt); \
+	}	else { \
+		ICOLORD DC; \
+		IRGBA_FROM_PIXEL(dc, ARGB32, r, g, b, a); \
+		DC = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
+		for (j = 0, k = 0; j < 4; j++) { \
+			for (i = 0; i < 4; i++) { \
+				int x = umint - 1 + i; \
+				int y = vmint - 1 + i; \
+				if (ioverflow_pos(&x, &y, w, h, om) == 0) { \
+					pos = ptr + pitch * y + x * IPIX_FMT_SIZE(fmt); \
+					colors[k++] = IPIX_FMT_READ(fmt, pos); \
+				}	else { \
+					colors[k++] = DC; \
+				} \
+			} \
+		} \
+	}	\
+	r = g = b = a = 0; \
+	ibicubic_alpha(ufactor, vfactor, alphas, z); \
+	for (i = 0; i < 16; i++) { \
+		aa = alphas[i]; \
+		cc = colors[i]; \
+		IRGBA_FROM_PIXEL(cc, fmt, cr, cg, cb, ca); \
+		r += cr * aa; \
+		g += cg * aa; \
+		b += cb * aa; \
+		a += ca * aa; \
+	} \
+	r = (r + 0) >> 8; \
+	g = (g + 0) >> 8; \
+	b = (b + 0) >> 8; \
+	a = (a + 0) >> 8; \
+	r = _iclip256[r]; \
+	g = _iclip256[g]; \
+	b = _iclip256[b]; \
+	a = _iclip256[a]; \
+	c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
+}	while (0)
+
+
+//---------------------------------------------------------------------
+// Inline Utilities
+//---------------------------------------------------------------------
+static inline IRECT *irect_set(IRECT *rect, int l, int t, int r, int b)
+{
+	rect->left = l;
+	rect->top = t;
+	rect->right = r;
+	rect->bottom = b;
+	return rect;
+}
+
+static inline IRECT *irect_copy(IRECT *dst, const IRECT *src)
+{
+	dst->left = src->left;
+	dst->top = src->top;
+	dst->right = src->right;
+	dst->bottom = src->bottom;
+	return dst;
+}
 
 
 //---------------------------------------------------------------------
@@ -460,15 +543,34 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
 	const IBITMAP *src, const IRECT *rectsrc, int flags);
 
 
-#define ISTRETCH_NEAREST	0
-#define ISTRETCH_BILINEAR	1
-#define ISTRETCH_BICUBIC	2
-#define ISTRETCH_SMOOTH		3
+#define IFILTER_NORMAL		0
+#define IFILTER_NEAREST		1
+#define IFILTER_BILINEAR	2
+#define IFILTER_BICUBIC		3
+#define IFILTER_BICUBIC2	4
+#define IFILTER_TEND		5
 
-// 平滑缩放：支持BILINEAR, BICUBIC和 SMOOTH几种算法，但是不支持关
-// 键色不支持 HFLIP, VFLIP等 blit特性，无混色。
+
+// 插值方式取得 ARGB32颜色
+ICOLORD interpolated_getcol(int pixfmt, int filter, int u, int v, 
+	const unsigned char *src, long pitch, int w, int h, int ofmode,
+	ICOLORD ofcol);
+
+// 插值方式取得 ARGB32颜色
+ICOLORD interpolated_bitmap(const IBITMAP *bmp, int u, int v, 
+	int filter, int ofmode, ICOLORD ofcol);
+
+
+// 平滑缩放：支持BILINEAR, BICUBIC和SMOOTH几种算法，但无关键色，
+// 也没有 AlphaBlending
 int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst, 
-	const IRECT *clip, IBITMAP *src, const IRECT *rectsrc, int mode);
+	const IRECT *clip, IBITMAP *src, const IRECT *rectsrc, int flags,
+	int filter, int ofmode, ICOLORD ofcol);
+
+
+// 位图重新采样
+IBITMAP *ibitmap_resample(IBITMAP *src, int newwidth, int newheight,
+	int filter, int ofmode, ICOLORD ofcolor);
 
 
 #ifdef __cplusplus
