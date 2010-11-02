@@ -1067,12 +1067,12 @@ static void _iconvert_blit_scale(IBITMAP *dst, int dx, int dy, IBITMAP
 					c2 = _ipixel_get(ssize, ss); \
 					ss += ssize; \
 					IRGBA_FROM_PIXEL(c1, sfmt, r1, g1, b1, a1); \
-					IRGBA_FROM_PIXEL(c1, sfmt, r2, g2, b2, a2); \
+					IRGBA_FROM_PIXEL(c2, sfmt, r2, g2, b2, a2); \
 					c1 = IRGBA_TO_PIXEL(dfmt, r1, g1, b1, a1); \
 					c2 = IRGBA_TO_PIXEL(dfmt, r2, g2, b2, a2); \
 					_ipixel_put(dsize, dd, c1); \
 					dd += dsize; \
-					_ipixel_put(dsize, dd, c1); \
+					_ipixel_put(dsize, dd, c2); \
 					dd += dsize; \
 				}, \
 				w \
