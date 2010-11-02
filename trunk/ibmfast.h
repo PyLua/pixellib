@@ -177,11 +177,11 @@ static inline void ibilinear_alpha(int u, int v,
 		size_t pos = vi * pitch + ui * IPIX_FMT_SIZE(fmt); \
 		const ICOLORB *p = ptr + pos; \
 		raw = IPIX_FMT_READ(fmt, p); \
+		IRGBA_FROM_PIXEL(raw, fmt, r, g, b, a); \
+		c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
 	}	else { \
-		raw = dc; \
+		c = dc; \
 	} \
-	IRGBA_FROM_PIXEL(raw, fmt, r, g, b, a); \
-	c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
 }	while (0)
 
 
