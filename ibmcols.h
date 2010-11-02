@@ -905,9 +905,9 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 #define IBPP_TO_BYTES(bpp) (((bpp) + 7) >> 3)
 
 #define IPIXEL_FROM_PTR(pixel, fmt, ptr) do { \
-	int dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
+	int __dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
 	pixel = 0; \
-	switch (dsize) { \
+	switch (__dsize) { \
 	case 1: pixel = _ipixel_get(1, ptr); break; \
 	case 2: pixel = _ipixel_get(2, ptr); break; \
 	case 3: pixel = _ipixel_get(3, ptr); break; \
@@ -916,8 +916,8 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 }	while (0)
 
 #define IPIXEL_TO_PTR(pixel, fmt, ptr) do { \
-	int dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
-	switch (dsize) { \
+	int __dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
+	switch (__dsize) { \
 	case 1: _ipixel_put(1, ptr, pixel); break; \
 	case 2: _ipixel_put(2, ptr, pixel); break; \
 	case 3: _ipixel_put(3, ptr, pixel); break; \
@@ -926,16 +926,15 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 }	while (0)
 
 #define IRGBA_FROM_PTR(ptr, fmt, r, g, b, a) do { \
-	ICOLORD raw = 0; \
-	IPIXEL_FROM_PTR(raw, fmt, ptr); \
-	IRGBA_DISEMBLE(raw, fmt, r, g, b, a); \
+	ICOLORD __raw = 0; \
+	IPIXEL_FROM_PTR(__raw, fmt, ptr); \
+	IRGBA_DISEMBLE(__raw, fmt, r, g, b, a); \
 }	while (0)
 
 #define IRGBA_TO_PTR(ptr, fmt, r, g, b, a) do { \
-	int dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
-	ICOLORD raw = 0; \
-	IRGBA_ASSEMBLE(raw, fmt, r, g, b, a); \
-	IPIXEL_TO_PTR(raw, fmt, ptr); \
+	ICOLORD __raw = 0; \
+	IRGBA_ASSEMBLE(__raw, fmt, r, g, b, a); \
+	IPIXEL_TO_PTR(__raw, fmt, ptr); \
 }	while (0)
 
 
@@ -1010,8 +1009,8 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 #define IPIX_FMT_WRITE(fmt, ptr, c) IPIX_WRITE_##fmt(ptr, c)
 
 #define IPIX_FMT_READ_RGBA(fmt, ptr, r, g, b, a) { \
-	ICOLORD col = IPIX_FMT_READ(fmt, ptr); \
-	IRGBA_FROM_PIXEL(col, fmt, r, g, b, a); \
+	ICOLORD __col = IPIX_FMT_READ(fmt, ptr); \
+	IRGBA_FROM_PIXEL(__col, fmt, r, g, b, a); \
 }
 
 
@@ -1050,21 +1049,21 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 }	while (0)
 
 #define IBLEND_ADDITIVE(sr, sg, sb, sa, dr, dg, db, da) do { \
-	int xa = _iblend_norm_fast(sa); \
-	int xr = sr * xa; \
-	int xg = sg * xa; \
-	int xb = sb * xa; \
-	xr = xr >> 8; \
-	xg = xg >> 8; \
-	xb = xb >> 8; \
-	xa = sa + da; \
-	xr += dr; \
-	xg += dg; \
-	xb += db; \
-	dr = _iclip256[xr]; \
-	dg = _iclip256[xg]; \
-	db = _iclip256[xb]; \
-	da = _iclip256[xa]; \
+	int XA = _iblend_norm_fast(sa); \
+	int XR = sr * XA; \
+	int XG = sg * XA; \
+	int XB = sb * XA; \
+	XR = XR >> 8; \
+	XG = XG >> 8; \
+	XB = XB >> 8; \
+	XA = sa + da; \
+	XR += dr; \
+	XG += dg; \
+	XB += db; \
+	dr = _iclip256[XR]; \
+	dg = _iclip256[XG]; \
+	db = _iclip256[XB]; \
+	da = _iclip256[XA]; \
 }	while (0)
 
 

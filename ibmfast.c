@@ -320,25 +320,25 @@ static inline ICOLORD interp_get_color_nearest_##fmt(int u, int v, \
 	const ICOLORB *ptr, long pitch, int w, int h, int om, ICOLORD dc) { \
 	ICOLORD c; \
 	u += 0x8000; v += 0x8000; \
-	ITEX_GETCOL_NORMAL(c, fmt, u, v, ptr, pitch, w, h, 0, 0); \
+	ITEX_GETCOL_NORMAL(c, fmt, u, v, ptr, pitch, w, h, om, dc); \
 	return c; \
 } \
 static inline ICOLORD interp_get_color_bilinear_##fmt(int u, int v, \
 	const ICOLORB *ptr, long pitch, int w, int h, int om, ICOLORD dc) { \
 	ICOLORD c; \
-	ITEX_GETCOL_BILINEAR(c, fmt, u, v, ptr, pitch, w, h, 0, 0); \
+	ITEX_GETCOL_BILINEAR(c, fmt, u, v, ptr, pitch, w, h, om, dc); \
 	return c; \
 } \
 static inline ICOLORD interp_get_color_bicubic_##fmt(int u, int v, \
 	const ICOLORB *ptr, long pitch, int w, int h, int om, ICOLORD dc) { \
 	ICOLORD c; \
-	ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, 0, 0, 0); \
+	ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, 0, om, dc); \
 	return c; \
 } \
 static inline ICOLORD interp_get_color_bicubic2_##fmt(int u, int v, \
 	const ICOLORB *ptr, long pitch, int w, int h, int om, ICOLORD dc) { \
 	ICOLORD c; \
-	ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, 1, 0, 0); \
+	ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, 1, om, dc); \
 	return c; \
 } \
 static inline ICOLORD interp_texture_get_normal_##fmt(int u, int v, \
@@ -806,7 +806,7 @@ static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src,
 //---------------------------------------------------------------------
 // Bitmap Nearest / Bilinear / BiCubic Resize
 //---------------------------------------------------------------------
-#define ibitmap_scale_main(fmt, filter, overflow, olfColor) {	\
+#define ibitmap_scale_main(fmt, filter, ofmode, ofcolor) {	\
 		unsigned char *dstpix = NULL; \
 		unsigned char *srcpix = NULL; \
 		int du = (sw << 16) / dw; \
@@ -820,7 +820,7 @@ static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src,
 			dv = -dv; \
 			v = ((sy + sh - 1) << 16) + 0x8000; \
 		}	else { \
-			v = sy << 16; \
+			v = (sy << 16) - 0; \
 		} \
 		srcpix = _ilineptr(src, 0); \
 		spitch = (long)src->pitch; \
@@ -829,13 +829,13 @@ static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src,
 		for (y = 0; y < dh; y++, v += dv) { \
 			dstpix = _ilineptr(dst, dy + y) + dx * IPIX_FMT_SIZE(fmt); \
 			if (flags & IBLIT_HFLIP) { \
-				u = ((sx + sw - 1) << 16) + 0x8000; \
+				u = ((sx + sw - 1) << 16) + 0x6000; \
 			}	else { \
-				u = sx << 16; \
+				u = (sx << 16) - 0; \
 			} \
 			for (x = dw; x > 0; x--, u += du) { \
 				c = interp_getcol(fmt, filter, u, v, srcpix, spitch, \
-					srcw, srch, overflow, olfColor); \
+					srcw, srch, ofmode, ofcolor); \
 				IPIX_FMT_WRITE(fmt, dstpix, c); \
 				dstpix += IPIX_FMT_SIZE(fmt); \
 			} \
@@ -941,6 +941,9 @@ int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst,
 	if (srect.right >= 0x7fff || srect.bottom >= 0x7fff ||
 		drect.right >= 0x7fff || drect.bottom >= 0x7fff) 
 		return -400;
+
+	if (ibicubic_inited == 0) 
+		ibicubic_init();
 	
 	#define ibitmap_interp_case(fmt) \
 		case IPIX_FMT_##fmt: ibitmap_scale_proc_##fmt(dst, &drect, \
@@ -969,6 +972,8 @@ int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst,
 		ibitmap_interp_case(RGBA_5551);
 		ibitmap_interp_case(BGRA_5551);
 	}
+
+	#undef ibitmap_interp_case
 
 	return 0;
 }
