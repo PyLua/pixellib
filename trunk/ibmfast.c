@@ -143,10 +143,10 @@ int ibitmap_scale_clip(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
 //---------------------------------------------------------------------
 // ibitmap_scale
 //---------------------------------------------------------------------
-int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
+static int ibitmap_stretch_fast(IBITMAP *dst, const IRECT *rectdst, 
 	const IBITMAP *src, const IRECT *rectsrc, int flags)
 {
-	int dx, dy, dw, dh, sx, sy, sw, sh, r;
+	int dx, dy, dw, dh, sx, sy, sw, sh;
 	IRECT drect;
 	IRECT srect;
 
@@ -155,9 +155,6 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
 
 	if (src->bpp != dst->bpp) 
 		return -100;
-
-	r = ibitmap_scale_clip(dst, &drect, clip, src, &srect);
-	if (r) return r;
 
 	dx = drect.left;
 	dy = drect.top;
@@ -241,15 +238,15 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
 			unsigned char *dstpix = NULL; \
 			unsigned char *srcpix = NULL; \
 			unsigned char *texpix = NULL; \
-			int du = (sw << 16) / dw; \
-			int dv = (sh << 16) / dh; \
+			int du = ((sw - 1) << 16) / dw; \
+			int dv = ((sh - 1) << 16) / dh; \
 			int x, y, u, v; \
 			int lineno; \
 			ICOLORD mask, c; \
 			mask = src->mask; \
 			if (flags & IBLIT_HFLIP) du = -du; \
 			if (flags & IBLIT_VFLIP) dv = -dv; \
-			for (y = 0, v = 0x8000; y < dh; y++, v += dv) { \
+			for (y = 0, v = 0; y < dh; y++, v += dv) { \
 				dstpix = _ilineptr(dst, dy + y) + dx * nbytes; \
 				if ((flags & IBLIT_VFLIP) == 0) lineno = sy + (v >> 16); \
 				else lineno = sy + sh - 1 + (v >> 16); \
@@ -404,6 +401,7 @@ ICOLORD interpolated_getcol(int pixfmt, int filter, int u, int v,
 	ICOLORD olfColor)
 {
 	ICOLORD color;
+	if (ibicubic_inited == 0) ibicubic_init();
 	#define _interp_get_case(fmt) do { \
 			switch (filter) { \
 			case IFILTER_NORMAL: \
@@ -809,8 +807,8 @@ static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src,
 #define ibitmap_scale_main(fmt, filter, ofmode, ofcolor) {	\
 		unsigned char *dstpix = NULL; \
 		unsigned char *srcpix = NULL; \
-		int du = (sw << 16) / dw; \
-		int dv = (sh << 16) / dh; \
+		int du = ((sw - 1) << 16) / dw; \
+		int dv = ((sh - 1) << 16) / dh; \
 		int x, y, u, v, srcw, srch; \
 		long spitch; \
 		ICOLORD mask, c; \
@@ -820,7 +818,7 @@ static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src,
 			dv = -dv; \
 			v = ((sy + sh - 1) << 16) + 0x8000; \
 		}	else { \
-			v = (sy << 16) - 0; \
+			v = (sy << 16) + 0; \
 		} \
 		srcpix = _ilineptr(src, 0); \
 		spitch = (long)src->pitch; \
@@ -831,7 +829,7 @@ static int ismooth_resize(IBITMAP *dst, const IRECT *rectdst, IBITMAP *src,
 			if (flags & IBLIT_HFLIP) { \
 				u = ((sx + sw - 1) << 16) + 0x6000; \
 			}	else { \
-				u = (sx << 16) - 0; \
+				u = (sx << 16) + 0; \
 			} \
 			for (x = dw; x > 0; x--, u += du) { \
 				c = interp_getcol(fmt, filter, u, v, srcpix, spitch, \
@@ -899,14 +897,13 @@ ibitmap_scale_interp(BGRA_5551);
 
 
 //---------------------------------------------------------------------
-// 平滑缩放：支持BILINEAR, BICUBIC和SMOOTH几种算法，但无关键色，
-// 也没有 AlphaBlending
+// 平滑缩放：支持BILINEAR, BICUBIC和SMOOTH几种算法，但无混色
 //---------------------------------------------------------------------
-int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst, 
+int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, 
 	const IRECT *clip, IBITMAP *src, const IRECT *rectsrc, int flags,
 	int filter, int ofmode, ICOLORD ofcol)
 {
-	int sfmt, dfmt, r;
+	int sfmt, dfmt, r, m;
 	IRECT drect;
 	IRECT srect;
 
@@ -934,8 +931,16 @@ int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst,
 	sfmt = ibitmap_pixfmt(src);
 
 	// pixel format doesn't support
-	if (dfmt != sfmt || sfmt == IPIX_FMT_8) 
+	if (dfmt != sfmt) 
 		return -300;
+
+	// flags indicate to use fast mode
+	m = ISTRETCH_FAST | IBLIT_MASK;
+
+	// use fast mode
+	if (filter == IFILTER_NORMAL || (flags & m) != 0 || src->bpp == 8) {
+		return ibitmap_stretch_fast(dst, &drect, src, &srect, flags);
+	}
 
 	// size out of range
 	if (srect.right >= 0x7fff || srect.bottom >= 0x7fff ||
@@ -1001,7 +1006,7 @@ IBITMAP *ibitmap_resample(IBITMAP *src, int newwidth, int newheight,
 	irect_set(&drect, 0, 0, newwidth, newheight);
 	irect_set(&srect, 0, 0, (int)src->w, (int)src->h);
 
-	ibitmap_smooth_stretch(dst, &drect, NULL, src, &srect, 0,
+	ibitmap_stretch(dst, &drect, NULL, src, &srect, 0,
 		filter, ofmode, ofcolor);
 
 	return dst;

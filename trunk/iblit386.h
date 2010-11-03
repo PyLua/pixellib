@@ -31,6 +31,8 @@
 #ifndef __IBLIT386_H__
 #define __IBLIT386_H__
 
+#include <stddef.h>
+
 
 //---------------------------------------------------------------------
 // platform detection
@@ -339,18 +341,8 @@ typedef unsigned long long IQWORD;
 
 #ifndef __IULONG_DEFINED
 #define __IULONG_DEFINED
-#if defined(WIN64) || defined(_WIN64)		/* LLP64 mode */
-#ifdef _MSC_VER
-typedef unsigned __int64 iulong;
-typedef __int64 ilong;
-#else										/* LP64 or 32/16 mode */
-typedef unsigned long long iulong;
-typedef long long ilong;
-#endif
-#else
-typedef unsigned long iulong;
-typedef long ilong;
-#endif
+typedef ptrdiff_t ilong;
+typedef size_t iulong;
 #endif
 
 void _x86_cpuid(int op, int *eax, int *ebx, int *ecx, int *edx);
