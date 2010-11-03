@@ -298,6 +298,8 @@ static void _x86_detect_cpu(void)
 			#endif
 			if (test) memcpy(_cpu_vendor_name, "NexGenDriven", 13);
 		}
+		#else
+		test = test;
 		#endif
 	}	else {		// have cpuid
 		int regs[4];
@@ -364,16 +366,20 @@ void _x86_choose_blitter(void)
 	ibitmap_funcset(1, NULL);
 	if (X86_FEATURE(X86_FEATURE_MMX)) {
 		if (X86_FEATURE(X86_FEATURE_XMM)) 
-			ibitmap_funcset(0, (void*)iblit_mix);
+			ibitmap_funcset(0, (void*)iblit_sse);
 		else
 			ibitmap_funcset(0, (void*)iblit_mmx);
 	}
 	if (X86_FEATURE(X86_FEATURE_MMX)) {
+		#ifndef __amd64__
 		if (X86_FEATURE(X86_FEATURE_XMM)) {
 			ibitmap_funcset(1, (void*)iblit_mask_mix);
 		}	else {
 			ibitmap_funcset(1, (void*)iblit_mask_mmx);
 		}
+		#else
+		ibitmap_funcset(1, (void*)iblit_mask_mmx);
+		#endif
 	}
 }
 
