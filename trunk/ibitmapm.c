@@ -404,11 +404,6 @@ int ibitmap_blitmc(char *dst, long pitch1, const char *src, int w, int h,
     long inc1, inc2, i;
     long longsize, isize;
 
-    /* detecting word size: detect word-size in runtime instead of using */
-    /* macros, in order to be compiled in any unknown platform. */
-    assert(sizeof(char) == 1 && sizeof(short) == 2);
-    assert((sizeof(long) == 4) || (sizeof(long) == 8 && sizeof(int) == 4));
-
     /* caculate the inc offset of two array */
     inc1 = pitch1 - linesize;
     inc2 = pitch2 - linesize;
@@ -574,11 +569,6 @@ int ibitmap_blitfc(char *dst, long pitch1, const char *src, int w, int h,
     /* horizon & vertical or horizon only */
     if (flag & IBLIT_VFLIP) inc2 = - (pitch2 - linesize);
     else inc2 = pitch2 + linesize;
-
-    /* detecting word size: detect word-size in runtime instead of using */
-    /* macros, in order to be compiled in any unknown platform. */
-    assert(sizeof(char) == 1 && sizeof(short) == 2);
-    assert((sizeof(long) == 4) || (sizeof(long) == 8 && sizeof(int) == 4));
 
     /* copying pixel for all color depth */
     switch (pixsize)
@@ -791,11 +781,6 @@ int ibitmap_fillc(char *dst, long pitch, int w, int h, int pixsize,
     unsigned int k, *k32;
     long longsize, isize;
     long inc, i;
-
-    /* detecting word size: detect word-size in runtime instead of using */
-    /* macros, in order to be compiled in any unknown platform. */
-    assert(sizeof(char) == 1 && sizeof(short) == 2);
-    assert((sizeof(long) == 4) || (sizeof(long) == 8 && sizeof(int) == 4));
 
     longsize = sizeof(long);
     isize = sizeof(int);

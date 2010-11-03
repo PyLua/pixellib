@@ -171,9 +171,6 @@ void _ishift_init(void)
 		_ishift_endian = 1;
 	}
 
-	assert(sizeof(ICOLORB) == 1 && sizeof(ICOLORW) == 2);
-	assert(sizeof(ICOLORD) == 4);
-
 	inited = 1;
 }
 
@@ -389,7 +386,7 @@ void ibitmap_set_pixfmt(struct IBITMAP *bmp, int pixelfmt)
 /* set rgb color in given format */
 ICOLORD _im_color_set(int pixfmt, ICOLORD rgb, const IRGB *pal)
 {
-	ICOLORD raw, a, r, g, b;
+	ICOLORD raw = 0, a = 0, r = 0, g = 0, b = 0;
 	IRGBA_FROM_PIXEL(rgb, RGB32, r, g, b, a);
 	if (pixfmt == IPIX_FMT_8) {
 		if (pal == NULL) pal = _ipaletted;
@@ -403,7 +400,7 @@ ICOLORD _im_color_set(int pixfmt, ICOLORD rgb, const IRGB *pal)
 /* get raw color from given format */
 ICOLORD _im_color_get(int pixfmt, ICOLORD raw, const IRGB *pal)
 {
-	ICOLORD c, a, r, g, b;
+	ICOLORD c = 0, a = 0, r = 0, g = 0, b = 0;
 	if (pixfmt == IPIX_FMT_8) {
 		a = 255;
 		r = pal[raw].r;
@@ -560,10 +557,10 @@ void _iconvert_pixfmt(IBITMAP *dst, int dx, int dy, IBITMAP *src, int sx,
 	smask = (ICOLORD)src->mask;
 
 	for (y = 0; y < sh; y++, k += v) {
-		ICOLORD c, a, r, g, b, z;
+		ICOLORD c, a, r, g, b;
 		s = _ilineptr(src, sy + k) + sdelta;
 		d = _ilineptr(dst, dy + y) + ddelta;
-		c = a = r = g = b = z = 0;
+		c = a = r = g = b = 0;
 		for (x = sw; x > 0; s += incs, d += dpixsize, x--) {
 			a = 255;
 			switch (sfmt) 
@@ -1611,6 +1608,7 @@ int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	dfmt = _ibitmap_pixfmt(dst);
 	sfmt = _ibitmap_pixfmt(src);
 
+	cr = cg = cb = ca = 0;
 	IRGBA_FROM_PIXEL(color, ARGB32, cr, cg, cb, ca);
 
 	if (cr == cg && cg == cb) {
@@ -1707,13 +1705,11 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	unsigned char *s, *d;	
 	ICOLORD smask, c;	
 	long ssize, dsize, incs; 
-	int sbits, dbits;
 	int x, y, k, v, r, g, b, a;
 	int *line[3];
 	int *errtmp;
 	int e[3], nr, ng, nb;
 	long size, pitch;
-	int emax, emin, tmax, tmin;
 	int sfmt, dfmt;
 
 	assert(dst && src);
@@ -1748,8 +1744,6 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	else k = 0, v = 1;
 
 	smask = src->mask;
-	sbits = src->bpp;
-	dbits = dst->bpp;
 	pal = pal? pal : _ipaletted;
 
 	pitch = 4 * (src->w + 6) * sizeof(int);
@@ -1765,13 +1759,10 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 
 	#define ipixerr(__yy, __xx, __ii) line[__yy][((__xx) << 2) + (__ii)]
 	
-	tmax = tmin = 0;
-
 	for (y = 0; y < h; y++, k += v) {
 
 		s = _ilineptr(src, sy + k) + sdelta;
 		d = _ilineptr(dst, dy + y) + ddelta;
-		emax = emin = 0;
 
 		for (x = 0; x < w; s += incs, d += dsize, x++) {
 			IPIXEL_FROM_PTR(c, sfmt, s);
@@ -1861,6 +1852,8 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	}
 
 	#undef ipixerr
+
+	a = a;
 
 	return 0;
 }

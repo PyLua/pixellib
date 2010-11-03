@@ -922,7 +922,7 @@ struct IBITMAP *iload_bmp_stream(IMDIO *stream, IRGB *pal)
 //---------------------------------------------------------------------
 int isave_bmp_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 {
-	unsigned long c, p, m;
+	unsigned long c, p;
 	long i, j;
 	IRGB tmppal[256];
 	int bfSize;
@@ -937,7 +937,6 @@ int isave_bmp_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 	depth = bmp->bpp;
 	bpp = (depth == 8) ? 8 : 24;
 	filler = 3 - ((bmp->w * (bpp / 8) - 1) & 3);
-	m = (bmp->mask & 1);
 
 	if (!pal) {
 		memcpy(tmppal, _ipaletted, 256 * sizeof(IRGB));
@@ -1255,7 +1254,7 @@ int isave_tga_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 {
 	unsigned char image_palette[256][3];
 	unsigned long c, a, r, g, b, p;
-	long x, y, depth, m, n;
+	long x, y, depth, n;
 	IRGB tmppal[256];
 
 	assert(bmp);
@@ -1297,7 +1296,6 @@ int isave_tga_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 	}
 
 	n = (bmp->bpp + 7) / 8;
-	m = (bmp->mask & 1)? 1 : 0;
 
 	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
 
@@ -2273,6 +2271,8 @@ static int ipic_gif_write_image_desc(IGIFDESC *gif, int palsize)
 
 	is_putc(stream, 0);
 	is_putc(stream, 0);
+
+	written = written;
 
 	return 0;
 }

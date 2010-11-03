@@ -44,7 +44,7 @@ typedef unsigned short ICOLORW;
 	defined(__amd64) || defined(_M_IA64) || defined(_M_AMD64)
 	typedef unsigned int ICOLORD;
 	typedef int ISTDINT32;
-#elif defined(_MSC_VER) || defined(__BORLANDC__)
+#elif (defined(_MSC_VER) || defined(__BORLANDC__)) && (!defined(__MSDOS__))
 	typedef unsigned __int32 ICOLORD;
 	typedef __int32 ISTDINT32;
 #elif defined(__GNUC__)
@@ -429,11 +429,11 @@ int _igenerate_332_palette(IRGB *pal);
 
 struct IPIXELFMT
 {
-	int type;				// IPIX_FMT_...
-	int bpp;				// pixel depth
-	int use_bgr;			// 0: RGB, 1: BGR
-	int has_alpha;			// 0: no alpha, 1: alpha
-	int alpha_pos;			// 0: AXXX, 1: XXXA
+	int type;                     /* IPIX_FMT_...          */
+	int bpp;                      /* pixel depth           */
+	int use_bgr;                  /* 0: RGB, 1: BGR        */
+	int has_alpha;                /* 0: no alpha, 1: alpha */
+	int alpha_pos;                /* 0: AXXX, 1: XXXA      */
 	unsigned long rmask;
 	unsigned long gmask;
 	unsigned long bmask;
@@ -1018,12 +1018,12 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
  * BLEND HELP
  **********************************************************************/
 
-// normal blend
+/* normal blend */
 #define _iblend_normalize(alpha) (((alpha) << 8) / 255)
 #define _iblend_norm_fast(alpha) (((alpha) >> 7) + (alpha))
 #define _iblend_unnorm(alpha) ((((alpha) << 8) - (alpha)) >> 8)
 
-// destalpha and srcalpha must be normalized: 
+/* destalpha and srcalpha must be normalized:  */
 #define _iblend_final_alpha(destalpha, srcalpha) \
 	((destalpha) + (((256 - (destalpha)) * (srcalpha)) >> 8))
 
