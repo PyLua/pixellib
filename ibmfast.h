@@ -536,13 +536,6 @@ int ibitmap_scale_clip(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
 
 #define ISTRETCH_FAST		256
 
-// 图形快速缩放（不带抗锯齿）
-// 可用参数：ISTRETCH_FAST，IBLIT_HFLIP, IBLIT_VFLIP
-// clip可以为NULL
-int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IRECT *clip,
-	const IBITMAP *src, const IRECT *rectsrc, int flags);
-
-
 #define IFILTER_NORMAL		0
 #define IFILTER_NEAREST		1
 #define IFILTER_BILINEAR	2
@@ -561,9 +554,8 @@ ICOLORD interpolated_bitmap(const IBITMAP *bmp, int u, int v,
 	int filter, int ofmode, ICOLORD ofcol);
 
 
-// 平滑缩放：支持BILINEAR, BICUBIC和SMOOTH几种算法，但无关键色，
-// 也没有 AlphaBlending
-int ibitmap_smooth_stretch(IBITMAP *dst, const IRECT *rectdst, 
+// 平滑缩放：支持BILINEAR, BICUBIC和SMOOTH几种算法，但无混色
+int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, 
 	const IRECT *clip, IBITMAP *src, const IRECT *rectsrc, int flags,
 	int filter, int ofmode, ICOLORD ofcol);
 
