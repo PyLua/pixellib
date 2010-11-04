@@ -75,6 +75,7 @@ typedef struct IRGB
 }	IRGB;
 
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -94,6 +95,8 @@ extern int _iscale_rgb_4[];
 extern int _iscale_rgb_5[];  
 extern int _iscale_rgb_6[];
 
+#ifndef IDISABLE_CONVERT
+
 /* color converter 15/16 bits -> 32 bits lookup table */
 extern ICOLORD _iconvert_rgb_15_32[];
 extern ICOLORD _iconvert_rgb_16_32[];
@@ -110,9 +113,10 @@ extern ICOLORW _iconvert_rgb_4444_1555[];
 extern ICOLORD _iconvert_rgb_1555_8888[];
 extern ICOLORD _iconvert_rgb_4444_8888[];
 
+#endif
+
 /* global palette array */
 extern IRGB _ipaletted[];
-extern IRGB*_icolormap;
 extern int _icolorconv;
 
 /* 8 bits min/max saturation table */
@@ -1073,7 +1077,7 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src, 
 	int sx, int sy, int w, int h, ICOLORD color, int flags);
 
-
+#ifndef IDISABLE_CONVERT
 /**********************************************************************
  * COLOR DITHER
  **********************************************************************/
@@ -1081,7 +1085,7 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	int sx, int sy, int w, int h, IRGB *pal, int flags, int dmode, 
 	void *buffer, long bufsize);
 
-
+#endif
 
 #ifdef __cplusplus
 }
