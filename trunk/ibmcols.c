@@ -62,11 +62,12 @@ int _iscale_rgb_6[64] =
 IRGB _ipaletted[256];
 int _icolorconv = 0;
 
+#ifndef IDISABLE_CONVERT
+
 /* color converter 15/16 bits -> 32 bits lookup table */
 ICOLORD _iconvert_rgb_16_32[2048];
 ICOLORD _iconvert_rgb_15_32[2048];
 
-#ifndef IDISABLE_CONVERT
 /* color converter 15 bits <-> 16 bits lookup table */
 ICOLORW _iconvert_rgb_15_16[2048];
 ICOLORW _iconvert_rgb_16_15[2048];
@@ -82,7 +83,7 @@ ICOLORD _iconvert_rgb_4444_8888[2048];
 
 
 /* 8 bits min/max saturation table */
-const unsigned char _IMINMAX8[770] = {
+const unsigned char _IMINMAX256[770] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -137,8 +138,8 @@ const unsigned char _IMINMAX8[770] = {
   255, 255, 255, 255, 255,
 };
 
-const unsigned char *_iminmax8 = &_IMINMAX8[256];
-const unsigned char *_iclip256 = &_IMINMAX8[256];
+const unsigned char *_iminmax8 = &_IMINMAX256[256];
+const unsigned char *_iclip256 = &_IMINMAX256[256];
 
 
 #if defined(__BORLANDC__) && !defined(__MSDOS__)
@@ -419,6 +420,7 @@ ICOLORD _im_color_get(int pixfmt, ICOLORD raw, const IRGB *pal)
  **********************************************************************/
 void _igenerate_convert_table(void)
 {
+	#ifndef IDISABLE_CONVERT
 	ICOLORD c1, c2, r1, g1, b1, r2, g2, b2, a1, a2;
 	ICOLORD checkendian = 0x11223344;
 	int be, i;
@@ -467,6 +469,8 @@ void _igenerate_convert_table(void)
 
 	#undef ICONVERT_SAVE_RGB
 	#undef ICONVERT_SAVE_RGBA
+
+	#endif	
 }
 
 
@@ -943,6 +947,7 @@ static void _iconvert_approxy(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 #endif /* #ifndef IDISABLE_CONVERT */
 
 
+#ifndef IDISABLE_CONVERT
 /**********************************************************************
  * _ICONVERT_BLIT_2BYTES_X
  **********************************************************************/
@@ -994,8 +999,6 @@ static void _iconvert_approxy(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	}
 
 
-#ifndef IDISABLE_CONVERT
-
 static void _iconvert_blit_scale(IBITMAP *dst, int dx, int dy, IBITMAP 
 	*src, int sx, int sy, int w, int h, const IRGB *pal, int flags)
 {
@@ -1035,9 +1038,13 @@ static void _iconvert_blit_scale(IBITMAP *dst, int dx, int dy, IBITMAP
 	}
 }
 
-#endif
+#undef _ICONVERT_BLIT_2BYTES_X
+#undef __iconvert_scale_rows
+
+#endif /* #ifndef IDISABLE_CONVERT */
 
 
+#ifndef IDISABLE_CONVERT
 /**********************************************************************
  * ALPHA-RGB CONVERTERS
  **********************************************************************/
@@ -1098,7 +1105,7 @@ static void _iconvert_blit_scale(IBITMAP *dst, int dx, int dy, IBITMAP
 	_ipaletted = _ipaletted; \
 }
 
-#ifndef IDISABLE_CONVERT
+
 static int _iconvert_fmt_to_ARGB32(IBITMAP *dst, int dx, int dy, 
 	IBITMAP *src, int sx, int sy, int w, int h, const IRGB *pal, int flags)
 {
@@ -1579,10 +1586,9 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD rawcol)
 #endif
 }
 
-#undef _IBLIT_FILL_EX
 
 
-
+#ifndef IDISABLE_CONVERT
 /**********************************************************************
  * ALPHA BLIT: (only support 32bit -> 32bit 
  **********************************************************************/
@@ -1857,4 +1863,7 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 
 	return 0;
 }
+
+#endif
+
 
