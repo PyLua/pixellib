@@ -429,6 +429,7 @@ int _igenerate_332_palette(IRGB *pal);
 #define IPIX_FMT_ABGR_1555 19
 #define IPIX_FMT_RGBA_5551 20
 #define IPIX_FMT_BGRA_5551 21
+#define IPIX_FMT_OTHER     22
 
 
 struct IPIXELFMT
@@ -438,13 +439,22 @@ struct IPIXELFMT
 	int use_bgr;                  /* 0: RGB, 1: BGR        */
 	int has_alpha;                /* 0: no alpha, 1: alpha */
 	int alpha_pos;                /* 0: AXXX, 1: XXXA      */
-	unsigned long rmask;
-	unsigned long gmask;
-	unsigned long bmask;
-	unsigned long amask;
+	ICOLORD rmask;
+	ICOLORD gmask;
+	ICOLORD bmask;
+	ICOLORD amask;
+	int rshift;
+	int gshift;
+	int bshift;
+	int ashift;
+	int rloss;
+	int gloss;
+	int bloss;
+	int aloss;
 };
 
 extern const struct IPIXELFMT ipixel_fmt[];
+typedef struct IPIXELFMT IPIXELFMT;
 
 /* set pixel format */
 void ibitmap_set_pixfmt(struct IBITMAP *bmp, int pixelfmt);
@@ -698,6 +708,30 @@ typedef struct IBITMAP IBITMAP;
 
 #define IRGBA_TO_PIXEL(fmt, r, g, b, a) IRGBA_TO_##fmt(r, g, b, a)
 #define IRGB_TO_PIXEL(fmt, r, g, b) IRGBA_TO_PIXEL(fmt, r, g, b, 255)
+
+#define IRGBA_FROM_COLOR(c, fmt, r, g, b, a) do { \
+	r = ((((ICOLORD)(c)) & (fmt)->rmask) >> (fmt)->rshift) << (fmt)->rloss; \
+	g = ((((ICOLORD)(c)) & (fmt)->gmask) >> (fmt)->gshift) << (fmt)->gloss; \
+	b = ((((ICOLORD)(c)) & (fmt)->bmask) >> (fmt)->bshift) << (fmt)->bloss; \
+	a = ((((ICOLORD)(c)) & (fmt)->amask) >> (fmt)->ashift) << (fmt)->aloss; \
+}	while (0)
+
+#define IRGB_FROM_COLOR(c, fmt, r, g, b) do { \
+	r = ((((ICOLORD)(c)) & (fmt)->rmask) >> (fmt)->rshift) << (fmt)->rloss; \
+	g = ((((ICOLORD)(c)) & (fmt)->gmask) >> (fmt)->gshift) << (fmt)->gloss; \
+	b = ((((ICOLORD)(c)) & (fmt)->bmask) >> (fmt)->bshift) << (fmt)->bloss; \
+}	while (0)
+
+#define IRGBA_TO_COLOR(fmt, r, g, b, a) ( \
+	(((r) >> (fmt)->rloss) << (fmt)->rshift) | \
+	(((g) >> (fmt)->gloss) << (fmt)->gshift) | \
+	(((b) >> (fmt)->bloss) << (fmt)->bshift) | \
+	(((a) >> (fmt)->aloss) << (fmt)->ashift))
+
+#define IRGB_TO_COLOR(fmt, r, g, b) ( \
+	(((r) >> (fmt)->rloss) << (fmt)->rshift) | \
+	(((g) >> (fmt)->gloss) << (fmt)->gshift) | \
+	(((b) >> (fmt)->bloss) << (fmt)->bshift))
 
 
 /**********************************************************************
