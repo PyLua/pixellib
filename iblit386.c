@@ -388,8 +388,8 @@ void _x86_choose_blitter(void)
 // iblit_386 - 386 normal blitter
 // this routine is design to support the platform elder than 80486
 //---------------------------------------------------------------------
-int iblit_386(char *dst, long pitch1, const char *src, 
-	int w, int h, long pitch2, int pixelbyte, long linesize)
+int iblit_386(char *dst, long pitch1, const char *src, long pitch2,
+	int w, int h, int pixelbyte, long linesize)
 {
 	volatile ilong linebytes = linesize;
 	volatile ilong hh = h;
@@ -520,8 +520,8 @@ int iblit_386(char *dst, long pitch1, const char *src,
 // iblit_mmx - mmx normal blitter
 // this routine is design to support the platform with MMX feature
 //---------------------------------------------------------------------
-int iblit_mmx(char *dst, long pitch1, const char *src, 
-	int w, int h, long pitch2, int pixelbyte, long linesize)
+int iblit_mmx(char *dst, long pitch1, const char *src, long pitch2, 
+	int w, int h, int pixelbyte, long linesize)
 {
 	volatile ilong c1, c2, m, n1, n2;
 	volatile ilong hh = h;
@@ -748,8 +748,8 @@ int iblit_mmx(char *dst, long pitch1, const char *src,
 // this routine is design to support the platform with sse feature,
 // which has more than 256KB L2 cache
 //---------------------------------------------------------------------
-int iblit_sse(char *dst, long pitch1, const char *src, 
-	int w, int h, long pitch2, int pixelbyte, long linesize)
+int iblit_sse(char *dst, long pitch1, const char *src, long pitch2,
+	int w, int h, int pixelbyte, long linesize)
 {
 	volatile ilong c1, c2, m, n1, n2;
 	volatile ilong hh = (ilong)h;
@@ -1024,8 +1024,8 @@ int iblit_sse(char *dst, long pitch1, const char *src,
 // iblit_mix - mix normal blitter
 // this routine is design to support the platform with MMX feature
 //---------------------------------------------------------------------
-int iblit_mix(char *dst, long pitch1, const char *src, 
-	int w, int h, long pitch2, int pixelbyte, long linesize)
+int iblit_mix(char *dst, long pitch1, const char *src, long pitch2,
+	int w, int h, int pixelbyte, long linesize)
 {
 	volatile ilong c1, c2, m, n1, n2;
 	volatile ilong hh = (ilong)h;
@@ -1259,8 +1259,8 @@ int iblit_mix(char *dst, long pitch1, const char *src,
 // iblit_mask_mmx - mmx mask blitter 
 // this routine is designed to support mmx mask blit
 //---------------------------------------------------------------------
-int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h, 
-		long pitch2, int pixelbyte, long linesize, unsigned long ckey)
+int iblit_mask_mmx(char *dst, long pitch1, const char *src, long pitch2,
+	int w, int h, int pixelbyte, long linesize, unsigned long ckey)
 {
 	volatile ilong linebytes = linesize;
 	volatile ilong c1, c2, m, n, pb;
@@ -1706,7 +1706,7 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 		:"memory", ASM_REGS);
 	#endif
 	}
-#elif defined(__INLINEMSC__)
+#elif defined(__INLINEMSC__) && (!defined(__amd64__))
 	_asm {
 		mov esi, src
 		mov edi, dst
@@ -1903,8 +1903,8 @@ int iblit_mask_mmx(char *dst, long pitch1, const char *src, int w, int h,
 // iblit_mask_sse - sse mask blitter 
 // this routine is designed to support mmx mask blit
 //---------------------------------------------------------------------
-int iblit_mask_sse(char *dst, long pitch1, const char *src, int w, int h, 
-		long pitch2, int pixelbyte, long linesize, unsigned long ckey)
+int iblit_mask_sse(char *dst, long pitch1, const char *src, long pitch2,
+	int w, int h, int pixelbyte, long linesize, unsigned long ckey)
 {
 	long linebytes = linesize;
 	long c1, c2, m, n, pb;
@@ -1946,7 +1946,7 @@ int iblit_mask_sse(char *dst, long pitch1, const char *src, int w, int h,
 	c2 = pitch2 - linebytes;
 	pb = pixelbyte;
 
-#if defined(__INLINEGNU__)
+#if defined(__INLINEGNU__) && (!defined(__amd64__))
 	__asm__ __volatile__ ("\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
@@ -2151,7 +2151,7 @@ int iblit_mask_sse(char *dst, long pitch1, const char *src, int w, int h,
 		:"m"(src),"m"(dst),"m"(mask),"m"(m),"m"(n),"m"(c1),"m"(c2),"m"(pb)
 		:"memory", ASM_REGS);
 
-#elif defined(__INLINEMSC__)
+#elif defined(__INLINEMSC__) && (!defined(__amd64__))
 	_asm {
 		mov esi, src
 		mov edi, dst
@@ -2353,8 +2353,8 @@ int iblit_mask_sse(char *dst, long pitch1, const char *src, int w, int h,
 // iblit_mask_mix - mmx & sse mixed mask blitter 
 // this routine is designed to support mmx mask blit
 //---------------------------------------------------------------------
-int iblit_mask_mix(char *dst, long pitch1, const char *src, int w, int h, 
-		long pitch2, int pixelbyte, long linesize, unsigned long ckey)
+int iblit_mask_mix(char *dst, long pitch1, const char *src, long pitch2,
+	int w, int h, int pixelbyte, long linesize, unsigned long ckey)
 {
 	long linebytes = (long)linesize;
 	long c1, c2, m, n, pb;
@@ -2396,7 +2396,7 @@ int iblit_mask_mix(char *dst, long pitch1, const char *src, int w, int h,
 	c2 = pitch2 - linebytes;
 	pb = pixelbyte;
 
-#if defined(__INLINEGNU__)
+#if defined(__INLINEGNU__) && (!defined(__amd64__))
 	__asm__ __volatile__ ("\n"
 			ASM_BEGIN
 		"	movl %1, %%esi\n"
@@ -2605,7 +2605,7 @@ int iblit_mask_mix(char *dst, long pitch1, const char *src, int w, int h,
 		:"m"(src),"m"(dst),"m"(mask),"m"(m),"m"(n),"m"(c1),"m"(c2),"m"(pb)
 		:"memory", ASM_REGS);
 
-#elif defined(__INLINEMSC__)
+#elif defined(__INLINEMSC__) && (!defined(__amd64__))
 	_asm {
 		mov esi, src
 		mov edi, dst

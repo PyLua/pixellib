@@ -350,14 +350,14 @@ void _x86_detect(void);
 
 void _x86_choose_blitter(void);
 
-int iblit_386(char*, long, const char*, int, int, long, int, long);
-int iblit_mmx(char*, long, const char*, int, int, long, int, long);
-int iblit_sse(char*, long, const char*, int, int, long, int, long);
-int iblit_mix(char*, long, const char*, int, int, long, int, long);
+int iblit_386(char*, long, const char*, long, int, int, int, long);
+int iblit_mmx(char*, long, const char*, long, int, int, int, long);
+int iblit_sse(char*, long, const char*, long, int, int, int, long);
+int iblit_mix(char*, long, const char*, long, int, int, int, long);
 
-int iblit_mask_mmx(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
-int iblit_mask_sse(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
-int iblit_mask_mix(char*, long, ISRCPTR, int, int, long, int, long, IMASK32);
+int iblit_mask_mmx(char*, long, ISRCPTR, long, int, int, int, long, IMASK32);
+int iblit_mask_sse(char*, long, ISRCPTR, long, int, int, int, long, IMASK32);
+int iblit_mask_mix(char*, long, ISRCPTR, long, int, int, int, long, IMASK32);
 
 
 #ifdef __cplusplus

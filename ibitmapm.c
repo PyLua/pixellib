@@ -232,12 +232,12 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 /**********************************************************************
  * BLITTER DEFINITION
  **********************************************************************/
-int ibitmap_blitnc(char *dst, long pitch1, const char *src, int w, int h, 
-    long pitch2, int pixsize, long linesize);
-int ibitmap_blitmc(char *dst, long pitch1, const char *src, int w, int h, 
-    long pitch2, int pixsize, long linesize, unsigned long mask);
-int ibitmap_blitfc(char *dst, long pitch1, const char *src, int w, int h,
-    long pitch2, int pixsize, long linesize, unsigned long mask, int flag);
+int ibitmap_blitnc(char *dst, long pitch1, const char *src, long pitch2,
+    int w, int h, int pixsize, long linesize);
+int ibitmap_blitmc(char *dst, long pitch1, const char *src, long pitch2, 
+    int w, int h, int pixsize, long linesize, unsigned long mask);
+int ibitmap_blitfc(char *dst, long pitch1, const char *src, long pitch2,
+    int w, int h, int pixsize, long linesize, unsigned long mask, int flag);
 
 
 /* set blitters interface to default blitters (c version) */
@@ -341,24 +341,24 @@ int ibitmap_blit(struct IBITMAP *dst, int x, int y, struct IBITMAP *src,
         if (mode & IBLIT_VFLIP) {
             pixel2 = (char*)src->line[sy + h - 1] + d2;
         }
-        r = ibitmap_blitf(pixel1, pitch1, pixel2, w, h, 
-            pitch2, pixsize, linesize, mask, mode);
-        if (r) ibitmap_blitfc(pixel1, pitch1, pixel2, w, h,
-            pitch2, pixsize, linesize, mask, mode);
+        r = ibitmap_blitf(pixel1, pitch1, pixel2, pitch2, w, h, 
+            pixsize, linesize, mask, mode);
+        if (r) ibitmap_blitfc(pixel1, pitch1, pixel2, pitch2, w, h,
+            pixsize, linesize, mask, mode);
         return 0;
     }
 
     /* check to use the normal blitter or the transparent blitter */
     if ((mode & IBLIT_MASK) == 0) {
-        r = ibitmap_blitn(pixel1, pitch1, pixel2, w, h, 
-            pitch2, pixsize, linesize);
-        if (r) ibitmap_blitnc(pixel1, pitch1, pixel2, w, h, 
-            pitch2, pixsize, linesize);
+        r = ibitmap_blitn(pixel1, pitch1, pixel2, pitch2, w, h, 
+            pixsize, linesize);
+        if (r) ibitmap_blitnc(pixel1, pitch1, pixel2, pitch2, w, h, 
+            pixsize, linesize);
     }   else {
-        r = ibitmap_blitm(pixel1, pitch1, pixel2, w, h, 
-            pitch2, pixsize, linesize, mask);
-        if (r) ibitmap_blitmc(pixel1, pitch1, pixel2, w, h, 
-            pitch2, pixsize, linesize, mask);
+        r = ibitmap_blitm(pixel1, pitch1, pixel2, pitch2, w, h, 
+            pixsize, linesize, mask);
+        if (r) ibitmap_blitmc(pixel1, pitch1, pixel2, pitch2, w, h, 
+            pixsize, linesize, mask);
     }
 
     return 0;
@@ -368,8 +368,8 @@ int ibitmap_blit(struct IBITMAP *dst, int x, int y, struct IBITMAP *src,
 /**********************************************************************
  * ibitmap_blitnc - default blitter for normal blit (no transparent)
  **********************************************************************/
-int ibitmap_blitnc(char *dst, long pitch1, const char *src, int w, int h, 
-    long pitch2, int pixelbyte, long linesize)
+int ibitmap_blitnc(char *dst, long pitch1, const char *src, long pitch2,
+    int w, int h, int pixelbyte, long linesize)
 {
     char *ss = (char*)src;
     char *sd = (char*)dst;
@@ -392,8 +392,8 @@ int ibitmap_blitnc(char *dst, long pitch1, const char *src, int w, int h,
 /**********************************************************************
  * ibitmap_blitmc - default blitter for transparent blit
  **********************************************************************/
-int ibitmap_blitmc(char *dst, long pitch1, const char *src, int w, int h, 
-    long pitch2, int pixelbyte, long linesize, unsigned long mask)
+int ibitmap_blitmc(char *dst, long pitch1, const char *src, long pitch2,
+    int w, int h, int pixelbyte, long linesize, unsigned long mask)
 {
     static unsigned long endian = 0x11223344;
     unsigned char *p1, *p2;
@@ -526,8 +526,8 @@ int ibitmap_blitmc(char *dst, long pitch1, const char *src, int w, int h,
 /**********************************************************************
  * ibitmap_blitfc - default blitter for flip blit
  **********************************************************************/
-int ibitmap_blitfc(char *dst, long pitch1, const char *src, int w, int h, 
-    long pitch2, int pixsize, long linesize, unsigned long mask, int flag)
+int ibitmap_blitfc(char *dst, long pitch1, const char *src, long pitch2,
+    int w, int h, int pixsize, long linesize, unsigned long mask, int flag)
 {
     static unsigned long endian = 0x11223344;
     unsigned char *p1, *p2;
