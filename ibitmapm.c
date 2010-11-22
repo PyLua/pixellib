@@ -551,7 +551,7 @@ int ibitmap_blitfc(char *dst, long pitch1, const char *src, long pitch2,
     /* flip vertical with mask */
     if ((flag & IBLIT_MASK) != 0 && (flag & IBLIT_HFLIP) == 0) {
         for (; h; h--) {
-            ibitmap_blitmc(dst, pitch1, src, w, 1, pitch2, pixsize, 
+            ibitmap_blitmc(dst, pitch1, src, pitch2, w, 1, pixsize, 
                 linesize, mask);
             dst += pitch1;
             src -= pitch2;
