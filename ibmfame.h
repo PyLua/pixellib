@@ -117,6 +117,19 @@ int iblend_pmul_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 int iblend_mmx_detect(void);
 
 
+// 点操作：取得点
+ICOLORD iblend_getpixel(IBITMAP *bmp, int x, int y);
+
+// 点操作：绘制点
+void iblend_putpixel(IBITMAP *bmp, int x, int y, ICOLORD c);
+
+// 点操作：绘制点（加法方式）
+void iblend_addpixel(IBITMAP *bmp, int x, int y, ICOLORD c);
+
+// 点操作：批量绘制点
+void iblend_setpixel(IBITMAP *bmp, const int *xy, int n, ICOLORD c, int add);
+
+
 
 #ifdef __cplusplus
 }

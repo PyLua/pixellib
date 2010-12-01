@@ -265,10 +265,12 @@ ISPAN_PROC ispan_proc[24][8] = {
 #define ISPAN_FILL_MAIN(ptr, w, cs, ce, cover, fmt, dsize, mode, add) { \
 	int pixfmt = IPIX_FMT_8; \
 	int retval = -1; \
+	int alpha = ipixel_fmt[IPIX_FMT_##fmt].has_alpha; \
 	ISPAN_PROC proc; \
+	alpha = ((cs >> 24) != 255) || ((ce >> 24) != 255) || alpha; \
 	if (cs == ce) { \
 		if (cover == NULL) { \
-			if ((cs >> 24) == 255 && add == 0) { \
+			if (alpha == 0 && add == 0) { \
 				proc = ispan_proc[pixfmt][ISPAN_MODE_FLAT_FILL]; \
 				if (proc && noextra == 0) \
 					retval = proc(ptr, w, cs, cs, cover, pixfmt, add); \
@@ -283,7 +285,7 @@ ISPAN_PROC ispan_proc[24][8] = {
 					ISPAN_FLAT_BLEND(ptr, w, cs, fmt, dsize, mode); \
 			} \
 		}	else { \
-			if ((cs >> 24) == 255 && add == 0) { \
+			if (alpha == 0 && add == 0) { \
 				proc = ispan_proc[pixfmt][ISPAN_MODE_FLAT_COVER_FILL]; \
 				if (proc && noextra == 0) \
 					retval = proc(ptr, w, cs, cs, cover, pixfmt, add); \
@@ -300,7 +302,7 @@ ISPAN_PROC ispan_proc[24][8] = {
 		} \
 	}	else { \
 		if (cover == NULL) { \
-			if ((cs >> 24) == 255 && (ce >> 24) == 255 && add == 0) { \
+			if (alpha == 0 && add == 0) { \
 				proc = ispan_proc[pixfmt][ISPAN_MODE_GOURAUD_FILL]; \
 				if (proc && noextra == 0) \
 					retval = proc(ptr, w, cs, cs, cover, pixfmt, add); \
@@ -315,7 +317,7 @@ ISPAN_PROC ispan_proc[24][8] = {
 					ISPAN_GOURAUD_BLEND(ptr, w, cs, ce, fmt, dsize, mode); \
 			} \
 		}	else { \
-			if ((cs >> 24) == 255 && (ce >> 24) == 255 && add == 0) { \
+			if (alpha == 0 && add == 0) { \
 				proc = ispan_proc[pixfmt][ISPAN_MODE_GOURAUD_COVER_FILL]; \
 				if (proc && noextra == 0) \
 					retval = proc(ptr, w, cs, cs, cover, pixfmt, add); \

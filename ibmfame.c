@@ -1234,3 +1234,324 @@ int iblend_mmx_detect(void)
 }
 
 
+
+//---------------------------------------------------------------------
+// 单位点操作
+//---------------------------------------------------------------------
+
+#define ibitmap_putpixel_proc_STATIC(fmt, dsize) \
+static inline void _iputpixel_##fmt(IBITMAP *bmp, int x, int y, ICOLORD c) {\
+	int r, g, b, a, c1, r1, g1, b1, a1; \
+	unsigned char *ptr = _ilineptr(bmp, y) + x * dsize; \
+	IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
+	if (a == 0) return; \
+	else if (a == 255) { \
+		c1 = IRGBA_TO_PIXEL(fmt, r, g, b, 255); \
+		_ipixel_put(dsize, ptr, c1); \
+	}	else { \
+		c1 = _ipixel_get(dsize, ptr);  \
+		IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+		IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
+		c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+		_ipixel_put(dsize, ptr, c1); \
+	} \
+} 
+
+#define ibitmap_putpixel_proc_NORMAL(fmt, dsize) \
+static inline void _iputpixel_##fmt(IBITMAP *bmp, int x, int y, ICOLORD c) {\
+	int r, g, b, a, c1, r1, g1, b1, a1; \
+	unsigned char *ptr = _ilineptr(bmp, y) + x * dsize; \
+	IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
+	if (a == 0) return; \
+	else { \
+		c1 = _ipixel_get(dsize, ptr);  \
+		IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+		IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \
+		c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+		_ipixel_put(dsize, ptr, c1); \
+	} \
+} 
+
+#define ibitmap_putpixel_proc_additive(fmt, dsize) \
+static inline void _iaddpixel_##fmt(IBITMAP *bmp, int x, int y, ICOLORD c) {\
+	int r, g, b, a, c1, r1, g1, b1, a1; \
+	unsigned char *ptr = _ilineptr(bmp, y) + x * dsize; \
+	IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
+	c1 = _ipixel_get(dsize, ptr);  \
+	IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+	IBLEND_ADDITIVE(r, g, b, a, r1, g1, b1, a1); \
+	c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+	_ipixel_put(dsize, ptr, c1); \
+} 
+
+#define ibitmap_getpixel_proc(fmt, dsize) \
+static inline ICOLORD _igetpixel_##fmt(IBITMAP *bmp, int x, int y) { \
+	unsigned char *ptr = _ilineptr(bmp, y) + x * dsize; \
+	int r, g, b, a, c; \
+	c = _ipixel_get(dsize, ptr); \
+	IRGBA_FROM_PIXEL(c, fmt, r, g, b, a); \
+	return IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
+}
+
+#define ibitmap_batch_putpixel(fmt, dsize) \
+static inline void _isetpixel_##fmt(IBITMAP *bmp, const int *xy, \
+	int n, ICOLORD color, int additive) \
+{ \
+	int r1, g1, b1, a1, c1, r, g, b, a; \
+	unsigned char **lines; \
+	unsigned char *ptr; \
+	lines = (unsigned char**)bmp->line; \
+	IRGBA_FROM_PIXEL(color, ARGB32, r, g, b, a); \
+	if (additive) { \
+		for (; n > 0; n--, xy += 2) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			c1 = _ipixel_get(dsize, ptr); \
+			IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+			IBLEND_ADDITIVE(r, g, b, a, r1, g1, b1, a1); \
+			c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+			_ipixel_put(dsize, ptr, c1); \
+		} \
+		return; \
+	} \
+	if (a == 0) return; \
+	if (ipixel_fmt[IPIX_FMT_##fmt].has_alpha == 0) { \
+		if (a == 255) { \
+			c1 = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
+			for (; n > 0; n--, xy += 2) { \
+				ptr = lines[xy[1]] + xy[0] * dsize; \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+		}	else { \
+			for (; n > 0; n--, xy += 2) { \
+				ptr = lines[xy[1]] + xy[0] * dsize; \
+				c1 = _ipixel_get(dsize, ptr); \
+				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+				IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
+				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+		} \
+	}	else { \
+			for (; n > 0; n--, xy += 2) { \
+				ptr = lines[xy[1]] + xy[0] * dsize; \
+				c1 = _ipixel_get(dsize, ptr); \
+				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+				IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \
+				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+	} \
+}
+
+
+#define ibitmap_putpixel_pp(fmt, dsize, mode) \
+	ibitmap_putpixel_proc_##mode(fmt, dsize) \
+	ibitmap_putpixel_proc_additive(fmt, dsize)  \
+	ibitmap_getpixel_proc(fmt, dsize) \
+	ibitmap_batch_putpixel(fmt, dsize)
+
+ibitmap_putpixel_pp(8, 1, STATIC);
+ibitmap_putpixel_pp(RGB15, 2, STATIC);
+ibitmap_putpixel_pp(BGR15, 2, STATIC);
+ibitmap_putpixel_pp(RGB16, 2, STATIC);
+ibitmap_putpixel_pp(BGR16, 2, STATIC);
+ibitmap_putpixel_pp(RGB24, 3, STATIC);
+ibitmap_putpixel_pp(BGR24, 3, STATIC);
+ibitmap_putpixel_pp(RGB32, 4, STATIC);
+ibitmap_putpixel_pp(BGR32, 4, STATIC);
+ibitmap_putpixel_pp(ARGB32, 4, NORMAL);
+ibitmap_putpixel_pp(ABGR32, 4, NORMAL);
+ibitmap_putpixel_pp(RGBA32, 4, NORMAL);
+ibitmap_putpixel_pp(BGRA32, 4, NORMAL);
+ibitmap_putpixel_pp(ARGB_4444, 2, NORMAL);
+ibitmap_putpixel_pp(ABGR_4444, 2, NORMAL);
+ibitmap_putpixel_pp(RGBA_4444, 2, NORMAL);
+ibitmap_putpixel_pp(BGRA_4444, 2, NORMAL);
+ibitmap_putpixel_pp(ARGB_1555, 2, NORMAL);
+ibitmap_putpixel_pp(ABGR_1555, 2, NORMAL);
+ibitmap_putpixel_pp(RGBA_5551, 2, NORMAL);
+ibitmap_putpixel_pp(BGRA_5551, 2, NORMAL);
+
+#undef ibitmap_putpixel_pp
+
+ICOLORD iblend_getpixel(IBITMAP *bmp, int x, int y)
+{
+	ICOLORD color;
+	int sfmt;
+	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	sfmt = _ibitmap_pixfmt(bmp);
+	if ((unsigned int)x >= bmp->w || (unsigned int)y >= bmp->h)
+		return 0;
+	switch (sfmt)
+	{
+	case IPIX_FMT_8: color = _igetpixel_8(bmp, x, y); break;
+	case IPIX_FMT_RGB15: color = _igetpixel_RGB15(bmp, x, y); break;
+	case IPIX_FMT_BGR15: color = _igetpixel_BGR15(bmp, x, y); break;
+	case IPIX_FMT_RGB16: color = _igetpixel_RGB15(bmp, x, y); break;
+	case IPIX_FMT_BGR16: color = _igetpixel_BGR15(bmp, x, y); break;
+	case IPIX_FMT_RGB24: color = _igetpixel_RGB24(bmp, x, y); break;
+	case IPIX_FMT_BGR24: color = _igetpixel_BGR24(bmp, x, y); break;
+	case IPIX_FMT_RGB32: color = _igetpixel_RGB32(bmp, x, y); break;
+	case IPIX_FMT_BGR32: color = _igetpixel_BGR32(bmp, x, y); break;
+	case IPIX_FMT_ARGB32: color = _igetpixel_ARGB32(bmp, x, y); break;
+	case IPIX_FMT_ABGR32: color = _igetpixel_ABGR32(bmp, x, y); break;
+	case IPIX_FMT_RGBA32: color = _igetpixel_RGBA32(bmp, x, y); break;
+	case IPIX_FMT_BGRA32: color = _igetpixel_BGRA32(bmp, x, y); break;
+	case IPIX_FMT_ARGB_4444: color = _igetpixel_ARGB_4444(bmp, x, y); break;
+	case IPIX_FMT_ABGR_4444: color = _igetpixel_ABGR_4444(bmp, x, y); break;
+	case IPIX_FMT_RGBA_4444: color = _igetpixel_RGBA_4444(bmp, x, y); break;
+	case IPIX_FMT_BGRA_4444: color = _igetpixel_BGRA_4444(bmp, x, y); break;
+	case IPIX_FMT_ARGB_1555: color = _igetpixel_ARGB_1555(bmp, x, y); break;
+	case IPIX_FMT_ABGR_1555: color = _igetpixel_ABGR_1555(bmp, x, y); break;
+	case IPIX_FMT_RGBA_5551: color = _igetpixel_RGBA_5551(bmp, x, y); break;
+	case IPIX_FMT_BGRA_5551: color = _igetpixel_BGRA_5551(bmp, x, y); break;
+	default: color = 0; break;
+	}
+	return color;
+}
+
+void iblend_putpixel(IBITMAP *bmp, int x, int y, ICOLORD c)
+{
+	int sfmt;
+	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	sfmt = _ibitmap_pixfmt(bmp);
+	if ((unsigned int)x >= bmp->w || (unsigned int)y >= bmp->h)
+		return;
+	switch (sfmt)
+	{
+	case IPIX_FMT_8: _iputpixel_8(bmp, x, y, c); break;
+	case IPIX_FMT_RGB15: _iputpixel_RGB15(bmp, x, y, c); break;
+	case IPIX_FMT_BGR15: _iputpixel_BGR15(bmp, x, y, c); break;
+	case IPIX_FMT_RGB16: _iputpixel_RGB15(bmp, x, y, c); break;
+	case IPIX_FMT_BGR16: _iputpixel_BGR15(bmp, x, y, c); break;
+	case IPIX_FMT_RGB24: _iputpixel_RGB24(bmp, x, y, c); break;
+	case IPIX_FMT_BGR24: _iputpixel_BGR24(bmp, x, y, c); break;
+	case IPIX_FMT_RGB32: _iputpixel_RGB32(bmp, x, y, c); break;
+	case IPIX_FMT_BGR32: _iputpixel_BGR32(bmp, x, y, c); break;
+	case IPIX_FMT_ARGB32: _iputpixel_ARGB32(bmp, x, y, c); break;
+	case IPIX_FMT_ABGR32: _iputpixel_ABGR32(bmp, x, y, c); break;
+	case IPIX_FMT_RGBA32: _iputpixel_RGBA32(bmp, x, y, c); break;
+	case IPIX_FMT_BGRA32: _iputpixel_BGRA32(bmp, x, y, c); break;
+	case IPIX_FMT_ARGB_4444: _iputpixel_ARGB_4444(bmp, x, y, c); break;
+	case IPIX_FMT_ABGR_4444: _iputpixel_ABGR_4444(bmp, x, y, c); break;
+	case IPIX_FMT_RGBA_4444: _iputpixel_RGBA_4444(bmp, x, y, c); break;
+	case IPIX_FMT_BGRA_4444: _iputpixel_BGRA_4444(bmp, x, y, c); break;
+	case IPIX_FMT_ARGB_1555: _iputpixel_ARGB_1555(bmp, x, y, c); break;
+	case IPIX_FMT_ABGR_1555: _iputpixel_ABGR_1555(bmp, x, y, c); break;
+	case IPIX_FMT_RGBA_5551: _iputpixel_RGBA_5551(bmp, x, y, c); break;
+	case IPIX_FMT_BGRA_5551: _iputpixel_BGRA_5551(bmp, x, y, c); break;
+	}
+}
+
+void iblend_addpixel(IBITMAP *bmp, int x, int y, ICOLORD c)
+{
+	int sfmt;
+	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	sfmt = _ibitmap_pixfmt(bmp);
+	if ((unsigned int)x >= bmp->w || (unsigned int)y >= bmp->h)
+		return;
+	switch (sfmt)
+	{
+	case IPIX_FMT_8: _iaddpixel_8(bmp, x, y, c); break;
+	case IPIX_FMT_RGB15: _iaddpixel_RGB15(bmp, x, y, c); break;
+	case IPIX_FMT_BGR15: _iaddpixel_BGR15(bmp, x, y, c); break;
+	case IPIX_FMT_RGB16: _iaddpixel_RGB15(bmp, x, y, c); break;
+	case IPIX_FMT_BGR16: _iaddpixel_BGR15(bmp, x, y, c); break;
+	case IPIX_FMT_RGB24: _iaddpixel_RGB24(bmp, x, y, c); break;
+	case IPIX_FMT_BGR24: _iaddpixel_BGR24(bmp, x, y, c); break;
+	case IPIX_FMT_RGB32: _iaddpixel_RGB32(bmp, x, y, c); break;
+	case IPIX_FMT_BGR32: _iaddpixel_BGR32(bmp, x, y, c); break;
+	case IPIX_FMT_ARGB32: _iaddpixel_ARGB32(bmp, x, y, c); break;
+	case IPIX_FMT_ABGR32: _iaddpixel_ABGR32(bmp, x, y, c); break;
+	case IPIX_FMT_RGBA32: _iaddpixel_RGBA32(bmp, x, y, c); break;
+	case IPIX_FMT_BGRA32: _iaddpixel_BGRA32(bmp, x, y, c); break;
+	case IPIX_FMT_ARGB_4444: _iaddpixel_ARGB_4444(bmp, x, y, c); break;
+	case IPIX_FMT_ABGR_4444: _iaddpixel_ABGR_4444(bmp, x, y, c); break;
+	case IPIX_FMT_RGBA_4444: _iaddpixel_RGBA_4444(bmp, x, y, c); break;
+	case IPIX_FMT_BGRA_4444: _iaddpixel_BGRA_4444(bmp, x, y, c); break;
+	case IPIX_FMT_ARGB_1555: _iaddpixel_ARGB_1555(bmp, x, y, c); break;
+	case IPIX_FMT_ABGR_1555: _iaddpixel_ABGR_1555(bmp, x, y, c); break;
+	case IPIX_FMT_RGBA_5551: _iaddpixel_RGBA_5551(bmp, x, y, c); break;
+	case IPIX_FMT_BGRA_5551: _iaddpixel_BGRA_5551(bmp, x, y, c); break;
+	}
+}
+
+void iblend_setpixel(IBITMAP *bmp, const int *xy, int n, ICOLORD c, int add)
+{
+	int sfmt;
+	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	sfmt = _ibitmap_pixfmt(bmp);
+	switch (sfmt)
+	{
+	case IPIX_FMT_8: _isetpixel_8(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGB15: _isetpixel_RGB15(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGR15: _isetpixel_BGR15(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGB16: _isetpixel_RGB16(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGR16: _isetpixel_BGR16(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGB24: _isetpixel_RGB24(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGR24: _isetpixel_BGR24(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGB32: _isetpixel_RGB32(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGR32: _isetpixel_BGR32(bmp, xy, n, c, add); break;
+	case IPIX_FMT_ARGB32: _isetpixel_ARGB32(bmp, xy, n, c, add); break;
+	case IPIX_FMT_ABGR32: _isetpixel_ABGR32(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGBA32: _isetpixel_RGBA32(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGRA32: _isetpixel_BGRA32(bmp, xy, n, c, add); break;
+	case IPIX_FMT_ARGB_4444: _isetpixel_ARGB_4444(bmp, xy, n, c, add); break;
+	case IPIX_FMT_ABGR_4444: _isetpixel_ABGR_4444(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGBA_4444: _isetpixel_RGBA_4444(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGRA_4444: _isetpixel_BGRA_4444(bmp, xy, n, c, add); break;
+	case IPIX_FMT_ARGB_1555: _isetpixel_ARGB_1555(bmp, xy, n, c, add); break;
+	case IPIX_FMT_ABGR_1555: _isetpixel_ABGR_1555(bmp, xy, n, c, add); break;
+	case IPIX_FMT_RGBA_5551: _isetpixel_RGBA_5551(bmp, xy, n, c, add); break;
+	case IPIX_FMT_BGRA_5551: _isetpixel_BGRA_5551(bmp, xy, n, c, add); break;
+	}
+}
+
+void *iblend_putpixel_vtable[] = {
+	NULL,
+	_iputpixel_8, 
+	_iputpixel_RGB15, _iputpixel_BGR15, 
+	_iputpixel_RGB16, _iputpixel_BGR16, 
+	_iputpixel_RGB24, _iputpixel_BGR24, 
+	_iputpixel_RGB32, _iputpixel_BGR32, 
+	_iputpixel_ARGB32, _iputpixel_ABGR32, 
+	_iputpixel_RGBA32, _iputpixel_BGRA32,
+	_iputpixel_ARGB_4444, _iputpixel_ABGR_4444, 
+	_iputpixel_RGBA_4444, _iputpixel_BGRA_4444,
+	_iputpixel_ARGB_1555, _iputpixel_ABGR_1555, 
+	_iputpixel_RGBA_5551, _iputpixel_BGRA_5551,
+	NULL, 
+};
+
+void *iblend_addpixel_vtable[] = {
+	NULL,
+	_iaddpixel_8, 
+	_iaddpixel_RGB15, _iaddpixel_BGR15, 
+	_iaddpixel_RGB16, _iaddpixel_BGR16, 
+	_iaddpixel_RGB24, _iaddpixel_BGR24, 
+	_iaddpixel_RGB32, _iaddpixel_BGR32, 
+	_iaddpixel_ARGB32, _iaddpixel_ABGR32, 
+	_iaddpixel_RGBA32, _iaddpixel_BGRA32,
+	_iaddpixel_ARGB_4444, _iaddpixel_ABGR_4444, 
+	_iaddpixel_RGBA_4444, _iaddpixel_BGRA_4444,
+	_iaddpixel_ARGB_1555, _iaddpixel_ABGR_1555, 
+	_iaddpixel_RGBA_5551, _iaddpixel_BGRA_5551,
+	NULL, 
+};
+
+void *iblend_getpixel_vtable[] = {
+	NULL,
+	_igetpixel_8, 
+	_igetpixel_RGB15, _igetpixel_BGR15, 
+	_igetpixel_RGB16, _igetpixel_BGR16, 
+	_igetpixel_RGB24, _igetpixel_BGR24, 
+	_igetpixel_RGB32, _igetpixel_BGR32, 
+	_igetpixel_ARGB32, _igetpixel_ABGR32, 
+	_igetpixel_RGBA32, _igetpixel_BGRA32,
+	_igetpixel_ARGB_4444, _igetpixel_ABGR_4444, 
+	_igetpixel_RGBA_4444, _igetpixel_BGRA_4444,
+	_igetpixel_ARGB_1555, _igetpixel_ABGR_1555, 
+	_igetpixel_RGBA_5551, _igetpixel_BGRA_5551,
+	NULL,
+};
+

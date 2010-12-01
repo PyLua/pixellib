@@ -328,6 +328,8 @@ ICOLORD ibitmap_getpixel(const IBITMAP *bmp, int x, int y)
 
 #define _line_putdot(bpp) _iput##bpp
 
+
+
 void ibitmap_line8(IBITMAP *bmp, int x1, int y1, int x2, int y2, ICOLORD c) {
 	_ibitmap_simple_line(bmp, x1, y1, x2, y2, _line_putdot(8), c); 
 }

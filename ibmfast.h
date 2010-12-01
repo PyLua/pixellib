@@ -509,13 +509,13 @@ static inline int ibicubic_alpha(int u, int v, int *alphas, int n)
 //---------------------------------------------------------------------
 // Inline Utilities
 //---------------------------------------------------------------------
-static inline IRECT *irect_set(IRECT *rect, int l, int t, int r, int b)
+static inline IRECT *irect_set(IRECT *dst, int l, int t, int r, int b)
 {
-	rect->left = l;
-	rect->top = t;
-	rect->right = r;
-	rect->bottom = b;
-	return rect;
+	dst->left = l;
+	dst->top = t;
+	dst->right = r;
+	dst->bottom = b;
+	return dst;
 }
 
 static inline IRECT *irect_copy(IRECT *dst, const IRECT *src)
@@ -524,6 +524,60 @@ static inline IRECT *irect_copy(IRECT *dst, const IRECT *src)
 	dst->top = src->top;
 	dst->right = src->right;
 	dst->bottom = src->bottom;
+	return dst;
+}
+
+static inline IRECT *irect_offset(IRECT *self, int x, int y)
+{
+	self->left += x;
+	self->top += y;
+	self->right += x;
+	self->bottom += y;
+	return self;
+}
+
+static inline int irect_contains(const IRECT *self, int x, int y)
+{
+	return (x >= self->left && y >= self->top &&
+		x < self->right && y < self->bottom);
+}
+
+static inline int irect_intersects(const IRECT *self, const IRECT *src)
+{
+	return !((src->right <= self->left) || (src->bottom <= self->top) ||
+		(src->left >= self->right) || (src->top >= self->bottom));
+}
+
+static inline IRECT *irect_intersection(IRECT *dst, const IRECT *src)
+{
+	int x1 = (dst->left > src->left)? dst->left : src->left;
+	int x2 = (dst->right < src->right)? dst->right : src->right;
+	int y1 = (dst->top > src->top)? dst->top : src->top;
+	int y2 = (dst->bottom < src->bottom)? dst->bottom : src->bottom;
+	if (x1 > x2 || y1 > y2) {
+		dst->left = 0;
+		dst->top = 0;
+		dst->right = 0;
+		dst->bottom = 0;
+	}	else {
+		dst->left = x1;
+		dst->top = y1;
+		dst->right = x2;
+		dst->bottom = y2;
+	}
+	return dst;
+}
+
+static inline IRECT *irect_union(IRECT *dst, const IRECT *src)
+{
+	int x1 = (dst->left < src->left)? dst->left : src->left;
+	int x2 = (dst->right > src->right)? dst->right : src->right;
+	int y1 = (dst->top < src->top)? dst->top : src->top;
+	int y2 = (dst->bottom > src->bottom)? dst->bottom : src->bottom;
+	dst->left = x1;
+	dst->top = y1;
+	dst->right = x2;
+	dst->bottom = y2;
 	return dst;
 }
 
