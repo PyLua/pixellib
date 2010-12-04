@@ -1302,6 +1302,7 @@ static inline void _isetpixel_##fmt(IBITMAP *bmp, const int *xy, \
 	unsigned char *ptr; \
 	lines = (unsigned char**)bmp->line; \
 	IRGBA_FROM_PIXEL(color, ARGB32, r, g, b, a); \
+	if (a == 0) return; \
 	if (additive) { \
 		for (; n > 0; n--, xy += 2) { \
 			ptr = lines[xy[1]] + xy[0] * dsize; \
@@ -1313,7 +1314,6 @@ static inline void _isetpixel_##fmt(IBITMAP *bmp, const int *xy, \
 		} \
 		return; \
 	} \
-	if (a == 0) return; \
 	if (ipixel_fmt[IPIX_FMT_##fmt].has_alpha == 0) { \
 		if (a == 255) { \
 			c1 = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
@@ -1343,12 +1343,68 @@ static inline void _isetpixel_##fmt(IBITMAP *bmp, const int *xy, \
 	} \
 }
 
+#define ibitmap_batch_dispixel(fmt, dsize) \
+static inline void _idispixel_##fmt(IBITMAP *bmp, const int *xy, \
+	const ICOLORD *colors, int n, int additive) \
+{ \
+	int r1, g1, b1, a1, c1, c, r, g, b, a; \
+	unsigned char **lines; \
+	unsigned char *ptr; \
+	lines = (unsigned char**)bmp->line; \
+	if (additive) { \
+		for (; n > 0; n--, xy += 2, colors++) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			c = colors[0]; \
+			IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
+			if (a != 0) { \
+				c1 = _ipixel_get(dsize, ptr); \
+				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+				IBLEND_ADDITIVE(r, g, b, a, r1, g1, b1, a1); \
+				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+		} \
+		return; \
+	} \
+	if (ipixel_fmt[IPIX_FMT_##fmt].has_alpha == 0) { \
+		for (; n > 0; n--, xy += 2, colors++) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			c = colors[0]; \
+			IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
+			if (a == 0) continue; \
+			else if (a == 0xff) { \
+				c1 = IRGBA_TO_PIXEL(fmt, r, g, b, 0xff); \
+				_ipixel_put(dsize, ptr, c1); \
+			}	else { \
+				c1 = _ipixel_get(dsize, ptr); \
+				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+				IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
+				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+		} \
+	}	else { \
+		for (; n > 0; n--, xy += 2, colors++) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			c = colors[0]; \
+			IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
+			if (a > 0) { \
+				c1 = _ipixel_get(dsize, ptr); \
+				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+				IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \
+				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+		} \
+	}  \
+}
 
 #define ibitmap_putpixel_pp(fmt, dsize, mode) \
 	ibitmap_putpixel_proc_##mode(fmt, dsize) \
 	ibitmap_putpixel_proc_additive(fmt, dsize)  \
 	ibitmap_getpixel_proc(fmt, dsize) \
-	ibitmap_batch_putpixel(fmt, dsize)
+	ibitmap_batch_putpixel(fmt, dsize) \
+	ibitmap_batch_dispixel(fmt, dsize)
 
 ibitmap_putpixel_pp(8, 1, STATIC);
 ibitmap_putpixel_pp(RGB15, 2, STATIC);
@@ -1506,6 +1562,41 @@ void iblend_setpixel(IBITMAP *bmp, const int *xy, int n, ICOLORD c, int add)
 	case IPIX_FMT_BGRA_5551: _isetpixel_BGRA_5551(bmp, xy, n, c, add); break;
 	}
 }
+
+
+// 点操作：批量绘制颜色表
+void iblend_dispixel(IBITMAP *bmp, const int *xy, const ICOLORD *cc, 
+	int n, int aa)
+{
+	int sfmt;
+	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	sfmt = _ibitmap_pixfmt(bmp);
+	switch (sfmt)
+	{
+	case IPIX_FMT_8: _idispixel_8(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGB15: _idispixel_RGB15(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGR15: _idispixel_BGR15(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGB16: _idispixel_RGB16(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGR16: _idispixel_BGR16(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGB24: _idispixel_RGB24(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGR24: _idispixel_BGR24(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGB32: _idispixel_RGB32(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGR32: _idispixel_BGR32(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_ARGB32: _idispixel_ARGB32(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_ABGR32: _idispixel_ABGR32(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGBA32: _idispixel_RGBA32(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGRA32: _idispixel_BGRA32(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_ARGB_4444: _idispixel_ARGB_4444(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_ABGR_4444: _idispixel_ABGR_4444(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGBA_4444: _idispixel_RGBA_4444(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGRA_4444: _idispixel_BGRA_4444(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_ARGB_1555: _idispixel_ARGB_1555(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_ABGR_1555: _idispixel_ABGR_1555(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_RGBA_5551: _idispixel_RGBA_5551(bmp, xy, cc, n, aa); break;
+	case IPIX_FMT_BGRA_5551: _idispixel_BGRA_5551(bmp, xy, cc, n, aa); break;
+	}
+}
+
 
 void *iblend_putpixel_vtable[] = {
 	NULL,
