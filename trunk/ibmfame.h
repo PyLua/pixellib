@@ -126,9 +126,12 @@ void iblend_putpixel(IBITMAP *bmp, int x, int y, ICOLORD c);
 // 点操作：绘制点（加法方式）
 void iblend_addpixel(IBITMAP *bmp, int x, int y, ICOLORD c);
 
-// 点操作：批量绘制点
+// 点操作：批量绘制点（每个点的颜色相同）
 void iblend_setpixel(IBITMAP *bmp, const int *xy, int n, ICOLORD c, int add);
 
+// 点操作：批量绘制点（每个点的颜色不同）
+void iblend_dispixel(IBITMAP *bmp, const int *xy, const ICOLORD *colors, 
+	int count, int additive);
 
 
 #ifdef __cplusplus
