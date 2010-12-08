@@ -1244,11 +1244,11 @@ static inline void _iputpixel_##fmt(IBITMAP *bmp, int x, int y, ICOLORD c) {\
 	int r, g, b, a, c1, r1, g1, b1, a1; \
 	unsigned char *ptr = _ilineptr(bmp, y) + x * dsize; \
 	IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
-	if (a == 0) return; \
-	else if (a == 255) { \
+	if (a == 255) { \
 		c1 = IRGBA_TO_PIXEL(fmt, r, g, b, 255); \
 		_ipixel_put(dsize, ptr, c1); \
-	}	else { \
+	}	\
+	else if (a > 0) { \
 		c1 = _ipixel_get(dsize, ptr);  \
 		IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
 		IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
@@ -1262,8 +1262,11 @@ static inline void _iputpixel_##fmt(IBITMAP *bmp, int x, int y, ICOLORD c) {\
 	int r, g, b, a, c1, r1, g1, b1, a1; \
 	unsigned char *ptr = _ilineptr(bmp, y) + x * dsize; \
 	IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
-	if (a == 0) return; \
-	else { \
+	if (a == 0xff) { \
+		c1 = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
+		_ipixel_put(dsize, ptr, c1); \
+	}	\
+	else if (a > 0) { \
 		c1 = _ipixel_get(dsize, ptr);  \
 		IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
 		IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \
@@ -1314,32 +1317,32 @@ static inline void _isetpixel_##fmt(IBITMAP *bmp, const int *xy, \
 		} \
 		return; \
 	} \
+	if (a == 255) { \
+		c1 = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
+		for (; n > 0; n--, xy += 2) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			_ipixel_put(dsize, ptr, c1); \
+		} \
+		return; \
+	} \
 	if (ipixel_fmt[IPIX_FMT_##fmt].has_alpha == 0) { \
-		if (a == 255) { \
-			c1 = IRGBA_TO_PIXEL(fmt, r, g, b, a); \
-			for (; n > 0; n--, xy += 2) { \
-				ptr = lines[xy[1]] + xy[0] * dsize; \
-				_ipixel_put(dsize, ptr, c1); \
-			} \
-		}	else { \
-			for (; n > 0; n--, xy += 2) { \
-				ptr = lines[xy[1]] + xy[0] * dsize; \
-				c1 = _ipixel_get(dsize, ptr); \
-				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
-				IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
-				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
-				_ipixel_put(dsize, ptr, c1); \
-			} \
+		for (; n > 0; n--, xy += 2) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			c1 = _ipixel_get(dsize, ptr); \
+			IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+			IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
+			c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+			_ipixel_put(dsize, ptr, c1); \
 		} \
 	}	else { \
-			for (; n > 0; n--, xy += 2) { \
-				ptr = lines[xy[1]] + xy[0] * dsize; \
-				c1 = _ipixel_get(dsize, ptr); \
-				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
-				IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \
-				c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
-				_ipixel_put(dsize, ptr, c1); \
-			} \
+		for (; n > 0; n--, xy += 2) { \
+			ptr = lines[xy[1]] + xy[0] * dsize; \
+			c1 = _ipixel_get(dsize, ptr); \
+			IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
+			IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \
+			c1 = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
+			_ipixel_put(dsize, ptr, c1); \
+		} \
 	} \
 }
 
@@ -1371,11 +1374,11 @@ static inline void _idispixel_##fmt(IBITMAP *bmp, const int *xy, \
 			ptr = lines[xy[1]] + xy[0] * dsize; \
 			c = colors[0]; \
 			IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
-			if (a == 0) continue; \
-			else if (a == 0xff) { \
+			if (a == 0xff) { \
 				c1 = IRGBA_TO_PIXEL(fmt, r, g, b, 0xff); \
 				_ipixel_put(dsize, ptr, c1); \
-			}	else { \
+			}	\
+			else if (a > 0) { \
 				c1 = _ipixel_get(dsize, ptr); \
 				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
 				IBLEND_STATIC(r, g, b, a, r1, g1, b1, a1); \
@@ -1388,7 +1391,11 @@ static inline void _idispixel_##fmt(IBITMAP *bmp, const int *xy, \
 			ptr = lines[xy[1]] + xy[0] * dsize; \
 			c = colors[0]; \
 			IRGBA_FROM_PIXEL(c, ARGB32, r, g, b, a); \
-			if (a > 0) { \
+			if (a == 0xff) { \
+				c1 = IRGBA_TO_PIXEL(fmt, r, g, b, 0xff); \
+				_ipixel_put(dsize, ptr, c1); \
+			} \
+			else if (a > 0) { \
 				c1 = _ipixel_get(dsize, ptr); \
 				IRGBA_FROM_PIXEL(c1, fmt, r1, g1, b1, a1); \
 				IBLEND_NORMAL(r, g, b, a, r1, g1, b1, a1); \

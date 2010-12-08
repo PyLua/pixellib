@@ -57,6 +57,16 @@ typedef unsigned short ICOLORW;
 #endif
 #endif
 
+#ifndef __IINT32_DEFINED
+#define __IINT32_DEFINED
+typedef ISTDINT32 IINT32;
+#endif
+
+#ifndef __IUINT32_DEFINED
+#define __IUINT32_DEFINED
+typedef ICOLORD IUINT32;
+#endif
+
 
 /**********************************************************************
  * COLOR OPERATION MACRO
@@ -1067,30 +1077,30 @@ void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
 
 
 #define IBLEND_STATIC(sr, sg, sb, sa, dr, dg, db, da) do { \
-	int SA = _iblend_norm_fast(sa); \
-	dr = (((((int)sr) - ((int)dr)) * SA) >> 8) + dr; \
-	dg = (((((int)sg) - ((int)dg)) * SA) >> 8) + dg; \
-	db = (((((int)sb) - ((int)db)) * SA) >> 8) + db; \
+	IINT32 SA = _iblend_norm_fast(sa); \
+	dr = (((((IINT32)sr) - ((IINT32)dr)) * SA) >> 8) + dr; \
+	dg = (((((IINT32)sg) - ((IINT32)dg)) * SA) >> 8) + dg; \
+	db = (((((IINT32)sb) - ((IINT32)db)) * SA) >> 8) + db; \
 	da = 255; \
 }	while (0)
 
 
 #define IBLEND_NORMAL(sr, sg, sb, sa, dr, dg, db, da) do { \
-	int SA = _iblend_norm_fast(sa); \
-	int DA = _iblend_norm_fast(da); \
-	int FA = DA + (((256 - DA) * SA) >> 8); \
+	IINT32 SA = _iblend_norm_fast(sa); \
+	IINT32 DA = _iblend_norm_fast(da); \
+	IINT32 FA = DA + (((256 - DA) * SA) >> 8); \
 	SA = (FA != 0)? ((SA << 8) / FA) : (0); \
 	da = _iblend_unnorm(FA); \
-	dr = (((((int)sr) - ((int)dr)) * SA) >> 8) + dr; \
-	dg = (((((int)sg) - ((int)dg)) * SA) >> 8) + dg; \
-	db = (((((int)sb) - ((int)db)) * SA) >> 8) + db; \
+	dr = (((((IINT32)sr) - ((IINT32)dr)) * SA) >> 8) + dr; \
+	dg = (((((IINT32)sg) - ((IINT32)dg)) * SA) >> 8) + dg; \
+	db = (((((IINT32)sb) - ((IINT32)db)) * SA) >> 8) + db; \
 }	while (0)
 
 #define IBLEND_ADDITIVE(sr, sg, sb, sa, dr, dg, db, da) do { \
-	int XA = _iblend_norm_fast(sa); \
-	int XR = sr * XA; \
-	int XG = sg * XA; \
-	int XB = sb * XA; \
+	IINT32 XA = _iblend_norm_fast(sa); \
+	IINT32 XR = sr * XA; \
+	IINT32 XG = sg * XA; \
+	IINT32 XB = sb * XA; \
 	XR = XR >> 8; \
 	XG = XG >> 8; \
 	XB = XB >> 8; \
