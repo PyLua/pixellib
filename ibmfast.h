@@ -15,6 +15,7 @@
 #include "ibitmapm.h"
 #include "ibmcols.h"
 #include "iblit386.h"
+#include "ibmspan.h"
 
 
 //---------------------------------------------------------------------
@@ -171,8 +172,8 @@ static inline void ibilinear_alpha(int u, int v,
 
 #define ITEX_GETCOL_NORMAL(c, fmt, u, v, ptr, pitch, w, h, om, dc) do { \
 	ICOLORD raw, r, g, b, a; \
-	int ui = u >> 16; \
-	int vi = v >> 16; \
+	IINT32 ui = u >> 16; \
+	IINT32 vi = v >> 16; \
 	if (ioverflow_pos(&ui, &vi, w, h, om) == 0) { \
 		size_t pos = vi * pitch + ui * IPIX_FMT_SIZE(fmt); \
 		const ICOLORB *p = ptr + pos; \
@@ -193,18 +194,18 @@ static inline void ibilinear_alpha(int u, int v,
 	ICOLORD r10, g10, b10, a10, r11, g11, b11, a11; \
 	const ICOLORB *p00, *p01, *p10, *p11; \
 	ICOLORD r, g, b, a; \
-	int f00, f01, f10, f11, sum; \
-	int umid = u; \
-	int vmid = v; \
-	int umidfloor = iFixFloor(umid); \
-	int vmidfloor = iFixFloor(vmid); \
-	int ufactor = (((umid - umidfloor) & 0xfffe) + 1) >> 1; \
-	int vfactor = (((vmid - vmidfloor) & 0xfffe) + 1) >> 1; \
-	int umint = umidfloor >> 16; \
-	int vmint = vmidfloor >> 16; \
-	int umw = w - 2 - umint; \
-	int vmh = h - 2 - vmint; \
-	int condition; \
+	IINT32 f00, f01, f10, f11, sum; \
+	IINT32 umid = u; \
+	IINT32 vmid = v; \
+	IINT32 umidfloor = iFixFloor(umid); \
+	IINT32 vmidfloor = iFixFloor(vmid); \
+	IINT32 ufactor = (((umid - umidfloor) & 0xfffe) + 1) >> 1; \
+	IINT32 vfactor = (((vmid - vmidfloor) & 0xfffe) + 1) >> 1; \
+	IINT32 umint = umidfloor >> 16; \
+	IINT32 vmint = vmidfloor >> 16; \
+	IINT32 umw = w - 2 - umint; \
+	IINT32 vmh = h - 2 - vmint; \
+	IINT32 condition; \
 	text00 = vmint * pitch + IPIX_FMT_SIZE(fmt) * umint; \
 	text01 = text00 + IPIX_FMT_SIZE(fmt); \
 	text10 = text00 + pitch; \
@@ -224,8 +225,8 @@ static inline void ibilinear_alpha(int u, int v,
 		IRGBA_FROM_PIXEL(c3, fmt, r10, g10, b10, a10); \
 		IRGBA_FROM_PIXEL(c4, fmt, r11, g11, b11, a11); \
 	}	else { \
-		int xx = umint; \
-		int yy = vmint; \
+		IINT32 xx = umint; \
+		IINT32 yy = vmint; \
 		IRGBA_FROM_PIXEL(dc, ARGB32, r00, g00, b00, a00); \
 		if (ioverflow_pos(&xx, &yy, w, h, om) == 0) { \
 			p00 = ptr + yy * pitch + xx * IPIX_FMT_SIZE(fmt); \
@@ -293,19 +294,19 @@ static inline void ibilinear_alpha(int u, int v,
 	ICOLORD c1, c2, c3, c4; \
 	const ICOLORB *p00, *p01, *p10, *p11; \
 	ICOLORD r, g, b, a; \
-	int f00, f01, f10, f11, sum; \
-	int umid = u; \
-	int vmid = v; \
-	int umidfloor = iFixFloor(umid); \
-	int vmidfloor = iFixFloor(vmid); \
-	int ufactor = (((umid - umidfloor) & 0xfffe) + 1) >> 1; \
-	int vfactor = (((vmid - vmidfloor) & 0xfffe) + 1) >> 1; \
-	int umint = umidfloor >> 16; \
-	int vmint = vmidfloor >> 16; \
-	int pi0 = (umint & umask) * IPIX_FMT_SIZE(fmt); \
-	int pi1 = ((umint + 1) & umask) * IPIX_FMT_SIZE(fmt); \
-	int pi2 = (vmint & vmask) << shift; \
-	int pi3 = ((vmint + 1) & vmask) << shift; \
+	IINT32 f00, f01, f10, f11, sum; \
+	IINT32 umid = u; \
+	IINT32 vmid = v; \
+	IINT32 umidfloor = iFixFloor(umid); \
+	IINT32 vmidfloor = iFixFloor(vmid); \
+	IINT32 ufactor = (((umid - umidfloor) & 0xfffe) + 1) >> 1; \
+	IINT32 vfactor = (((vmid - vmidfloor) & 0xfffe) + 1) >> 1; \
+	IINT32 umint = umidfloor >> 16; \
+	IINT32 vmint = vmidfloor >> 16; \
+	IINT32 pi0 = (umint & umask) * IPIX_FMT_SIZE(fmt); \
+	IINT32 pi1 = ((umint + 1) & umask) * IPIX_FMT_SIZE(fmt); \
+	IINT32 pi2 = (vmint & vmask) << shift; \
+	IINT32 pi3 = ((vmint + 1) & vmask) << shift; \
 	p00 = ptr + pi0 + pi2; \
 	p01 = ptr + pi1 + pi2; \
 	p10 = ptr + pi0 + pi3; \
@@ -506,6 +507,13 @@ static inline int ibicubic_alpha(int u, int v, int *alphas, int n)
 }	while (0)
 
 
+#define ITEX_GETCOL_BICUBIC1(c, fmt, u, v, ptr, pitch, w, h, om, dc) \
+		ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, 0, om, dc)
+	
+#define ITEX_GETCOL_BICUBIC2(c, fmt, u, v, ptr, pitch, w, h, om, dc) \
+		ITEX_GETCOL_BICUBIC(c, fmt, u, v, ptr, pitch, w, h, 0, om, dc)
+
+
 //---------------------------------------------------------------------
 // Inline Utilities
 //---------------------------------------------------------------------
@@ -617,6 +625,27 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst,
 // 位图重新采样
 IBITMAP *ibitmap_resample(IBITMAP *src, int newwidth, int newheight,
 	int filter, int ofmode, ICOLORD ofcolor);
+
+
+//---------------------------------------------------------------------
+// 扫描线：光栅化
+//---------------------------------------------------------------------
+typedef struct
+{
+	unsigned char *pixel;
+	int width;
+	int magic;
+	IINT32 u;
+	IINT32 v;
+	IINT32 du;
+	IINT32 dv;
+}	ISCANLINE;
+
+#define IFILTER_MASK	6		// 关键色过滤为 0
+
+// 取得扫描线，保存成ARGB32的格式到 scanlines定义的扫描线中
+int ibitmap_scan(IBITMAP *src, ISCANLINE *scanlines, int count,
+	int filter, const IRGB *pal, int om, ICOLORD dc);
 
 
 #ifdef __cplusplus

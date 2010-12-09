@@ -370,7 +370,7 @@ static inline ICOLORD interp_texture_get_bicubic2_##fmt(int u, int v, \
 	return c; \
 } 
 
-
+IGET_PIXEL_COLOR(8);
 IGET_PIXEL_COLOR(RGB15);
 IGET_PIXEL_COLOR(BGR15);
 IGET_PIXEL_COLOR(RGB16);
@@ -1010,6 +1010,127 @@ IBITMAP *ibitmap_resample(IBITMAP *src, int newwidth, int newheight,
 		filter, ofmode, ofcolor);
 
 	return dst;
+}
+
+
+//---------------------------------------------------------------------
+// 取得一段扫描线，保存成ARGB32的格式到 output中
+// 返回扫描线内所有点的Alpha值的 AND结果
+//---------------------------------------------------------------------
+int ibitmap_scan(IBITMAP *src, ISCANLINE *scanlines, int count,
+	int filter, const IRGB *pal, int om, ICOLORD dc)
+{
+	const IRGB *_ipaletted = pal;
+	unsigned char *pixel, *ptr;
+	IUINT32 CC, CMASK;
+	IINT32 ww, hh;
+	long pitch;
+	int pixfmt;
+	IINT32 x;
+	IINT32 y;
+
+	assert(src && scanlines);
+
+	if (scanlines == NULL || src == NULL) {
+		abort();
+		return 0;
+	}
+
+	ptr = (unsigned char*)src->pixel;
+	pitch = (long)src->pitch;
+	pixfmt = ibitmap_pixfmt(src);
+	ww = (IINT32)src->w;
+	hh = (IINT32)src->h;
+	x = 0;
+	y = 0;
+	CMASK = (IUINT32)src->mask;
+
+	#define ITEX_GETCOL_MASK(c, fmt, u, v, ptr, pitch, w, h, om, dc) do { \
+		ICOLORD raw, r, g, b, a; \
+		IINT32 ui = u >> 16; \
+		IINT32 vi = v >> 16; \
+		if (ioverflow_pos(&ui, &vi, w, h, om) == 0) { \
+			size_t pos = vi * pitch + ui * IPIX_FMT_SIZE(fmt); \
+			const ICOLORB *p = ptr + pos; \
+			raw = IPIX_FMT_READ(fmt, p); \
+			if (raw != CMASK) { \
+				IRGBA_FROM_PIXEL(raw, fmt, r, g, b, a); \
+				c = IRGBA_TO_PIXEL(ARGB32, r, g, b, a); \
+			}	else { \
+				c = 0; \
+			} \
+		}	else { \
+			c = dc; \
+		} \
+	}	while (0)
+
+	#define IBITMAP_SCAN_SPAN(fmt, mode) do { \
+		for (; width > 0; width--) { \
+			ITEX_GETCOL_##mode(CC, fmt, U, V, ptr, pitch, ww, hh, om, dc); \
+			_ipixel_put(4, pixel, CC); \
+			magic &= (CC >> 24) & 0xff; \
+			pixel += 4; \
+			U += DU; \
+			V += DV; \
+		} \
+	}	while (0)
+	
+	#define IBITMAP_SCAN_MAIN(fmt, mode) do { \
+		for (; count > 0; count--, scanlines++) { \
+			IINT32 U = scanlines->u + x; \
+			IINT32 V = scanlines->v + y; \
+			IINT32 DU = scanlines->du; \
+			IINT32 DV = scanlines->dv; \
+			int width = scanlines->width; \
+			int magic = 0xff; \
+			pixel = scanlines->pixel; \
+			IBITMAP_SCAN_SPAN(fmt, mode); \
+			scanlines->magic = magic; \
+		} \
+	}	while (0)
+	
+	#define IBITMAP_SCAN_LINE(fmt) do { \
+		switch (filter) { \
+		case IFILTER_MASK: IBITMAP_SCAN_MAIN(fmt, MASK); break; \
+		case IFILTER_NEAREST: x = 0x8000; y = 0x8000; \
+		case IFILTER_NORMAL: IBITMAP_SCAN_MAIN(fmt, NORMAL); break; \
+		case IFILTER_TEND: \
+		case IFILTER_BILINEAR: IBITMAP_SCAN_MAIN(fmt, BILINEAR); break; \
+		case IFILTER_BICUBIC: IBITMAP_SCAN_MAIN(fmt, BICUBIC1); break; \
+		case IFILTER_BICUBIC2: IBITMAP_SCAN_MAIN(fmt, BICUBIC2); break; \
+		} \
+	}	while (0)
+
+	switch (pixfmt)
+	{
+	case IPIX_FMT_8: IBITMAP_SCAN_LINE(8); break;
+	case IPIX_FMT_RGB15: IBITMAP_SCAN_LINE(RGB15); break;
+	case IPIX_FMT_BGR15: IBITMAP_SCAN_LINE(BGR15); break;
+	case IPIX_FMT_RGB16: IBITMAP_SCAN_LINE(RGB16); break;
+	case IPIX_FMT_BGR16: IBITMAP_SCAN_LINE(BGR16); break;
+	case IPIX_FMT_RGB24: IBITMAP_SCAN_LINE(RGB24); break;
+	case IPIX_FMT_BGR24: IBITMAP_SCAN_LINE(BGR24); break;
+	case IPIX_FMT_RGB32: IBITMAP_SCAN_LINE(RGB32); break;
+	case IPIX_FMT_BGR32: IBITMAP_SCAN_LINE(BGR32); break;
+	case IPIX_FMT_ARGB32: IBITMAP_SCAN_LINE(ARGB32); break;
+	case IPIX_FMT_ABGR32: IBITMAP_SCAN_LINE(ABGR32); break;
+	case IPIX_FMT_RGBA32: IBITMAP_SCAN_LINE(RGBA32); break;
+	case IPIX_FMT_BGRA32: IBITMAP_SCAN_LINE(BGRA32); break;
+	case IPIX_FMT_ARGB_4444: IBITMAP_SCAN_LINE(ARGB_4444); break;
+	case IPIX_FMT_ABGR_4444: IBITMAP_SCAN_LINE(ABGR_4444); break;
+	case IPIX_FMT_RGBA_4444: IBITMAP_SCAN_LINE(RGBA_4444); break;
+	case IPIX_FMT_BGRA_4444: IBITMAP_SCAN_LINE(BGRA_4444); break;
+	case IPIX_FMT_ARGB_1555: IBITMAP_SCAN_LINE(ARGB_1555); break;
+	case IPIX_FMT_ABGR_1555: IBITMAP_SCAN_LINE(ABGR_1555); break;
+	case IPIX_FMT_RGBA_5551: IBITMAP_SCAN_LINE(RGBA_5551); break;
+	case IPIX_FMT_BGRA_5551: IBITMAP_SCAN_LINE(BGRA_5551); break;
+	}
+
+	#undef IBITMAP_SCAN_LINE
+	#undef IBITMAP_SCAN_MAIN
+	#undef IBITMAP_SCAN_SPAN
+	
+	return 0;
 }
 
 
