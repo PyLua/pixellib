@@ -1045,6 +1045,9 @@ int ibitmap_scan(IBITMAP *src, ISCANLINE *scanlines, int count,
 	y = 0;
 	CMASK = (IUINT32)src->mask;
 
+	if (ibicubic_inited == 0) 
+		ibicubic_init();
+
 	#define ITEX_GETCOL_MASK(c, fmt, u, v, ptr, pitch, w, h, om, dc) do { \
 		ICOLORD raw, r, g, b, a; \
 		IINT32 ui = u >> 16; \
