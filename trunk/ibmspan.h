@@ -78,6 +78,10 @@ extern "C" {
 void ispan_draw(IBITMAP *dst, const ISPAN *spans, int count, int flags);
 
 
+// 线段收缩，大于零是左边，小于零是右边
+void ispan_shrink(ISPAN *span, int width);
+
+
 #ifdef __cplusplus
 }
 #endif

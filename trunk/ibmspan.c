@@ -851,7 +851,7 @@ ISPAN_FILL_ENTRY(ARGB32, 4, NORMAL);
 
 
 //---------------------------------------------------------------------
-// draw a span
+// 绘制线段主函数
 //---------------------------------------------------------------------
 void ispan_draw(IBITMAP *dst, const ISPAN *spans, int count, int flags)
 {
@@ -900,5 +900,53 @@ void ispan_draw(IBITMAP *dst, const ISPAN *spans, int count, int flags)
 }
 
 
+//---------------------------------------------------------------------
+// 线段收缩，大于零是左边，小于零是右边
+//---------------------------------------------------------------------
+void ispan_shrink(ISPAN *span, int width)
+{
+	IINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	IINT32 dr, dg, db, da, dd;
+	if (width > 0) {		// 收缩左边
+		if (width > span->w) width = span->w;
+		span->x += width;
+		if (span->cover) span->cover += width;
+		if (span->pixel) span->pixel += width * 4;
+		if (span->color1 != span->color2) {
+			IRGBA_FROM_PIXEL(span->color1, ARGB32, r1, g1, b1, a1);
+			IRGBA_FROM_PIXEL(span->color2, ARGB32, r2, g2, b2, a2);
+			dd = (span->w > 1)? (span->w - 1) : 1;
+			dr = (r2 - r1) / dd;
+			dg = (g2 - g1) / dd;
+			db = (b2 - b1) / dd;
+			da = (a2 - a1) / dd;
+			r1 += dr * width;
+			g1 += dg * width;
+			b1 += db * width;
+			a1 += da * width;
+			span->color1 = IRGBA_TO_PIXEL(ARGB32, r1, g1, b1, a1);
+		}
+		span->w -= width;
+	}
+	else if (width < 0) {	// 收缩右边
+		width = -width;
+		if (width > span->w) width = span->w;
+		if (span->color1 != span->color2) {
+			IRGBA_FROM_PIXEL(span->color1, ARGB32, r1, g1, b1, a1);
+			IRGBA_FROM_PIXEL(span->color2, ARGB32, r2, g2, b2, a2);
+			dd = (span->w > 1)? (span->w - 1) : 1;
+			dr = (r2 - r1) / dd;
+			dg = (g2 - g1) / dd;
+			db = (b2 - b1) / dd;
+			da = (a2 - a1) / dd;
+			r2 -= dr * width;
+			g2 -= dg * width;
+			b2 -= db * width;
+			a2 -= da * width;
+			span->color2 = IRGBA_TO_PIXEL(ARGB32, r2, g2, b2, a2);
+		}
+		span->w -= width;
+	}
+}
 
 
