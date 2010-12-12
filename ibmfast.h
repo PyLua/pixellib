@@ -639,7 +639,7 @@ static inline float _isqrtinv(float x) {
 #ifdef IHAVE_FAST_FLOAT
 	return _isqrtinv_ieee(x);
 #else
-	return 1.0f / sqrt(x);
+	return 1.0f / sqrtf(x);
 #endif
 }
 
@@ -725,21 +725,21 @@ static inline IFIXED ifixed_div(IFIXED x, IFIXED y) {
 }
 
 static inline IFIXED ifixed_sin(IFIXED x) {
-	return ifixed_float2fixed(sin(ifixed_fixed2float(x)));
+	return ifixed_float2fixed(sinf(ifixed_fixed2float(x)));
 }
 
 static inline IFIXED ifixed_cos(IFIXED x) {
-	return ifixed_float2fixed(cos(ifixed_fixed2float(x)));
+	return ifixed_float2fixed(cosf(ifixed_fixed2float(x)));
 }
 
 static inline IFIXED ifixed_tan(IFIXED x) {
-	return ifixed_float2fixed(tan(ifixed_fixed2float(x)));
+	return ifixed_float2fixed(tanf(ifixed_fixed2float(x)));
 }
 
 static inline IFIXED ifixed_atan2(IFIXED y, IFIXED x) {
 	float fx = ifixed_fixed2float(x);
 	float fy = ifixed_fixed2float(y);
-	return ifixed_float2fixed(atan2(fy, fx));
+	return ifixed_float2fixed(atan2f(fy, fx));
 }
 
 static inline IFIXED ifixed_sqrt(IFIXED x) {
