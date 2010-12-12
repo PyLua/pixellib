@@ -10,6 +10,7 @@
 #define __IBMFAST_H__
 
 #include <stddef.h>
+#include <math.h>
 
 #include "ibitmap.h"
 #include "ibitmapm.h"
@@ -42,11 +43,15 @@
 #endif
 
 
+#ifndef __IINT64_DEFINED
+#define __IINT64_DEFINED
 #if defined(_MSC_VER) || defined(__BORLANDC__)
-#define IINT64T __int64
+typedef __int64 IINT64;
 #else
-#define IINT64T long long
+typedef long long IINT64;
 #endif
+#endif
+
 
 
 //---------------------------------------------------------------------
@@ -135,7 +140,7 @@ static inline ICOLORD ioverflow_get(int pixfmt, int x, int y,
 
 #define IFIX_FLOOR(x) ((x) & (~0xffff))
 
-static inline int iFixFloor(int x) {
+static inline IINT32 iFixFloor(IINT32 x) {
 	if (x >= 0) return (x & (~0xffff)); 
 	return (x & (~0xffff)) - 0x10000;
 }
@@ -587,6 +592,165 @@ static inline IRECT *irect_union(IRECT *dst, const IRECT *src)
 	dst->right = x2;
 	dst->bottom = y2;
 	return dst;
+}
+
+
+//---------------------------------------------------------------------
+// floating point operation
+//---------------------------------------------------------------------
+// fast (1 / sqrt(x)) (from quake3)
+static inline float _isqrtinv_ieee(float x) {
+	union { IINT32 intpart; float floatpart; } convert;
+	float xhalf = 0.5f * x;
+	convert.floatpart = x;
+	convert.intpart = 0x5f37642f - (convert.intpart >> 1);
+	x = convert.floatpart;
+	return x * (1.5f - xhalf * x * x);
+}
+
+// fast sqrt(x) (from flipcode)
+static inline float _isqrt_ieee(float x) {
+	union { IINT32 intpart; float floatpart; } convert1, convert2;
+	convert1.floatpart = x;
+	convert2.floatpart = x;
+	convert1.intpart = 0x1fbcf800 + (convert1.intpart >> 1);
+	convert2.intpart = 0x5f37642f - (convert2.intpart >> 1);
+	return 0.5f * (convert1.floatpart + convert2.floatpart * x);
+}
+
+// fast ftoi(x) (from flipcode) - changed from:
+static inline IINT32 _iftoi_ieee(float f) {
+	union { IINT32 intpart; float floatpart; } convert;
+	IINT32 sign, mantissa, exponent, r;
+	convert.floatpart = f;
+	sign = (convert.intpart >> 31);
+	mantissa = (convert.intpart & ((1 << 23) - 1)) | (1 << 23);
+	exponent = ((convert.intpart & 0x7ffffffful) >> 23) - 127;
+	r = ((IUINT32)(mantissa) << 8) >> (31 - exponent);
+	return ((r ^ sign) - sign) & ~(exponent >> 31);
+}
+
+
+#if defined(__i386__) || defined(__amd64__)
+#define IHAVE_FAST_FLOAT
+#endif
+
+static inline float _isqrtinv(float x) {
+#ifdef IHAVE_FAST_FLOAT
+	return _isqrtinv_ieee(x);
+#else
+	return 1.0f / sqrt(x);
+#endif
+}
+
+static inline float _isqrt(float x) {
+#ifdef IHAVE_FAST_FLOAT
+	return _isqrt_ieee(x);
+#else
+	return sqrt(x);
+#endif
+}
+
+static inline IINT32 _ifloat2int(float x) {
+#ifdef IHAVE_FAST_FLOAT
+	return _iftoi_ieee(x);
+#else
+	return (IINT32)(x);
+#endif
+}
+
+static inline float _ifloat_abs(float x) {
+	return (x >= 0.0f)? x : (-x);
+}
+
+static inline IINT32 _iint_abs(IINT32 x) {
+	return (x >= 0)? x : (-x);
+}
+
+
+#define IMATH_PI        ((float)3.141592654f)
+#define IMATH_PI2       ((float)6.283185307f)
+#define IMATH_PI_DIV_2	((float)1.570796327f)
+#define IMATH_PI_DIV_4  ((float)0.785398163f)
+#define IMATH_INV       ((float)0.318309886f)
+
+#define IEPSILON_E4     ((float)1E-4)
+#define IEPSILON_E5     ((float)1E-5)
+#define IEPSILON_E6     ((float)1E-6)
+
+// fixed point number definition
+#define IFIX_SHIFT      16
+
+#define IFIX_MAG        (1 << IFIX_SHIFT)
+#define IFIX_DP_MASK    (IFIX_MAG - 1)
+#define IFIX_WP_MASK    (~IFIX_DP_MASK)
+#define IFIX_ROUNDUP    (IFIX_MAG - 1)
+
+#define IFLOAT_ABS(x)          _ifloat_abs(x)
+#define IFLOAT_EQUALZ(x, y, z) (IFLOAT_ABS((x) - (y)) < (z))? 1 : 0)
+#define IFLOAT_EQUAL(x, y)     IFLOAT_EQUALZ(x, y, IEPSILON_E5)
+
+
+typedef IINT32 IFIXED;
+
+static inline IFIXED ifixed_float2fixed(float x) {
+	return _ifloat2int(x * 65536.0f);
+}
+
+static inline float ifixed_fixed2float(IFIXED f) {
+	return (f / 65536.0f);
+}
+
+static inline IFIXED ifixed_int2fixed(IINT32 i) {
+	return (i << 16);
+}
+
+static inline IINT32 ifixed_fixed2int(IFIXED f) {
+	return (f >> 16);
+}
+
+static inline IFIXED ifixed_floor(IFIXED x) {
+	if (x >= 0) return (x & (~0xffff)); 
+	return (x & (~0xffff)) - 0x10000;
+}
+
+static inline IFIXED ifixed_mul(IFIXED x, IFIXED y) {
+	return (IFIXED)(((IINT64)x) * y) >> 16;
+}
+
+static inline IFIXED ifixed_div(IFIXED x, IFIXED y) {
+	float fx = ifixed_fixed2float(x);
+	float fy = ifixed_fixed2float(y);
+	return ifixed_float2fixed(fx / fy);
+}
+
+static inline IFIXED ifixed_sin(IFIXED x) {
+	return ifixed_float2fixed(sin(ifixed_fixed2float(x)));
+}
+
+static inline IFIXED ifixed_cos(IFIXED x) {
+	return ifixed_float2fixed(cos(ifixed_fixed2float(x)));
+}
+
+static inline IFIXED ifixed_tan(IFIXED x) {
+	return ifixed_float2fixed(tan(ifixed_fixed2float(x)));
+}
+
+static inline IFIXED ifixed_atan2(IFIXED y, IFIXED x) {
+	float fx = ifixed_fixed2float(x);
+	float fy = ifixed_fixed2float(y);
+	return ifixed_float2fixed(atan2(fy, fx));
+}
+
+static inline IFIXED ifixed_sqrt(IFIXED x) {
+	float fx = ifixed_fixed2float(x);
+	return ifixed_float2fixed(_isqrt(fx));
+}
+
+// 1 / sqrt(x)
+static inline IFIXED ifixed_sqrtinv(IFIXED x) {
+	float fx = ifixed_fixed2float(x);
+	return ifixed_float2fixed(_isqrtinv(fx));
 }
 
 

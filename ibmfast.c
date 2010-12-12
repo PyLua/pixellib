@@ -480,7 +480,7 @@ static int ifilter_shrink_x_c(ICOLORB *dstpix, ICOLORB *srcpix, int height,
 	int xspace = 0x10000 * srcwidth / dstwidth;
 	int xrecip = 0;
 
-	IINT64T zrecip = 1;
+	IINT64 zrecip = 1;
 	zrecip <<= 32;
 	xrecip = (int)(zrecip / xspace);
 
@@ -529,7 +529,7 @@ static int ifilter_shrink_y_c(ICOLORB *dstpix, ICOLORB *srcpix, int width,
 	int ycounter = yspace;
 	ICOLORW *templine;
 
-	IINT64T zrecip = 1;
+	IINT64 zrecip = 1;
 	zrecip <<= 32;
 	yrecip = (int)(zrecip / yspace);
 
