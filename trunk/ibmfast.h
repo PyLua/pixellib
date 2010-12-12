@@ -667,7 +667,7 @@ static inline IINT32 _ifloat2int(float x) {
 #endif
 }
 
-static inline IINT32 _idouble2int(float x) {
+static inline IINT32 _idouble2int(double x) {
 	return (IINT32)(x);
 }
 
@@ -873,7 +873,7 @@ static inline IFIX64 ifix64_floor(IFIX64 x) {
 
 static inline IFIX64 ifix64_ceil(IFIX64 x) {
 	if (x > 0) return ifix64_integer_part((x - 1) + (((IINT64)1) << 32));
-	return ifix64_from_int(-(-x >> 32));
+	return ifix64_from_int((IINT32)(-(-x >> 32)));
 }
 
 static inline IFIX64 ifix64_from_fixed(IFIXED x) {
