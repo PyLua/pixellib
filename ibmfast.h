@@ -630,6 +630,14 @@ static inline IINT32 _iftoi_ieee(float f) {
 	return ((r ^ sign) - sign) & ~(exponent >> 31);
 }
 
+// fast double2int (from lua)
+// cannot used with D3D9
+static inline IINT32 _idtoi_ieee(double d) {
+	union { double l_d; IINT32 l_l; } u;
+	u.l_d = (d) + 6755399441055744.0;
+	return u.l_l;
+}
+
 
 #if defined(__i386__) || defined(__amd64__)
 #define IHAVE_FAST_FLOAT
@@ -659,6 +667,10 @@ static inline IINT32 _ifloat2int(float x) {
 #endif
 }
 
+static inline IINT32 _idouble2int(float x) {
+	return (IINT32)(x);
+}
+
 static inline float _ifloat_abs(float x) {
 	return (x >= 0.0f)? x : (-x);
 }
@@ -678,7 +690,13 @@ static inline IINT32 _iint_abs(IINT32 x) {
 #define IEPSILON_E5     ((float)1E-5)
 #define IEPSILON_E6     ((float)1E-6)
 
+#define IFLOAT_ABS(x)          _ifloat_abs(x)
+#define IFLOAT_EQUALZ(x, y, z) (IFLOAT_ABS((x) - (y)) < (z))? 1 : 0)
+#define IFLOAT_EQUAL(x, y)     IFLOAT_EQUALZ(x, y, IEPSILON_E5)
+
+//---------------------------------------------------------------------
 // fixed point number definition
+//---------------------------------------------------------------------
 #define IFIX_SHIFT      16
 
 #define IFIX_MAG        (1 << IFIX_SHIFT)
@@ -686,12 +704,8 @@ static inline IINT32 _iint_abs(IINT32 x) {
 #define IFIX_WP_MASK    (~IFIX_DP_MASK)
 #define IFIX_ROUNDUP    (IFIX_MAG - 1)
 
-#define IFLOAT_ABS(x)          _ifloat_abs(x)
-#define IFLOAT_EQUALZ(x, y, z) (IFLOAT_ABS((x) - (y)) < (z))? 1 : 0)
-#define IFLOAT_EQUAL(x, y)     IFLOAT_EQUALZ(x, y, IEPSILON_E5)
-
-
 typedef IINT32 IFIXED;
+typedef IINT64 IFIX64;
 
 static inline IFIXED ifixed_float2fixed(float x) {
 	return _ifloat2int(x * 65536.0f);
@@ -709,9 +723,62 @@ static inline IINT32 ifixed_fixed2int(IFIXED f) {
 	return (f >> 16);
 }
 
+static inline IFIXED ifixed_integer_part(IFIXED x) {
+	return (x & (~0xffff));
+}
+
 static inline IFIXED ifixed_floor(IFIXED x) {
 	if (x >= 0) return (x & (~0xffff)); 
 	return (x & (~0xffff)) - 0x10000;
+}
+
+static inline IFIXED ifixed_ceil(IFIXED x) {
+	if (x > 0) return ifixed_integer_part((x - 1) + 0x10000);
+	return ifixed_int2fixed(-(-x >> 16));
+}
+
+static inline int ifixed_is_integer(IFIXED x) {
+	return (x & 0xffff) == 0;
+}
+
+static inline IFIXED ifixed_double2fixed(double f) {
+	return _idouble2int(f * 65536.0);
+}
+
+static inline double ifixed_fixed2double(IFIXED f) {
+	return f / 65536.0;
+}
+
+static inline IFIXED ifixed_from_26_6(IINT32 x) {
+	return x << 10;
+}
+
+static inline IINT32 ifixed_to_26_6(IFIXED x) {
+	return x >> 10;
+}
+
+static inline IFIXED ifixed_from_int(IINT32 x) {
+	return ifixed_int2fixed(x);
+}
+
+static inline IFIXED ifixed_from_float(float x) {
+	return ifixed_float2fixed(x);
+}
+
+static inline IFIXED ifixed_from_double(double x) {
+	return ifixed_double2fixed(x);
+}
+
+static inline IINT32 ifixed_to_int(IFIXED x) {
+	return ifixed_fixed2int(x);
+}
+
+static inline float ifixed_to_float(IFIXED x) {
+	return ifixed_fixed2float(x);
+}
+
+static inline double ifixed_to_double(IFIXED x) {
+	return ifixed_fixed2double(x);
 }
 
 static inline IFIXED ifixed_mul(IFIXED x, IFIXED y) {
@@ -722,6 +789,12 @@ static inline IFIXED ifixed_div(IFIXED x, IFIXED y) {
 	float fx = ifixed_fixed2float(x);
 	float fy = ifixed_fixed2float(y);
 	return ifixed_float2fixed(fx / fy);
+}
+
+static inline IFIXED ifixed_div2(IFIXED x, IFIXED y) {
+	double dx = ifixed_fixed2double(x);
+	double dy = ifixed_fixed2double(y);
+	return ifixed_double2fixed(dx / dy);
 }
 
 static inline IFIXED ifixed_sin(IFIXED x) {
@@ -751,6 +824,64 @@ static inline IFIXED ifixed_sqrt(IFIXED x) {
 static inline IFIXED ifixed_sqrtinv(IFIXED x) {
 	float fx = ifixed_fixed2float(x);
 	return ifixed_float2fixed(_isqrtinv(fx));
+}
+
+static inline IFIX64 ifix64_from_int(IINT32 x) {
+	return ((IINT64)x) << 32;
+}
+
+static inline IINT32 ifix64_to_int(IFIX64 x) {
+	return (IINT32)(x >> 32);
+}
+
+static inline IFIX64 ifix64_from_float(float x) {
+	return (IFIX64)(x * 4294967296.0f);
+}
+
+static inline float ifix64_to_float(IFIX64 x) {
+	return x / 4294967296.0f;
+}
+
+static inline IFIX64 ifix64_from_double(double x) {
+	return (IFIX64)(x * 4294967296.0);
+}
+
+static inline double ifix64_to_double(IFIX64 x) {
+	return x / 4294967296.0;
+}
+
+static inline IFIX64 ifix64_mul(IFIX64 x, IFIX64 y) {
+	double dx = ifix64_to_double(x);
+	double dy = ifix64_to_double(y);
+	return ifix64_from_double(dx * dy);
+}
+
+static inline IFIX64 ifix64_div(IFIX64 x, IFIX64 y) {
+	double dx = ifix64_to_double(x);
+	double dy = ifix64_to_double(y);
+	return ifix64_from_double(dx / dy);
+}
+
+static inline IFIX64 ifix64_integer_part(IFIX64 x) {
+	return x & (~((IINT64)0xffffffff));
+}
+
+static inline IFIX64 ifix64_floor(IFIX64 x) {
+	if (x >= 0) return (x & (~((IINT64)0xffffffff))); 
+	return (x & (~((IINT64)0xffffffff))) - (((IINT64)1) << 32);
+}
+
+static inline IFIX64 ifix64_ceil(IFIX64 x) {
+	if (x > 0) return ifix64_integer_part((x - 1) + (((IINT64)1) << 32));
+	return ifix64_from_int(-(-x >> 32));
+}
+
+static inline IFIX64 ifix64_from_fixed(IFIXED x) {
+	return ((IFIX64)x) << 16;
+}
+
+static inline IFIXED ifix64_to_fixed(IFIX64 x) {
+	return (IFIXED)(x >> 16);
 }
 
 
