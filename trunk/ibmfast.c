@@ -547,7 +547,7 @@ iFetchProc iFetchGetProc(int fmt)
 static IFASTCALL void _istore_A8(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	int i;
 	for (i = w; i > 0; i--) {
 		*pixel++ = (IUINT8)((*values++) >> 24);
@@ -557,7 +557,7 @@ static IFASTCALL void _istore_A8(unsigned char *bits,
 static IFASTCALL void _istore_G8(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -570,7 +570,7 @@ static IFASTCALL void _istore_G8(unsigned char *bits,
 static IFASTCALL void _istore_C8(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	IUINT32 c;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -582,7 +582,7 @@ static IFASTCALL void _istore_C8(unsigned char *bits,
 static IFASTCALL void _istore_A2R2G2B2(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -598,7 +598,7 @@ static IFASTCALL void _istore_A2R2G2B2(unsigned char *bits,
 static IFASTCALL void _istore_A2B2G2R2(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -614,7 +614,7 @@ static IFASTCALL void _istore_A2B2G2R2(unsigned char *bits,
 static IFASTCALL void _istore_R3G3B2(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -629,7 +629,7 @@ static IFASTCALL void _istore_R3G3B2(unsigned char *bits,
 static IFASTCALL void _istore_B2G3R3(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT8 *pixel = (IUINT8*)pixel + x;
+	IUINT8 *pixel = (IUINT8*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -644,7 +644,7 @@ static IFASTCALL void _istore_B2G3R3(unsigned char *bits,
 static IFASTCALL void _istore_RGB15(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -659,7 +659,7 @@ static IFASTCALL void _istore_RGB15(unsigned char *bits,
 static IFASTCALL void _istore_BGR15(unsigned char *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -674,7 +674,7 @@ static IFASTCALL void _istore_BGR15(unsigned char *bits,
 static IFASTCALL void _istore_RGB16(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -689,7 +689,7 @@ static IFASTCALL void _istore_RGB16(unsigned char *bits,
 static IFASTCALL void _istore_BGR16(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -813,7 +813,7 @@ static IFASTCALL void _istore_BGRA32(unsigned char *bits,
 static IFASTCALL void _istore_ARGB_4444(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -829,7 +829,7 @@ static IFASTCALL void _istore_ARGB_4444(unsigned char *bits,
 static IFASTCALL void _istore_ABGR_4444(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -845,7 +845,7 @@ static IFASTCALL void _istore_ABGR_4444(unsigned char *bits,
 static IFASTCALL void _istore_RGBA_4444(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -861,7 +861,7 @@ static IFASTCALL void _istore_RGBA_4444(unsigned char *bits,
 static IFASTCALL void _istore_BGRA_4444(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -878,7 +878,7 @@ static IFASTCALL void _istore_BGRA_4444(unsigned char *bits,
 static IFASTCALL void _istore_ARGB_1555(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -894,7 +894,7 @@ static IFASTCALL void _istore_ARGB_1555(unsigned char *bits,
 static IFASTCALL void _istore_ABGR_1555(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -910,7 +910,7 @@ static IFASTCALL void _istore_ABGR_1555(unsigned char *bits,
 static IFASTCALL void _istore_RGBA_5551(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
@@ -926,7 +926,7 @@ static IFASTCALL void _istore_RGBA_5551(unsigned char *bits,
 static IFASTCALL void _istore_BGRA_5551(unsigned char *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
-	IUINT16 *pixel = (IUINT16*)pixel + x;
+	IUINT16 *pixel = (IUINT16*)bits + x;
 	IUINT32 c, a, r, g, b;
 	int i;
 	for (i = w; i > 0; i--) {
