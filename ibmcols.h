@@ -67,6 +67,26 @@ typedef ISTDINT32 IINT32;
 typedef ICOLORD IUINT32;
 #endif
 
+#ifndef __IINT8_DEFINED
+#define __IINT8_DEFINED
+typedef char IINT8;
+#endif
+
+#ifndef __IUINT8_DEFINED
+#define __IUINT8_DEFINED
+typedef unsigned char IUINT8;
+#endif
+
+#ifndef __IUINT16_DEFINED
+#define __IUINT16_DEFINED
+typedef unsigned short IUINT16;
+#endif
+
+#ifndef __IINT16_DEFINED
+#define __IINT16_DEFINED
+typedef short IINT16;
+#endif
+
 
 /**********************************************************************
  * COLOR OPERATION MACRO
