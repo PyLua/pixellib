@@ -106,7 +106,11 @@ static IFASTCALL void _ifetch_C8(const void *bits, int x,
 	IUINT32 c;
 	while (pixel < endup) {
 		c = *pixel++;
+#ifndef IDISABLE_INDEX
 		*buffer++ = idx->rgba[c];
+#else
+		*buffer++ = 0xff000000 | (c << 16) | (c << 8) | c;
+#endif
 	}
 }
 
@@ -574,8 +578,15 @@ static IFASTCALL void _istore_C8(void *bits,
 	IUINT32 c;
 	int i;
 	for (i = w; i > 0; i--) {
+#ifndef IDISABLE_INDEX
 		c = *values++;
 		*pixel++ = IRGB24_TO_ENTRY(idx, c);
+#else
+		IUINT32 r, g, b;
+		c = *values++;
+		ISPLIT_RGB(c, r, g, b);
+		*pixel++ = (IUINT8)IRGB_TO_Y(r, g, b);
+#endif
 	}
 }
 
@@ -1038,7 +1049,11 @@ static IFASTCALL IUINT32 _ifetch_pixel_C8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
+#ifndef IDISABLE_INDEX
 	return idx->rgba[c];
+#else
+	return 0xff000000 | c | (c << 16) | (c << 24);
+#endif
 }
 
 static IFASTCALL IUINT32 _ifetch_pixel_A2R2G2B2(const void *bits,
