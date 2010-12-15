@@ -510,30 +510,30 @@ iFetchProc iFetchGetProc(int fmt)
 {
 	switch (fmt)
 	{
-	case IPIX_FMT_8: return _ifetch_C8;
-	case IPIX_FMT_RGB15: return _ifetch_RGB15;
-	case IPIX_FMT_BGR15: return _ifetch_BGR15;
-	case IPIX_FMT_RGB16: return _ifetch_RGB16;
-	case IPIX_FMT_BGR16: return _ifetch_BGR16;
-	case IPIX_FMT_RGB24: return _ifetch_RGB24;
-	case IPIX_FMT_BGR24: return _ifetch_BGR24;
-	case IPIX_FMT_RGB32: return _ifetch_RGB32;
-	case IPIX_FMT_BGR32: return _ifetch_BGR32;
+	case IPIX_FMT_8: return (iFetchProc)_ifetch_C8;
+	case IPIX_FMT_RGB15: return (iFetchProc)_ifetch_RGB15;
+	case IPIX_FMT_BGR15: return (iFetchProc)_ifetch_BGR15;
+	case IPIX_FMT_RGB16: return (iFetchProc)_ifetch_RGB16;
+	case IPIX_FMT_BGR16: return (iFetchProc)_ifetch_BGR16;
+	case IPIX_FMT_RGB24: return (iFetchProc)_ifetch_RGB24;
+	case IPIX_FMT_BGR24: return (iFetchProc)_ifetch_BGR24;
+	case IPIX_FMT_RGB32: return (iFetchProc)_ifetch_RGB32;
+	case IPIX_FMT_BGR32: return (iFetchProc)_ifetch_BGR32;
 
-	case IPIX_FMT_ARGB32: return _ifetch_ARGB32;
-	case IPIX_FMT_ABGR32: return _ifetch_ABGR32;
-	case IPIX_FMT_RGBA32: return _ifetch_RGBA32;
-	case IPIX_FMT_BGRA32: return _ifetch_BGRA32;
+	case IPIX_FMT_ARGB32: return (iFetchProc)_ifetch_ARGB32;
+	case IPIX_FMT_ABGR32: return (iFetchProc)_ifetch_ABGR32;
+	case IPIX_FMT_RGBA32: return (iFetchProc)_ifetch_RGBA32;
+	case IPIX_FMT_BGRA32: return (iFetchProc)_ifetch_BGRA32;
 
-	case IPIX_FMT_ARGB_4444: return _ifetch_ARGB_4444;
-	case IPIX_FMT_ABGR_4444: return _ifetch_ABGR_4444;
-	case IPIX_FMT_RGBA_4444: return _ifetch_RGBA_4444;
-	case IPIX_FMT_BGRA_4444: return _ifetch_BGRA_4444;
+	case IPIX_FMT_ARGB_4444: return (iFetchProc)_ifetch_ARGB_4444;
+	case IPIX_FMT_ABGR_4444: return (iFetchProc)_ifetch_ABGR_4444;
+	case IPIX_FMT_RGBA_4444: return (iFetchProc)_ifetch_RGBA_4444;
+	case IPIX_FMT_BGRA_4444: return (iFetchProc)_ifetch_BGRA_4444;
 
-	case IPIX_FMT_ARGB_1555: return _ifetch_ARGB_1555;
-	case IPIX_FMT_ABGR_1555: return _ifetch_ABGR_1555;
-	case IPIX_FMT_RGBA_5551: return _ifetch_RGBA_5551;
-	case IPIX_FMT_BGRA_5551: return _ifetch_BGRA_5551;
+	case IPIX_FMT_ARGB_1555: return (iFetchProc)_ifetch_ARGB_1555;
+	case IPIX_FMT_ABGR_1555: return (iFetchProc)_ifetch_ABGR_1555;
+	case IPIX_FMT_RGBA_5551: return (iFetchProc)_ifetch_RGBA_5551;
+	case IPIX_FMT_BGRA_5551: return (iFetchProc)_ifetch_BGRA_5551;
 	}
 
 	return NULL;
@@ -650,9 +650,9 @@ static IFASTCALL void _istore_RGB15(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_RGB(c, r, g, b);
-		*pixel++ = (IUINT16) (((r & 0xf8) << 7) |
-							  ((g & 0xf8) << 2) |
-							  ((b & 0xf8) >> 3));
+		*pixel++ = (IUINT16) (((IUINT16)(r & 0xf8) << 7) |
+							  ((IUINT16)(g & 0xf8) << 2) |
+							  ((IUINT16)(b & 0xf8) >> 3));
 	}
 }
 
@@ -665,9 +665,9 @@ static IFASTCALL void _istore_BGR15(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_RGB(c, r, g, b);
-		*pixel++ = (IUINT16) (((b & 0xf8) << 7) |
-							  ((g & 0xf8) << 2) |
-							  ((r & 0xf8) >> 3));
+		*pixel++ = (IUINT16) (((IUINT16)(b & 0xf8) << 7) |
+							  ((IUINT16)(g & 0xf8) << 2) |
+							  ((IUINT16)(r & 0xf8) >> 3));
 	}
 }
 
@@ -675,14 +675,13 @@ static IFASTCALL void _istore_RGB16(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
-	IUINT32 c, r, g, b;
+	IUINT32 c;
 	int i;
 	for (i = w; i > 0; i--) {
 		c = *values++;
-		ISPLIT_RGB(c, r, g, b);
-		*pixel++ = (IUINT16) (((r & 0xf8) << 8) |
-							  ((g & 0xfc) << 3) |
-							  ((b & 0xf8) >> 3));
+		*pixel++ = (IUINT16) (((IUINT16)(c >> 3) & 0x001f) |
+							  ((IUINT16)(c >> 5) & 0x07e0) |
+							  ((IUINT16)(c >> 8) & 0xf800));
 	}
 }
 
@@ -695,9 +694,9 @@ static IFASTCALL void _istore_BGR16(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_RGB(c, r, g, b);
-		*pixel++ = (IUINT16) (((b & 0xf8) << 8) |
-							  ((g & 0xfc) << 3) |
-							  ((r & 0xf8) >> 3));
+		*pixel++ = (IUINT16) (((IUINT16)(b & 0xf8) << 8) |
+							  ((IUINT16)(g & 0xfc) << 3) |
+							  ((IUINT16)(r & 0xf8) >> 3));
 	}
 }
 
@@ -819,10 +818,11 @@ static IFASTCALL void _istore_ARGB_4444(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((a << 8) & 0xf000) |
-							  ((r << 4) & 0x0f00) |
-							  ((g     ) & 0x00f0) |
-							  ((b >> 4) & 0x000f));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((a) & 0xf0) << 8) | 
+			((IUINT16)((r) & 0xf0) << 4) | 
+			((IUINT16)((g) & 0xf0) >> 0) | 
+			((IUINT16)((b) & 0xf0) >> 4)));
 	}
 }
 
@@ -835,10 +835,11 @@ static IFASTCALL void _istore_ABGR_4444(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((a << 8) & 0xf000) |
-							  ((b << 4) & 0x0f00) |
-							  ((g     ) & 0x00f0) |
-							  ((r >> 4) & 0x000f));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((a) & 0xf0) << 8) | 
+			((IUINT16)((b) & 0xf0) << 4) | 
+			((IUINT16)((g) & 0xf0) >> 0) | 
+			((IUINT16)((r) & 0xf0) >> 4)));
 	}
 }
 
@@ -851,10 +852,11 @@ static IFASTCALL void _istore_RGBA_4444(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((r << 8) & 0xf000) |
-							  ((g << 4) & 0x0f00) |
-							  ((b     ) & 0x00f0) |
-							  ((a >> 4) & 0x000f));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((r) & 0xf0) << 8) | 
+			((IUINT16)((g) & 0xf0) << 4) | 
+			((IUINT16)((b) & 0xf0) >> 0) | 
+			((IUINT16)((a) & 0xf0) >> 4)));
 	}
 }
 
@@ -867,10 +869,11 @@ static IFASTCALL void _istore_BGRA_4444(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((b << 8) & 0xf000) |
-							  ((g << 4) & 0x0f00) |
-							  ((r     ) & 0x00f0) |
-							  ((a >> 4) & 0x000f));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((b) & 0xf0) << 8) | 
+			((IUINT16)((g) & 0xf0) << 4) | 
+			((IUINT16)((r) & 0xf0) >> 0) | 
+			((IUINT16)((a) & 0xf0) >> 4)));
 	}
 }
 
@@ -884,10 +887,11 @@ static IFASTCALL void _istore_ARGB_1555(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((a << 8) & 0x8000) |
-							  ((r & 0xf8) << 7) |
-							  ((g & 0xf8) << 2) |
-							  ((b & 0xf8) >> 3));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((a) & 0x80) << 8) |
+			((IUINT16)((r) & 0xf8) << 7) | 
+			((IUINT16)((g) & 0xf8) << 2) | 
+			((IUINT16)((b) & 0xf8) >> 3)));
 	}
 }
 
@@ -900,10 +904,11 @@ static IFASTCALL void _istore_ABGR_1555(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((a << 8) & 0x8000) |
-							  ((b & 0xf8) << 7) |
-							  ((g & 0xf8) << 2) |
-							  ((r & 0xf8) >> 3));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((a) & 0x80) << 8) |
+			((IUINT16)((b) & 0xf8) << 7) | 
+			((IUINT16)((g) & 0xf8) << 2) | 
+			((IUINT16)((r) & 0xf8) >> 3)));
 	}
 }
 
@@ -916,10 +921,11 @@ static IFASTCALL void _istore_RGBA_5551(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((a >> 7)) |
-							  ((r & 0xf8) << 8) |
-							  ((g & 0xf8) << 3) |
-							  ((b & 0xf8) >> 2));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((r) & 0xf8) << 7) | 
+			((IUINT16)((g) & 0xf8) << 2) | 
+			((IUINT16)((b) & 0xf8) >> 3)) << 1) | 
+			((a) >> 7);
 	}
 }
 
@@ -932,10 +938,11 @@ static IFASTCALL void _istore_BGRA_5551(void *bits,
 	for (i = w; i > 0; i--) {
 		c = *values++;
 		ISPLIT_ARGB(c, a, r, g, b);
-		*pixel++ = (IUINT16) (((a >> 7)) |
-							  ((b & 0xf8) << 8) |
-							  ((g & 0xf8) << 3) |
-							  ((r & 0xf8) >> 2));
+		*pixel++ = ((IUINT16)( 
+			((IUINT16)((b) & 0xf8) << 7) | 
+			((IUINT16)((g) & 0xf8) << 2) | 
+			((IUINT16)((r) & 0xf8) >> 3)) << 1) | 
+			((a) >> 7);
 	}
 }
 
@@ -979,30 +986,30 @@ iStoreProc iStoreGetProc(int fmt)
 {
 	switch (fmt)
 	{
-	case IPIX_FMT_8: return _istore_C8;
-	case IPIX_FMT_RGB15: return _istore_RGB15;
-	case IPIX_FMT_BGR15: return _istore_BGR15;
-	case IPIX_FMT_RGB16: return _istore_RGB16;
-	case IPIX_FMT_BGR16: return _istore_BGR16;
-	case IPIX_FMT_RGB24: return _istore_RGB24;
-	case IPIX_FMT_BGR24: return _istore_BGR24;
-	case IPIX_FMT_RGB32: return _istore_RGB32;
-	case IPIX_FMT_BGR32: return _istore_BGR32;
+	case IPIX_FMT_8: return (iStoreProc)_istore_C8;
+	case IPIX_FMT_RGB15: return (iStoreProc)_istore_RGB15;
+	case IPIX_FMT_BGR15: return (iStoreProc)_istore_BGR15;
+	case IPIX_FMT_RGB16: return (iStoreProc)_istore_RGB16;
+	case IPIX_FMT_BGR16: return (iStoreProc)_istore_BGR16;
+	case IPIX_FMT_RGB24: return (iStoreProc)_istore_RGB24;
+	case IPIX_FMT_BGR24: return (iStoreProc)_istore_BGR24;
+	case IPIX_FMT_RGB32: return (iStoreProc)_istore_RGB32;
+	case IPIX_FMT_BGR32: return (iStoreProc)_istore_BGR32;
 
-	case IPIX_FMT_ARGB32: return _istore_ARGB32;
-	case IPIX_FMT_ABGR32: return _istore_ABGR32;
-	case IPIX_FMT_RGBA32: return _istore_RGBA32;
-	case IPIX_FMT_BGRA32: return _istore_BGRA32;
+	case IPIX_FMT_ARGB32: return (iStoreProc)_istore_ARGB32;
+	case IPIX_FMT_ABGR32: return (iStoreProc)_istore_ABGR32;
+	case IPIX_FMT_RGBA32: return (iStoreProc)_istore_RGBA32;
+	case IPIX_FMT_BGRA32: return (iStoreProc)_istore_BGRA32;
 
-	case IPIX_FMT_ARGB_4444: return _istore_ARGB_4444;
-	case IPIX_FMT_ABGR_4444: return _istore_ABGR_4444;
-	case IPIX_FMT_RGBA_4444: return _istore_RGBA_4444;
-	case IPIX_FMT_BGRA_4444: return _istore_BGRA_4444;
+	case IPIX_FMT_ARGB_4444: return (iStoreProc)_istore_ARGB_4444;
+	case IPIX_FMT_ABGR_4444: return (iStoreProc)_istore_ABGR_4444;
+	case IPIX_FMT_RGBA_4444: return (iStoreProc)_istore_RGBA_4444;
+	case IPIX_FMT_BGRA_4444: return (iStoreProc)_istore_BGRA_4444;
 
-	case IPIX_FMT_ARGB_1555: return _istore_ARGB_1555;
-	case IPIX_FMT_ABGR_1555: return _istore_ABGR_1555;
-	case IPIX_FMT_RGBA_5551: return _istore_RGBA_5551;
-	case IPIX_FMT_BGRA_5551: return _istore_BGRA_5551;
+	case IPIX_FMT_ARGB_1555: return (iStoreProc)_istore_ARGB_1555;
+	case IPIX_FMT_ABGR_1555: return (iStoreProc)_istore_ABGR_1555;
+	case IPIX_FMT_RGBA_5551: return (iStoreProc)_istore_RGBA_5551;
+	case IPIX_FMT_BGRA_5551: return (iStoreProc)_istore_BGRA_5551;
 	}
 	return NULL;
 }
@@ -1334,30 +1341,30 @@ iFetchPixelProc iFetchPixelGetProc(int fmt)
 {
 	switch (fmt)
 	{
-	case IPIX_FMT_8: return _ifetch_pixel_C8;
-	case IPIX_FMT_RGB15: return _ifetch_pixel_RGB15;
-	case IPIX_FMT_BGR15: return _ifetch_pixel_BGR15;
-	case IPIX_FMT_RGB16: return _ifetch_pixel_RGB16;
-	case IPIX_FMT_BGR16: return _ifetch_pixel_BGR16;
-	case IPIX_FMT_RGB24: return _ifetch_pixel_RGB24;
-	case IPIX_FMT_BGR24: return _ifetch_pixel_BGR24;
-	case IPIX_FMT_RGB32: return _ifetch_pixel_RGB32;
-	case IPIX_FMT_BGR32: return _ifetch_pixel_BGR32;
+	case IPIX_FMT_8: return (iFetchPixelProc)_ifetch_pixel_C8;
+	case IPIX_FMT_RGB15: return (iFetchPixelProc)_ifetch_pixel_RGB15;
+	case IPIX_FMT_BGR15: return (iFetchPixelProc)_ifetch_pixel_BGR15;
+	case IPIX_FMT_RGB16: return (iFetchPixelProc)_ifetch_pixel_RGB16;
+	case IPIX_FMT_BGR16: return (iFetchPixelProc)_ifetch_pixel_BGR16;
+	case IPIX_FMT_RGB24: return (iFetchPixelProc)_ifetch_pixel_RGB24;
+	case IPIX_FMT_BGR24: return (iFetchPixelProc)_ifetch_pixel_BGR24;
+	case IPIX_FMT_RGB32: return (iFetchPixelProc)_ifetch_pixel_RGB32;
+	case IPIX_FMT_BGR32: return (iFetchPixelProc)_ifetch_pixel_BGR32;
 
-	case IPIX_FMT_ARGB32: return _ifetch_pixel_ARGB32;
-	case IPIX_FMT_ABGR32: return _ifetch_pixel_ABGR32;
-	case IPIX_FMT_RGBA32: return _ifetch_pixel_RGBA32;
-	case IPIX_FMT_BGRA32: return _ifetch_pixel_BGRA32;
+	case IPIX_FMT_ARGB32: return (iFetchPixelProc)_ifetch_pixel_ARGB32;
+	case IPIX_FMT_ABGR32: return (iFetchPixelProc)_ifetch_pixel_ABGR32;
+	case IPIX_FMT_RGBA32: return (iFetchPixelProc)_ifetch_pixel_RGBA32;
+	case IPIX_FMT_BGRA32: return (iFetchPixelProc)_ifetch_pixel_BGRA32;
 
-	case IPIX_FMT_ARGB_4444: return _ifetch_pixel_ARGB_4444;
-	case IPIX_FMT_ABGR_4444: return _ifetch_pixel_ABGR_4444;
-	case IPIX_FMT_RGBA_4444: return _ifetch_pixel_RGBA_4444;
-	case IPIX_FMT_BGRA_4444: return _ifetch_pixel_BGRA_4444;
+	case IPIX_FMT_ARGB_4444: return (iFetchPixelProc)_ifetch_pixel_ARGB_4444;
+	case IPIX_FMT_ABGR_4444: return (iFetchPixelProc)_ifetch_pixel_ABGR_4444;
+	case IPIX_FMT_RGBA_4444: return (iFetchPixelProc)_ifetch_pixel_RGBA_4444;
+	case IPIX_FMT_BGRA_4444: return (iFetchPixelProc)_ifetch_pixel_BGRA_4444;
 
-	case IPIX_FMT_ARGB_1555: return _ifetch_pixel_ARGB_1555;
-	case IPIX_FMT_ABGR_1555: return _ifetch_pixel_ABGR_1555;
-	case IPIX_FMT_RGBA_5551: return _ifetch_pixel_RGBA_5551;
-	case IPIX_FMT_BGRA_5551: return _ifetch_pixel_BGRA_5551;
+	case IPIX_FMT_ARGB_1555: return (iFetchPixelProc)_ifetch_pixel_ARGB_1555;
+	case IPIX_FMT_ABGR_1555: return (iFetchPixelProc)_ifetch_pixel_ABGR_1555;
+	case IPIX_FMT_RGBA_5551: return (iFetchPixelProc)_ifetch_pixel_RGBA_5551;
+	case IPIX_FMT_BGRA_5551: return (iFetchPixelProc)_ifetch_pixel_BGRA_5551;
 	}
 
 	return NULL;
