@@ -76,7 +76,7 @@ static unsigned long _ifetch_endian = 0x11223344;
 // COLOR FETCHING PROCEDURES
 //=====================================================================
 
-static IFASTCALL void _ifetch_A8(const unsigned char *bits, int x, 
+static IFASTCALL void _ifetch_A8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -86,7 +86,7 @@ static IFASTCALL void _ifetch_A8(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_G8(const unsigned char *bits, int x, 
+static IFASTCALL void _ifetch_G8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -98,7 +98,7 @@ static IFASTCALL void _ifetch_G8(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_C8(const unsigned char *bits, int x, 
+static IFASTCALL void _ifetch_C8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -110,7 +110,7 @@ static IFASTCALL void _ifetch_C8(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_A2R2G2B2(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_A2R2G2B2(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -126,7 +126,7 @@ static IFASTCALL void _ifetch_A2R2G2B2(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_A2B2G2R2(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_A2B2G2R2(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -142,7 +142,7 @@ static IFASTCALL void _ifetch_A2B2G2R2(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_R3G3B2(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_R3G3B2(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -157,7 +157,7 @@ static IFASTCALL void _ifetch_R3G3B2(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_B2G3R3(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_B2G3R3(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x;
@@ -177,7 +177,7 @@ static IFASTCALL void _ifetch_B2G3R3(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGB15(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_RGB15(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -192,7 +192,7 @@ static IFASTCALL void _ifetch_RGB15(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGR15(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGR15(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -207,7 +207,7 @@ static IFASTCALL void _ifetch_BGR15(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGB16(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_RGB16(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -224,7 +224,7 @@ static IFASTCALL void _ifetch_RGB16(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGR16(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGR16(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -239,7 +239,7 @@ static IFASTCALL void _ifetch_BGR16(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGB24(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_RGB24(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x * 3;
@@ -257,7 +257,7 @@ static IFASTCALL void _ifetch_RGB24(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGR24(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGR24(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x * 3;
@@ -275,7 +275,7 @@ static IFASTCALL void _ifetch_BGR24(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGB32(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_RGB32(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -285,7 +285,7 @@ static IFASTCALL void _ifetch_RGB32(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGR32(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGR32(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -297,13 +297,13 @@ static IFASTCALL void _ifetch_BGR32(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_ARGB32(const unsigned char *bits, int x, 
+static IFASTCALL void _ifetch_ARGB32(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	memcpy(buffer, (const IUINT32*)bits + x, w * sizeof(IUINT32));
 }
 
-static IFASTCALL void _ifetch_ABGR32(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_ABGR32(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -315,7 +315,7 @@ static IFASTCALL void _ifetch_ABGR32(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGBA32(const unsigned char *bits, int x, 
+static IFASTCALL void _ifetch_RGBA32(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -327,7 +327,7 @@ static IFASTCALL void _ifetch_RGBA32(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGRA32(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGRA32(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx) 
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -342,7 +342,7 @@ static IFASTCALL void _ifetch_BGRA32(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_ARGB_4444(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_ARGB_4444(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -358,7 +358,7 @@ static IFASTCALL void _ifetch_ARGB_4444(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_ABGR_4444(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_ABGR_4444(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -374,7 +374,7 @@ static IFASTCALL void _ifetch_ABGR_4444(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGBA_4444(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_RGBA_4444(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -390,7 +390,7 @@ static IFASTCALL void _ifetch_RGBA_4444(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGRA_4444(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGRA_4444(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -406,7 +406,7 @@ static IFASTCALL void _ifetch_BGRA_4444(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_ARGB_1555(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_ARGB_1555(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -422,7 +422,7 @@ static IFASTCALL void _ifetch_ARGB_1555(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_ABGR_1555(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_ABGR_1555(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -438,7 +438,7 @@ static IFASTCALL void _ifetch_ABGR_1555(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_RGBA_5551(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_RGBA_5551(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -446,7 +446,7 @@ static IFASTCALL void _ifetch_RGBA_5551(const unsigned char *bits, int x,
 	IUINT32 c, r, g, b, a;
 	while (pixel < endup) {
 		c = *pixel++;
-		r = ((c & 0xf800) | ((c & 0xe000) >> 5)) << 16;
+		r = ((c & 0xf800) | ((c & 0xe000) >> 5)) <<  8;
 		g = ((c & 0x07c0) | ((c & 0x0700) >> 5)) <<  5;
 		b = ((c & 0x0038) | ((c & 0x003e) << 5)) >>  3;
 		a = (IUINT32) ((IUINT8)(0 - (c & 0x1))) << 24;
@@ -454,7 +454,7 @@ static IFASTCALL void _ifetch_RGBA_5551(const unsigned char *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_BGRA_5551(const unsigned char *bits, int x,
+static IFASTCALL void _ifetch_BGRA_5551(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT16 *pixel = (const IUINT16*)bits + x;
@@ -544,7 +544,7 @@ iFetchProc iFetchGetProc(int fmt)
 // COLOR STORING PROCEDURES
 //=====================================================================
 
-static IFASTCALL void _istore_A8(unsigned char *bits, 
+static IFASTCALL void _istore_A8(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -554,7 +554,7 @@ static IFASTCALL void _istore_A8(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_G8(unsigned char *bits, 
+static IFASTCALL void _istore_G8(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -567,7 +567,7 @@ static IFASTCALL void _istore_G8(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_C8(unsigned char *bits, 
+static IFASTCALL void _istore_C8(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -579,7 +579,7 @@ static IFASTCALL void _istore_C8(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_A2R2G2B2(unsigned char *bits, 
+static IFASTCALL void _istore_A2R2G2B2(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -595,7 +595,7 @@ static IFASTCALL void _istore_A2R2G2B2(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_A2B2G2R2(unsigned char *bits, 
+static IFASTCALL void _istore_A2B2G2R2(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -611,7 +611,7 @@ static IFASTCALL void _istore_A2B2G2R2(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_R3G3B2(unsigned char *bits, 
+static IFASTCALL void _istore_R3G3B2(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -626,7 +626,7 @@ static IFASTCALL void _istore_R3G3B2(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_B2G3R3(unsigned char *bits, 
+static IFASTCALL void _istore_B2G3R3(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x;
@@ -641,7 +641,7 @@ static IFASTCALL void _istore_B2G3R3(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGB15(unsigned char *bits, 
+static IFASTCALL void _istore_RGB15(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -656,7 +656,7 @@ static IFASTCALL void _istore_RGB15(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGR15(unsigned char *bits, 
+static IFASTCALL void _istore_BGR15(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -671,7 +671,7 @@ static IFASTCALL void _istore_BGR15(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGB16(unsigned char *bits,
+static IFASTCALL void _istore_RGB16(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -686,7 +686,7 @@ static IFASTCALL void _istore_RGB16(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGR16(unsigned char *bits,
+static IFASTCALL void _istore_BGR16(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -701,7 +701,7 @@ static IFASTCALL void _istore_BGR16(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGB24(unsigned char *bits,
+static IFASTCALL void _istore_RGB24(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x * 3;
@@ -722,7 +722,7 @@ static IFASTCALL void _istore_RGB24(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGR24(unsigned char *bits,
+static IFASTCALL void _istore_BGR24(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x * 3;
@@ -743,7 +743,7 @@ static IFASTCALL void _istore_BGR24(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGB32(unsigned char *bits, 
+static IFASTCALL void _istore_RGB32(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -754,7 +754,7 @@ static IFASTCALL void _istore_RGB32(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGR32(unsigned char *bits, 
+static IFASTCALL void _istore_BGR32(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -766,13 +766,13 @@ static IFASTCALL void _istore_BGR32(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_ARGB32(unsigned char *bits, 
+static IFASTCALL void _istore_ARGB32(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	memcpy(((IUINT32*)bits) + x, values, w * sizeof(IUINT32));
 }
 
-static IFASTCALL void _istore_ABGR32(unsigned char *bits,
+static IFASTCALL void _istore_ABGR32(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -784,7 +784,7 @@ static IFASTCALL void _istore_ABGR32(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGBA32(unsigned char *bits,
+static IFASTCALL void _istore_RGBA32(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -796,7 +796,7 @@ static IFASTCALL void _istore_RGBA32(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGRA32(unsigned char *bits,
+static IFASTCALL void _istore_BGRA32(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -810,7 +810,7 @@ static IFASTCALL void _istore_BGRA32(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_ARGB_4444(unsigned char *bits,
+static IFASTCALL void _istore_ARGB_4444(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -826,7 +826,7 @@ static IFASTCALL void _istore_ARGB_4444(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_ABGR_4444(unsigned char *bits,
+static IFASTCALL void _istore_ABGR_4444(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -842,7 +842,7 @@ static IFASTCALL void _istore_ABGR_4444(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGBA_4444(unsigned char *bits,
+static IFASTCALL void _istore_RGBA_4444(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -858,7 +858,7 @@ static IFASTCALL void _istore_RGBA_4444(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGRA_4444(unsigned char *bits,
+static IFASTCALL void _istore_BGRA_4444(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -875,7 +875,7 @@ static IFASTCALL void _istore_BGRA_4444(unsigned char *bits,
 }
 
 
-static IFASTCALL void _istore_ARGB_1555(unsigned char *bits,
+static IFASTCALL void _istore_ARGB_1555(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -891,7 +891,7 @@ static IFASTCALL void _istore_ARGB_1555(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_ABGR_1555(unsigned char *bits,
+static IFASTCALL void _istore_ABGR_1555(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -907,7 +907,7 @@ static IFASTCALL void _istore_ABGR_1555(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_RGBA_5551(unsigned char *bits,
+static IFASTCALL void _istore_RGBA_5551(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -923,7 +923,7 @@ static IFASTCALL void _istore_RGBA_5551(unsigned char *bits,
 	}
 }
 
-static IFASTCALL void _istore_BGRA_5551(unsigned char *bits,
+static IFASTCALL void _istore_BGRA_5551(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -1013,28 +1013,28 @@ iStoreProc iStoreGetProc(int fmt)
 // PIXEL FETCHING PROCEDURES
 //=====================================================================
 
-static IFASTCALL IUINT32 _ifetch_pixel_A8(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_A8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
 	return c << 24;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_G8(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_G8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
 	return 0xff000000 | c | (c << 16) | (c << 24);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_C8(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_C8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
 	return idx->rgba[c];
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_A2R2G2B2(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_A2R2G2B2(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
@@ -1046,7 +1046,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_A2R2G2B2(const unsigned char *bits,
 	return (a | r | g | b);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_A2B2G2R2(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_A2B2G2R2(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
@@ -1058,7 +1058,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_A2B2G2R2(const unsigned char *bits,
 	return (a | r | g | b);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_R3G3B2(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_R3G3B2(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
@@ -1069,7 +1069,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_R3G3B2(const unsigned char *bits,
 	return 0xff000000 | r | g | b;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_B2G3R3(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_B2G3R3(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT8*)bits)[offset];
@@ -1085,7 +1085,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_B2G3R3(const unsigned char *bits,
 	return 0xff000000 | r | g | b;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGB15(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGB15(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)bits)[offset];
@@ -1096,7 +1096,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_RGB15(const unsigned char *bits,
 	return 0xff000000 | r | g | b;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGR15(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGR15(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)bits)[offset];
@@ -1107,7 +1107,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_BGR15(const unsigned char *bits,
 	return 0xff000000 | r | g | b;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGB16(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGB16(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)bits)[offset];
@@ -1120,7 +1120,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_RGB16(const unsigned char *bits,
 	return 0xff000000 | r;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGR16(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGR16(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)bits)[offset];
@@ -1131,7 +1131,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_BGR16(const unsigned char *bits,
 	return 0xff000000 | r | g | b;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGB24(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGB24(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + offset * 3;
@@ -1139,7 +1139,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_RGB24(const unsigned char *bits,
 	return IMSB_FETCH24(pixel) | 0xff000000;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGR24(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGR24(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + offset * 3;
@@ -1147,13 +1147,13 @@ static IFASTCALL IUINT32 _ifetch_pixel_BGR24(const unsigned char *bits,
 	return ILSB_FETCH24(pixel) | 0xff000000;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGB32(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGB32(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	return ((IUINT32*)(bits))[offset] | 0xff000000;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGR32(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGR32(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
@@ -1161,13 +1161,13 @@ static IFASTCALL IUINT32 _ifetch_pixel_BGR32(const unsigned char *bits,
 		((pixel & 0xff) << 16)) | 0xff000000;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_ARGB32(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_ARGB32(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	return ((IUINT32*)(bits))[offset];
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_ABGR32(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_ABGR32(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
@@ -1175,14 +1175,14 @@ static IFASTCALL IUINT32 _ifetch_pixel_ABGR32(const unsigned char *bits,
 		((pixel & 0xff) << 16));
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGBA32(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGBA32(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
 	return ((pixel & 0xff) << 24) | ((pixel >> 8) & 0xffffff);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGRA32(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGRA32(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
@@ -1192,7 +1192,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_BGRA32(const unsigned char *bits,
 				((pixel & 0xff000000) >> 24);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_ARGB_4444(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_ARGB_4444(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
@@ -1205,7 +1205,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_ARGB_4444(const unsigned char *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_ABGR_4444(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_ABGR_4444(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
@@ -1218,7 +1218,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_ABGR_4444(const unsigned char *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGBA_4444(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGBA_4444(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
@@ -1231,7 +1231,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_RGBA_4444(const unsigned char *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGRA_4444(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGRA_4444(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
@@ -1243,7 +1243,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_BGRA_4444(const unsigned char *bits,
 	return (a | r | g | b);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_ARGB_1555(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_ARGB_1555(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
@@ -1256,7 +1256,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_ARGB_1555(const unsigned char *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_ABGR_1555(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_ABGR_1555(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
@@ -1269,12 +1269,12 @@ static IFASTCALL IUINT32 _ifetch_pixel_ABGR_1555(const unsigned char *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_RGBA_5551(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_RGBA_5551(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
 	IUINT32 r, g, b, a;
-	r = ((c & 0xf800) | ((c & 0xe000) >> 5)) << 16;
+	r = ((c & 0xf800) | ((c & 0xe000) >> 5)) <<  8;
 	g = ((c & 0x07c0) | ((c & 0x0700) >> 5)) <<  5;
 	b = ((c & 0x0038) | ((c & 0x003e) << 5)) >>  3;
 	a = (IUINT32) ((IUINT8)(0 - (c & 0x1))) << 24;
@@ -1282,7 +1282,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_RGBA_5551(const unsigned char *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_BGRA_5551(const unsigned char *bits,
+static IFASTCALL IUINT32 _ifetch_pixel_BGRA_5551(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 c = ((IUINT16*)(bits))[offset];
