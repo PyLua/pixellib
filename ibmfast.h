@@ -32,6 +32,7 @@
 //=====================================================================
 // INDEX COLOR LUT
 //=====================================================================
+#ifndef IDISABLE_INDEX
 struct INDEXCOLOR
 {
 	int color;
@@ -40,6 +41,10 @@ struct INDEXCOLOR
 };
 
 typedef struct INDEXCOLOR iColorIndex;
+
+#else
+typedef int iColorIndex;
+#endif
 
 
 //=====================================================================
