@@ -45,13 +45,13 @@ typedef struct INDEXCOLOR iColorIndex;
 //=====================================================================
 // PROCEDURE DECLARE
 //=====================================================================
-typedef IFASTCALL void (*iFetchProc)(const unsigned char *bits, int x, 
+typedef IFASTCALL void (*iFetchProc)(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx);
 
-typedef IFASTCALL void (*iStoreProc)(unsigned char *bits, 
+typedef IFASTCALL void (*iStoreProc)(void *bits, 
 	const IUINT32 *buffer, int x, int w, const iColorIndex *idx);
 
-typedef IFASTCALL IUINT32 (*iFetchPixelProc)(const unsigned char *bits, 
+typedef IFASTCALL IUINT32 (*iFetchPixelProc)(const void *bits, 
 	int offset, const iColorIndex *idx);
 
 
