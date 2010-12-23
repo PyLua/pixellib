@@ -776,7 +776,7 @@ static int _iblend_pmul_blit_mmx(IBITMAP *dst, int dx, int dy,
 	  ASM_ENDUP
 	  :"=m"(h)
 	  :"m"(ptr1), "m"(ptr2), "m"(w), "m"(diff1), "m"(diff2)
-	  :"memory", "esi", "edi", "eax", "ebx", "ecx", "edx"
+	  :"memory", ASM_REGS
 	);
 
 #elif defined(__INLINEMSC__) && defined(__i386__)
@@ -930,7 +930,7 @@ int iblend_proc_mmx_32(unsigned char *dst, long dpitch,
 	  "      movd         (%%esi), %%mm0\n"
 	  "      movd         0x4(%%esi), %%mm1\n"
 	  "      mov          (%%edi), %%eax\n"
-	  "      mov          0x4(%%edi), %%ebx\n"
+	  "      mov          0x4(%%edi), %%edx\n"
 	  "      movq         %%mm0, %%mm2\n"
 	  "      movq         %%mm1, %%mm3\n"
 	  "      psrlq        $0x18, %%mm2\n"
@@ -951,7 +951,7 @@ int iblend_proc_mmx_32(unsigned char *dst, long dpitch,
 	  "      pmullw       %%mm2, %%mm0\n"
 	  "      pmullw       %%mm3, %%mm1\n"
 	  "      movd         %%eax, %%mm2\n"
-	  "      movd         %%ebx, %%mm3\n"
+	  "      movd         %%edx, %%mm3\n"
 	  "      punpcklbw    %%mm7, %%mm2\n"
 	  "      punpcklbw    %%mm7, %%mm3\n"
 	  "      pmullw       %%mm4, %%mm2\n"
@@ -1015,7 +1015,7 @@ int iblend_proc_mmx_32(unsigned char *dst, long dpitch,
 	  ASM_ENDUP
 	  :"=m"(h)
 	  :"m"(ptr1), "m"(ptr2), "m"(w), "m"(diff1), "m"(diff2)
-	  :"memory", "esi", "edi", "eax", "ebx", "ecx", "edx"
+	  :"memory", ASM_REGS
 	);
 
 #elif defined(__INLINEMSC__) && defined(__i386__)
