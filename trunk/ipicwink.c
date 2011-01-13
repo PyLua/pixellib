@@ -181,7 +181,7 @@ iAnimate *iAnimate_Load_Gif_Stream(IMDIO *stream)
 		bitmap = ibitmap_create(w, h, 8);
 		if (bitmap == NULL) break;
 		if (ipic_gif_read_frame(&gif) != 0) break;
-		ibitmap_blit(bitmap, 0, 0, gif.bitmap, 0, 0, w, h, 0, 0);
+		ibitmap_blit(bitmap, 0, 0, gif.bitmap, 0, 0, w, h, 0);
 		bitmap->mask = gif.transparent;
 		bitmap->mode = gif.delay;
 		bitmap->code = (unsigned long)list;
@@ -196,7 +196,7 @@ iAnimate *iAnimate_Load_Gif_Stream(IMDIO *stream)
 		ani->hoty = gif.hoty;
 		bitmap = list;
 		for (i = framecount - 1; i >= 0 && bitmap; i--) {
-			ibitmap_blit(ani->frames[i], 0, 0, bitmap, 0, 0, w, h, 0, 0);
+			ibitmap_blit(ani->frames[i], 0, 0, bitmap, 0, 0, w, h, 0);
 			ani->frames[i]->mask = bitmap->mask;
 			ani->frames[i]->mode = bitmap->mode;
 			bitmap = (IBITMAP*)bitmap->code;

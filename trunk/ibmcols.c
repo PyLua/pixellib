@@ -560,7 +560,7 @@ void _iconvert_pixfmt(IBITMAP *dst, int dx, int dy, IBITMAP *src, int sx,
 	if (r) return;
 
 	if (dfmt == sfmt && sfmt != IPIX_FMT_8) {
-		ibitmap_blit(dst, dx, dy, src, sx, sy, sw, sh, src->mask,
+		ibitmap_blit(dst, dx, dy, src, sx, sy, sw, sh,
 			flags & (IBLIT_MASK | IBLIT_HFLIP | IBLIT_VFLIP));
 		return;
 	}
@@ -1307,7 +1307,7 @@ void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	sfmt = _ibitmap_pixfmt(src);
 
 	if (dfmt == sfmt && sfmt != IPIX_FMT_8) {
-		ibitmap_blit(dst, dx, dy, src, sx, sy, w, h, src->mask,
+		ibitmap_blit(dst, dx, dy, src, sx, sy, w, h,
 			flags & (IBLIT_MASK | IBLIT_HFLIP | IBLIT_VFLIP));
 		return;
 	}
@@ -1755,7 +1755,7 @@ long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
 	sfmt = _ibitmap_pixfmt(src);
 
 	if (sfmt == sfmt) {
-		ibitmap_blit(dst, dx, dy, src, sx, sy, w, h, src->mask, 
+		ibitmap_blit(dst, dx, dy, src, sx, sy, w, h, 
 			flags & (IBLIT_MASK | IBLIT_HFLIP | IBLIT_VFLIP));
 		return 0;
 	}
