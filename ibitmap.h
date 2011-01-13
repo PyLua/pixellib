@@ -121,8 +121,16 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
  * mask      - coloekey of source bitmap, ignored if no IBLIT_MASK
  * mode      - flags of IBLIT_CLIP, IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
  */
-int ibitmap_blit(struct IBITMAP *dest, int dx, int dy, struct IBITMAP *src, 
-          int x, int y, int w, int h, unsigned long mask, int mode);
+int ibitmap_blit(struct IBITMAP *dst, int dx, int dy, struct IBITMAP *src, 
+    int x, int y, int w, int h, int mode);
+
+
+/*
+ * ibitmap_setmask - change mask(colorkey) of the bitmap
+ * when blit with IBLIT_MASK, this value can be used as the key color to 
+ * transparent. you can change bmp->mask directly without calling it.
+ */
+int ibitmap_setmask(struct IBITMAP *bmp, unsigned long mask);
 
 
 /* ibitmap_fill - fill the rectangle with given color 

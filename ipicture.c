@@ -1710,7 +1710,7 @@ static int ipic_gif_read_image_desc(IGIFDESC *gif)
 
 	ibitmap_blit(gif->bitmap, gif->image_x, gif->image_y, gif->bitmap,
 		gif->image_x, gif->image_y + gif->height, gif->image_w, 
-		gif->image_h, 0, 0);
+		gif->image_h, 0);
 
 	if (gif->image_x < 0 || gif->image_y < 0 ||
 		gif->image_x + gif->image_w > gif->width ||
@@ -1826,7 +1826,7 @@ static int ipic_gif_read_image_desc(IGIFDESC *gif)
 	if (dispose != 3) {
 		ibitmap_blit(gif->bitmap, gif->image_x, gif->image_y + gif->height,
 			gif->bitmap, gif->image_x, gif->image_y, 
-			gif->image_w, gif->image_h, 0, 0);
+			gif->image_w, gif->image_h, 0);
 	}
 
 	gif->frame++;
@@ -1962,7 +1962,7 @@ struct IBITMAP *iload_gif_stream(IMDIO *stream, IRGB *pal)
 		return NULL;
 	}
 	ibitmap_blit(bmp, 0, 0, gif->bitmap, 0, 0, gif->width, 
-		gif->height, 0, 0);
+		gif->height, 0);
 	bmp->mask = (gif->transparent & 0xffff) | ((gif->flags & 0xffff) << 16);
 	bmp->mode = (gif->hotx << 16) | (gif->hoty & 0xffff);
 	ibitmap_release(gif->bitmap);
@@ -2329,7 +2329,7 @@ int isave_gif_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 	gif->transparent = (short)(bmp->mask & 0xffff);
 	/*gif->transparent = -1; */
 
-	ibitmap_blit(gif->bitmap, 0, 0, bmp, 0, 0, bmp->w, bmp->h, 0, 0);
+	ibitmap_blit(gif->bitmap, 0, 0, bmp, 0, 0, bmp->w, bmp->h, 0);
 	ipic_gif_write_frame(gif, 0, bmp->mask & 0xff, 0);
 	ipic_gif_close(gif);
 
