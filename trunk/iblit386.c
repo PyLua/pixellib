@@ -32,7 +32,7 @@
 #include <string.h>
 
 #include "iblit386.h"
-#include "ibitmapm.h"
+#include "ibitmap.h"
 
 #ifdef __x86__
 

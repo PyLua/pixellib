@@ -12,7 +12,6 @@
 #include <assert.h>
 
 #include "ibmcols.h"
-#include "ibitmapm.h"
 #include "ibmfast.h"
 
 

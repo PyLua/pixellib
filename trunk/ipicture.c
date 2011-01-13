@@ -8,7 +8,6 @@
 //=====================================================================
 
 #include "ipicture.h"
-#include "ibitmapm.h"
 #include "ibmcols.h"
 
 #include <stdio.h>
