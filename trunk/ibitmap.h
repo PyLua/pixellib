@@ -123,7 +123,7 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
  * mode      - flags of IBLIT_CLIP, IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
  */
 int ibitmap_blit(struct IBITMAP *dst, int dx, int dy, 
-	const struct IBITMAP *src, int x, int y, int w, int h, int mode);
+    const struct IBITMAP *src, int x, int y, int w, int h, int mode);
 
 
 /*
