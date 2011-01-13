@@ -5,11 +5,12 @@
  * IBITMAP is designed under the desire that it can exactly describe  
  * one basic bitmap, which is considered as simple and pure.
  *
- * there are four basic bitmap operating interfaces:
+ * there are five basic bitmap operating interfaces:
  *
  * create  - create a new bitmap and return the struct address
  * release - free the bitmap 
  * blit    - copy the speciafied rectangle from one bitmap to another
+ * setmask - set the color key for transparent blit (IBLIT_MASK on)
  * fill    - fill a rectange in the bitmap
  *
  * the history of this file:
@@ -121,8 +122,8 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
  * mask      - coloekey of source bitmap, ignored if no IBLIT_MASK
  * mode      - flags of IBLIT_CLIP, IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
  */
-int ibitmap_blit(struct IBITMAP *dst, int dx, int dy, struct IBITMAP *src, 
-    int x, int y, int w, int h, int mode);
+int ibitmap_blit(struct IBITMAP *dst, int dx, int dy, 
+	const struct IBITMAP *src, int x, int y, int w, int h, int mode);
 
 
 /*
