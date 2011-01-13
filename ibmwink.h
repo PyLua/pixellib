@@ -14,7 +14,6 @@
 #include <math.h>
 
 #include "ibitmap.h"
-#include "ibitmapm.h"
 #include "ibmcols.h"
 #include "iblit386.h"
 #include "ibmspan.h"

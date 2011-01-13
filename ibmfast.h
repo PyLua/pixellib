@@ -13,7 +13,6 @@
 #include <math.h>
 
 #include "ibitmap.h"
-#include "ibitmapm.h"
 #include "ibmcols.h"
 
 

@@ -12,7 +12,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "ibitmapm.h"
+#include "ibitmap.h"
 #include "ipicture.h"
 #include "ipicwink.h"
 

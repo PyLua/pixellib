@@ -14,7 +14,6 @@
 #include <assert.h>
 
 #include "ibitmap.h"
-#include "ibitmapm.h"
 #include "ibmcols.h"
 
 

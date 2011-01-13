@@ -8,7 +8,7 @@
  **********************************************************************/
 
 #include "ibmcols.h"
-#include "ibitmapm.h"
+#include "ibitmap.h"
 
 #include <stddef.h>
 #include <stdlib.h>
