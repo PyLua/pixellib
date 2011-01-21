@@ -285,7 +285,9 @@ typedef IFASTCALL IUINT32 (*iFetchPixelProc)(const void *bits,
 #else
     #define INLINE         __inline__
 #endif
-#elif (defined(_MSC_VER) || defined(__BORLANDC__) || defined(__WATCOMC__))
+#elif defined(_MSC_VER)
+	#define INLINE __forceinline
+#elif (defined(__BORLANDC__) || defined(__WATCOMC__))
     #define INLINE __inline
 #else
     #define INLINE 
@@ -580,15 +582,15 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask);
 	(((IUINT32)(((unsigned char*)(a))[2]))      ) )
 
 #define ISTORE24_LSB(a, c) do { \
-		((unsigned char*)(a))[0] = ((c)      ) & 0xff; \
-		((unsigned char*)(a))[1] = ((c) >>  8) & 0xff; \
-		((unsigned char*)(a))[2] = ((c) >> 16) & 0xff; \
+		((unsigned char*)(a))[0] = (IUINT8)(((c)      ) & 0xff); \
+		((unsigned char*)(a))[1] = (IUINT8)(((c) >>  8) & 0xff); \
+		((unsigned char*)(a))[2] = (IUINT8)(((c) >> 16) & 0xff); \
 	}	while (0)
 
 #define ISTORE24_MSB(a, c) do { \
-		((unsigned char*)(a))[0] = ((c) >> 16) & 0xff; \
-		((unsigned char*)(a))[1] = ((c) >>  8) & 0xff; \
-		((unsigned char*)(a))[2] = ((c)      ) & 0xff; \
+		((unsigned char*)(a))[0] = (IUINT8)(((c) >> 16) & 0xff); \
+		((unsigned char*)(a))[1] = (IUINT8)(((c) >>  8) & 0xff); \
+		((unsigned char*)(a))[2] = (IUINT8)(((c)      ) & 0xff); \
 	}	while (0)
 
 
