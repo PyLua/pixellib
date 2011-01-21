@@ -1,13 +1,13 @@
 /**********************************************************************
  *
- * ibmcode.h - color components access
+ * ibmbits.h - bitmap bits accessing
  *
  * NOTE:
  * for more information, please see the readme file
  *
  **********************************************************************/
-#ifndef __IBMCODE_H__
-#define __IBMCODE_H__
+#ifndef __IBMBITS_H__
+#define __IBMBITS_H__
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -259,23 +259,17 @@ typedef struct IRGB IRGB;
 typedef struct iColorIndex iColorIndex;
 
 
-#ifndef IFASTCALL
-    #if defined(__i386__) && defined(__GNUC__)
-        #define IFASTCALL    __attribute__((regparm(3)))
-    #else
-        #define IFASTCALL
-    #endif
-#endif
+/* scanline fetch: fetching from different pixel formats to A8R8GB8 */
+typedef void (*iFetchProc)(const void *bits, int x, int w, IUINT32 *buffer, 
+	const iColorIndex *idx);
 
+/* scanline store: storing from A8R8G8B8 to other formats */
+typedef void (*iStoreProc)(void *bits, const IUINT32 *buffer, int x, int w, 
+	const iColorIndex *idx);
 
-typedef IFASTCALL void (*iFetchProc)(const void *bits, int x, 
-    int w, IUINT32 *buffer, const iColorIndex *idx);
-
-typedef IFASTCALL void (*iStoreProc)(void *bits, 
-    const IUINT32 *buffer, int x, int w, const iColorIndex *idx);
-
-typedef IFASTCALL IUINT32 (*iFetchPixelProc)(const void *bits, 
-    int offset, const iColorIndex *idx);
+/* pixel fetch: fetching color from diferent pixel format to A8R8G8B8 */
+typedef IUINT32 (*iFetchPixelProc)(const void *bits, int offset, 
+	const iColorIndex *idx);
 
 
 #ifndef INLINE
@@ -387,10 +381,10 @@ int ibestfit_color(const IRGB *pal, int r, int g, int b, int palsize);
 int ipalette_to_index(iColorIndex *index, const IRGB *pal, int palsize);
 
 /* get raw color */
-IFASTCALL IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a);
+ IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a);
 
 /* get r, g, b, a from color */
-IFASTCALL void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g, 
+ void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g, 
 	IINT32 *b, IINT32 *a);
 	
 
@@ -399,7 +393,7 @@ const char *ipixelfmt_name(int fmt);
 
 
 /* span drawing proc */
-typedef IFASTCALL void (*iSpanDrawProc)(void *bits, int startx, int w, 
+typedef void (*iSpanDrawProc)(void *bits, int startx, int w, 
 	const IUINT32 *card, const IUINT8 *cover, const iColorIndex *index);
 
 /* get a span drawing function with given pixel format */
@@ -458,7 +452,7 @@ long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 
 
 /* draw hline routine */
-typedef IFASTCALL void (*iHLineDrawProc)(void *bits, int startx, int w,
+typedef void (*iHLineDrawProc)(void *bits, int startx, int w,
 	IUINT32 col, const IUINT8 *cover, const iColorIndex *index);
 
 /* get a hline drawing function with given pixel format */
@@ -836,6 +830,7 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask);
 #define _ipixel_norm(color) (((color) >> 7) + (color))
 #define _ipixel_unnorm(color) ((((color) << 8) - (color)) >> 8)
 #define _imul_y_div_255(x, y) (((x) * _ipixel_norm(y)) >> 8)
+#define _idiv_255(x) (((x) + ((x) >> 8) + 1) >> 8)
 
 #define _ipixel_to_gray(r, g, b) \
         ((19595 * (r) + 38469 * (g) + 7472 * (b)) >> 16)

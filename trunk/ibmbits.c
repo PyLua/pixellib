@@ -1,13 +1,13 @@
 /**********************************************************************
  *
- * ibmcode.c - color components access
+ * ibmbits.c - bitmap bits accessing
  *
  * NOTE:
  * for more information, please see the readme file
  *
  **********************************************************************/
 
-#include "ibmcode.h"
+#include "ibmbits.h"
 
 
 /**********************************************************************
@@ -334,7 +334,7 @@ int ipalette_to_index(iColorIndex *index, const IRGB *pal, int palsize)
 
 
 /* get raw color */
-IFASTCALL IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a)
+IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a)
 {
 	IUINT32 c;
 	IRGBA_ASSEMBLE(pixfmt, c, r, g, b, a);
@@ -342,7 +342,7 @@ IFASTCALL IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a)
 }
 
 /* get r, g, b, a from color */
-IFASTCALL void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g, 
+void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g, 
 	IINT32 *b, IINT32 *a)
 {
 	IINT32 R, G, B, A;
@@ -451,7 +451,7 @@ void ipixel_lut_conv_1(IUINT32 *dst, const IUINT16 *src, int w,
  * DEFAULT FETCH PROC
  **********************************************************************/
 #define IFETCH_PROC(fmt, bpp) \
-static IFASTCALL void _ifetch_proc_##fmt(const void *bits, int x, \
+static void _ifetch_proc_##fmt(const void *bits, int x, \
     int w, IUINT32 *buffer, const iColorIndex *_ipixel_src_index) \
 { \
     IUINT32 c1, r1, g1, b1, a1, c2, r2, g2, b2, a2; \
@@ -486,7 +486,7 @@ static IFASTCALL void _ifetch_proc_##fmt(const void *bits, int x, \
  * DEFAULT STORE PROC
  **********************************************************************/
 #define ISTORE_PROC(fmt, bpp) \
-static IFASTCALL void _istore_proc_##fmt(void *bits, const IUINT32 *values, \
+static void _istore_proc_##fmt(void *bits, const IUINT32 *values, \
     int x, int w, const iColorIndex *_ipixel_dst_index) \
 { \
     IUINT32 c1, r1, g1, b1, a1, c2, r2, g2, b2, a2; \
@@ -521,7 +521,7 @@ static IFASTCALL void _istore_proc_##fmt(void *bits, const IUINT32 *values, \
  * DEFAULT PIXEL FETCH PROC
  **********************************************************************/
 #define IFETCH_PIXEL(fmt, bpp) \
-static IFASTCALL IUINT32 _ifetch_pixel_##fmt(const void *bits, \
+static IUINT32 _ifetch_pixel_##fmt(const void *bits, \
     int offset, const iColorIndex *_ipixel_src_index) \
 { \
     IUINT32 c, r, g, b, a; \
@@ -535,13 +535,13 @@ static IFASTCALL IUINT32 _ifetch_pixel_##fmt(const void *bits, \
 /**********************************************************************
  * FETCHING PROCEDURES
  **********************************************************************/
-static IFASTCALL void _ifetch_proc_A8R8G8B8(const void *bits, int x, 
+static void _ifetch_proc_A8R8G8B8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	memcpy(buffer, (const IUINT32*)bits + x, w * sizeof(IUINT32));
 }
 
-static IFASTCALL void _ifetch_proc_A8B8G8R8(const void *bits, int x,
+static void _ifetch_proc_A8B8G8R8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -553,7 +553,7 @@ static IFASTCALL void _ifetch_proc_A8B8G8R8(const void *bits, int x,
 	}
 }
 
-static IFASTCALL void _ifetch_proc_R8G8B8A8(const void *bits, int x, 
+static void _ifetch_proc_R8G8B8A8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -567,7 +567,7 @@ static IFASTCALL void _ifetch_proc_R8G8B8A8(const void *bits, int x,
 
 IFETCH_PROC(B8G8R8A8, 32)
 
-static IFASTCALL void _ifetch_proc_X8R8G8B8(const void *bits, int x,
+static void _ifetch_proc_X8R8G8B8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -579,7 +579,7 @@ static IFASTCALL void _ifetch_proc_X8R8G8B8(const void *bits, int x,
 
 IFETCH_PROC(X8B8G8R8, 32)
 
-static IFASTCALL void _ifetch_proc_R8G8B8X8(const void *bits, int x, 
+static void _ifetch_proc_R8G8B8X8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
@@ -594,7 +594,7 @@ static IFASTCALL void _ifetch_proc_R8G8B8X8(const void *bits, int x,
 IFETCH_PROC(B8G8R8X8, 32)
 IFETCH_PROC(P8R8G8B8, 32)
 
-static IFASTCALL void _ifetch_proc_R8G8B8(const void *bits, int x,
+static void _ifetch_proc_R8G8B8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x * 3;
@@ -666,13 +666,13 @@ IFETCH_PROC(A1, 1)
 /**********************************************************************
  * STORING PROCEDURES
  **********************************************************************/
-static IFASTCALL void _istore_proc_A8R8G8B8(void *bits, 
+static void _istore_proc_A8R8G8B8(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	memcpy(((IUINT32*)bits) + x, values, w * sizeof(IUINT32));
 }
 
-static IFASTCALL void _istore_proc_A8B8G8R8(void *bits,
+static void _istore_proc_A8B8G8R8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -684,7 +684,7 @@ static IFASTCALL void _istore_proc_A8B8G8R8(void *bits,
 	}
 }
 
-static IFASTCALL void _istore_proc_R8G8B8A8(void *bits,
+static void _istore_proc_R8G8B8A8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -698,7 +698,7 @@ static IFASTCALL void _istore_proc_R8G8B8A8(void *bits,
 
 ISTORE_PROC(B8G8R8A8, 32)
 
-static IFASTCALL void _istore_proc_X8R8G8B8(void *bits, 
+static void _istore_proc_X8R8G8B8(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -711,7 +711,7 @@ static IFASTCALL void _istore_proc_X8R8G8B8(void *bits,
 
 ISTORE_PROC(X8B8G8R8, 32)
 
-static IFASTCALL void _istore_proc_R8G8B8X8(void *bits,
+static void _istore_proc_R8G8B8X8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
@@ -726,7 +726,7 @@ ISTORE_PROC(B8G8R8X8, 32)
 ISTORE_PROC(P8R8G8B8, 32)
 
 
-static IFASTCALL void _istore_proc_R8G8B8(void *bits,
+static void _istore_proc_R8G8B8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x * 3;
@@ -739,7 +739,7 @@ static IFASTCALL void _istore_proc_R8G8B8(void *bits,
 	}
 }
 
-static IFASTCALL void _istore_proc_B8G8R8(void *bits,
+static void _istore_proc_B8G8R8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT8 *pixel = (IUINT8*)bits + x * 3;
@@ -755,7 +755,7 @@ static IFASTCALL void _istore_proc_B8G8R8(void *bits,
 
 ISTORE_PROC(R5G6B5, 16)
 
-static IFASTCALL void _istore_proc_B5G6R5(void *bits,
+static void _istore_proc_B5G6R5(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -770,7 +770,7 @@ static IFASTCALL void _istore_proc_B5G6R5(void *bits,
 	}
 }
 
-static IFASTCALL void _istore_proc_X1R5G5B5(void *bits, 
+static void _istore_proc_X1R5G5B5(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -801,7 +801,7 @@ ISTORE_PROC(B4G4R4X4, 16)
 ISTORE_PROC(A4R4G4B4, 16)
 ISTORE_PROC(A4B4G4R4, 16)
 
-static IFASTCALL void _istore_proc_R4G4B4A4(void *bits,
+static void _istore_proc_R4G4B4A4(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
@@ -860,13 +860,13 @@ ISTORE_PROC(A1, 1)
  * PIXEL FETCHING PROCEDURES
  **********************************************************************/
 
-static IFASTCALL IUINT32 _ifetch_pixel_A8R8G8B8(const void *bits, 
+static IUINT32 _ifetch_pixel_A8R8G8B8(const void *bits, 
     int offset, const iColorIndex *_ipixel_src_index) 
 { 
     return _ipixel_fetch(32, bits, offset); 
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_A8B8G8R8(const void *bits,
+static IUINT32 _ifetch_pixel_A8B8G8R8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
@@ -874,14 +874,14 @@ static IFASTCALL IUINT32 _ifetch_pixel_A8B8G8R8(const void *bits,
 		((pixel & 0xff) << 16));
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_R8G8B8A8(const void *bits,
+static IUINT32 _ifetch_pixel_R8G8B8A8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
 	return ((pixel & 0xff) << 24) | ((pixel >> 8) & 0xffffff);
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_B8G8R8A8(const void *bits,
+static IUINT32 _ifetch_pixel_B8G8R8A8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
@@ -892,13 +892,13 @@ static IFASTCALL IUINT32 _ifetch_pixel_B8G8R8A8(const void *bits,
 }
 
 
-static IFASTCALL IUINT32 _ifetch_pixel_X8R8G8B8(const void *bits,
+static IUINT32 _ifetch_pixel_X8R8G8B8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	return ((IUINT32*)(bits))[offset] | 0xff000000;
 }
 
-static IFASTCALL IUINT32 _ifetch_pixel_X8B8G8R8(const void *bits,
+static IUINT32 _ifetch_pixel_X8B8G8R8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((IUINT32*)(bits))[offset];
@@ -1083,7 +1083,7 @@ void ipixel_set_proc(int pixfmt, int type, void *proc)
  **********************************************************************/
 #define IFETCH_LUT_2(sfmt) \
 static IUINT32 _ipixel_lut_##sfmt[256 * 2]; \
-static IFASTCALL void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
+static void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
     int w, IUINT32 *buffer, const iColorIndex *idx) \
 { \
 	const IUINT8 *input = (const IUINT8*)bits + (x << 1); \
@@ -1106,7 +1106,7 @@ static IFASTCALL void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
 		}, \
 		w); \
 } \
-static IFASTCALL IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
+static IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
     int offset, const iColorIndex *idx) \
 { \
 	const IUINT8 *input = (const IUINT8*)bits + (offset << 1); \
@@ -1119,7 +1119,7 @@ static IFASTCALL IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
 
 #define IFETCH_LUT_1(sfmt) \
 static IUINT32 _ipixel_lut_##sfmt[256]; \
-static IFASTCALL void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
+static void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
     int w, IUINT32 *buffer, const iColorIndex *idx) \
 { \
 	const IUINT8 *input = (const IUINT8*)bits + x; \
@@ -1137,7 +1137,7 @@ static IFASTCALL void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
 		}, \
 		w); \
 } \
-static IFASTCALL IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
+static IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
     int offset, const iColorIndex *idx) \
 { \
 	const IUINT8 *input = (const IUINT8*)bits + offset; \
@@ -1350,7 +1350,7 @@ const char *ipixelfmt_name(int fmt)
  * SPAN DRAWING
  **********************************************************************/
 #define IPIXEL_SPAN_DRAW_PROC_N(fmt, bpp, nbytes, mode, isadd) \
-static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1393,7 +1393,7 @@ static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 
 
 #define IPIXEL_SPAN_DRAW_PROC_1(fmt, bpp, nbytes, mode, isadd) \
-static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1433,7 +1433,7 @@ static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 }
 
 #define IPIXEL_SPAN_DRAW_PROC_BITS(fmt, bpp, nbytes, mode, isadd) \
-static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1469,7 +1469,7 @@ static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 }
 
 #define IPIXEL_SPAN_DRAW_PROC_PAL(fmt, bpp, nbytes, mode, isadd) \
-static IFASTCALL void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1792,7 +1792,7 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask)
  * MACRO: HLINE ROUTINE
  **********************************************************************/
 #define IPIXEL_HLINE_DRAW_PROC_N(fmt, bpp, nbytes, mode, add) \
-static IFASTCALL void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
+static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
 	int offset, int w, IUINT32 color, const IUINT8 *cover, \
 	const iColorIndex *idx) \
 { \
@@ -1859,7 +1859,7 @@ static IFASTCALL void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
 
 
 #define IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode, add, init) \
-static IFASTCALL void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
+static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
 	int offset, int w, IUINT32 col, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
