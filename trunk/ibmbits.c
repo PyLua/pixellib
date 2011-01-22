@@ -256,6 +256,12 @@ const unsigned char *iclip256 = &IMINMAX256[256];
 unsigned char ipixel_blend_lut[2048 * 2];
 
 
+#if defined(__BORLANDC__) && !defined(__MSDOS__)
+	#pragma warn -8004  
+	#pragma warn -8057
+#endif
+
+
 /**********************************************************************
  * 256 PALETTE INTERFACE
  **********************************************************************/
@@ -1349,8 +1355,9 @@ const char *ipixelfmt_name(int fmt)
 /**********************************************************************
  * SPAN DRAWING
  **********************************************************************/
-#define IPIXEL_SPAN_DRAW_PROC_N(fmt, bpp, nbytes, mode, isadd) \
-static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+/* span blending for 8, 16, 24, 32 bits */
+#define IPIXEL_SPAN_DRAW_PROC_N(fmt, bpp, nbytes, mode) \
+static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1377,7 +1384,12 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 		for (inc = w; inc > 0; inc--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (a1 > 0 && cc > 0) { \
+			r2 = a1 + cc; \
+			if (r2 == 510) { \
+				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			else if (r2 > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, 0); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
@@ -1389,11 +1401,94 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 			dst += nbytes; \
 		} \
 	} \
+} \
+static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
+	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
+	const iColorIndex *_ipixel_src_index) \
+{ \
+	unsigned char *dst = ((unsigned char*)bits) + offset * nbytes; \
+	IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2, inc; \
+	if (cover == NULL) { \
+		for (inc = w; inc > 0; inc--) { \
+			_ipixel_load_card(card, r1, g1, b1, a1); \
+			if (a1 > 0) { \
+				cc = _ipixel_fetch(bpp, dst, 0); \
+				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
+				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			card++; \
+			dst += nbytes; \
+		} \
+	}	else { \
+		for (inc = w; inc > 0; inc--) { \
+			_ipixel_load_card(card, r1, g1, b1, a1); \
+			cc = *cover++; \
+			if (a1 + cc > 0) { \
+				a1 = _imul_y_div_255(a1, cc); \
+				cc = _ipixel_fetch(bpp, dst, 0); \
+				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
+				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			card++; \
+			dst += nbytes; \
+		} \
+	} \
 }
 
-
-#define IPIXEL_SPAN_DRAW_PROC_1(fmt, bpp, nbytes, mode, isadd) \
-static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+/* span blending for 8 bits without palette */
+#define IPIXEL_SPAN_DRAW_PROC_1(fmt, bpp, nbytes, mode) \
+static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
+	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
+	const iColorIndex *_ipixel_src_index) \
+{ \
+	unsigned char *dst = ((unsigned char*)bits) + (offset); \
+	IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2, inc; \
+	if (cover == NULL) { \
+		for (inc = w; inc > 0; inc--) { \
+			_ipixel_load_card(card, r1, g1, b1, a1); \
+			if (a1 == 255) { \
+				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			else if (a1 > 0) { \
+				r1 = dst[0]; \
+				cc = _ipixel_lut_##fmt[r1]; \
+				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
+				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
+				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			card++; \
+			dst++; \
+		} \
+	}	else { \
+		for (inc = w; inc > 0; inc--) { \
+			_ipixel_load_card(card, r1, g1, b1, a1); \
+			cc = *cover++; \
+			r2 = a1 + cc; \
+			if (r2 == 510) { \
+				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			else if (r2 > 0) { \
+				a1 = _imul_y_div_255(a1, cc); \
+				r1 = dst[0]; \
+				cc = _ipixel_lut_##fmt[r1]; \
+				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
+				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
+				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+				_ipixel_store(bpp, dst, 0, cc); \
+			} \
+			card++; \
+			dst++; \
+		} \
+	} \
+} \
+static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1406,7 +1501,7 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 				r1 = dst[0]; \
 				cc = _ipixel_lut_##fmt[r1]; \
 				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
-				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
+				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
 				_ipixel_store(bpp, dst, 0, cc); \
 			} \
@@ -1417,12 +1512,12 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 		for (inc = w; inc > 0; inc--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (a1 > 0 && cc > 0) { \
+			if (a1 + cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				r1 = dst[0]; \
 				cc = _ipixel_lut_##fmt[r1]; \
 				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
-				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
+				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
 				_ipixel_store(bpp, dst, 0, cc); \
 			} \
@@ -1432,17 +1527,23 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 	} \
 }
 
-#define IPIXEL_SPAN_DRAW_PROC_BITS(fmt, bpp, nbytes, mode, isadd) \
-static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+/* span blending for 8/4/1 bits with or without palette */
+#define IPIXEL_SPAN_DRAW_PROC_X(fmt, bpp, nbytes, mode, init) \
+static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
 	IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2, inc; \
 	unsigned char *dst = (unsigned char*)bits; \
+	init; \
 	if (cover == NULL) { \
 		for (inc = offset; w > 0; inc++, w--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
-			if (a1 > 0) { \
+			if (a1 == 255) { \
+				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+				_ipixel_store(bpp, dst, inc, cc); \
+			} \
+			else if (a1 > 0) { \
 				cc = _ipixel_fetch(bpp, dst, inc); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
 				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
@@ -1455,7 +1556,12 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 		for (inc = offset; w > 0; inc++, w--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (a1 > 0 && cc > 0) { \
+			r2 = a1 + cc; \
+			if (r2 == 510) { \
+				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+				_ipixel_store(bpp, dst, inc, cc); \
+			} \
+			else if (r2 > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, inc); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
@@ -1466,23 +1572,21 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 			card++; \
 		} \
 	} \
-}
-
-#define IPIXEL_SPAN_DRAW_PROC_PAL(fmt, bpp, nbytes, mode, isadd) \
-static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
+} \
+static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 	int offset, int w, const IUINT32 *card, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
 	IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2, inc; \
 	unsigned char *dst = (unsigned char*)bits; \
-	const iColorIndex *_ipixel_dst_index = _ipixel_src_index; \
+	init; \
 	if (cover == NULL) { \
 		for (inc = offset; w > 0; inc++, w--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			if (a1 > 0) { \
 				cc = _ipixel_fetch(bpp, dst, inc); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
-				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
+				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
 				_ipixel_store(bpp, dst, inc, cc); \
 			} \
@@ -1492,11 +1596,11 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 		for (inc = offset; w > 0; inc++, w--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (a1 > 0 && cc > 0) { \
+			if (r1 + cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, inc); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
-				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
+				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
 				_ipixel_store(bpp, dst, inc, cc); \
 			} \
@@ -1505,12 +1609,20 @@ static void ipixel_span_draw_proc_##fmt##_##isadd(void *bits, \
 	} \
 }
 
+/* span blending for 4/1 bits without palette */
+#define IPIXEL_SPAN_DRAW_PROC_BITS(fmt, bpp, nbytes, mode) \
+		IPIXEL_SPAN_DRAW_PROC_X(fmt, bpp, nbytes, mode, {}) 
 
+/* span blending for 8/4/1 bits with palette */
+#define IPIXEL_SPAN_DRAW_PROC_PAL(fmt, bpp, nbytes, mode) \
+		IPIXEL_SPAN_DRAW_PROC_X(fmt, bpp, nbytes, mode, \
+			const iColorIndex *_ipixel_dst_index = _ipixel_src_index)
 
+/* span blending main */
 #define IPIXEL_SPAN_DRAW_MAIN(type, fmt, bpp, nbytes, mode) \
-	IPIXEL_SPAN_DRAW_PROC_##type(fmt, bpp, nbytes, mode, 0) \
-	IPIXEL_SPAN_DRAW_PROC_##type(fmt, bpp, nbytes, ADDITIVE, 1)
+	IPIXEL_SPAN_DRAW_PROC_##type(fmt, bpp, nbytes, mode) 
 
+/* span blending procedures declare */
 IPIXEL_SPAN_DRAW_MAIN(N, A8R8G8B8, 32, 4, NORMAL_FAST)
 IPIXEL_SPAN_DRAW_MAIN(N, A8B8G8R8, 32, 4, NORMAL_FAST)
 IPIXEL_SPAN_DRAW_MAIN(N, R8G8B8A8, 32, 4, NORMAL_FAST)
@@ -1560,7 +1672,7 @@ IPIXEL_SPAN_DRAW_MAIN(PAL, C4X4, 8, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(N, G4X4, 8, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(N, A4X4, 8, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(PAL, C4, 4, 1, STATIC)
-IPIXEL_SPAN_DRAW_MAIN(N, G4, 4, 1, STATIC)
+IPIXEL_SPAN_DRAW_MAIN(BITS, G4, 4, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(BITS, A4, 4, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(BITS, R1G2B1, 4, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(BITS, B1G2R1, 4, 1, STATIC)
@@ -1578,7 +1690,7 @@ IPIXEL_SPAN_DRAW_MAIN(BITS, A1, 1, 1, STATIC)
 
 #undef IPIXEL_SPAN_DRAW_MAIN
 #undef IPIXEL_SPAN_DRAW_PROC_N
-#undef IPIXEL_SPAN_DRAW_PROC_2
+#undef IPIXEL_SPAN_DRAW_PROC_X
 #undef IPIXEL_SPAN_DRAW_PROC_1
 #undef IPIXEL_SPAN_DRAW_PROC_BITS
 #undef IPIXEL_SPAN_DRAW_PROC_PAL
@@ -1791,18 +1903,15 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask)
 /**********************************************************************
  * MACRO: HLINE ROUTINE
  **********************************************************************/
-#define IPIXEL_HLINE_DRAW_PROC_N(fmt, bpp, nbytes, mode, add) \
-static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
+/* hline filling: 8/16/24/32 bits without palette */
+#define IPIXEL_HLINE_DRAW_PROC_N(fmt, bpp, nbytes, mode) \
+static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 	int offset, int w, IUINT32 color, const IUINT8 *cover, \
 	const iColorIndex *idx) \
 { \
 	unsigned char *dst = ((unsigned char*)bits) + offset * nbytes; \
 	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx; \
 	IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1); \
-	if (r1 == b1 && b1 == g1) { \
-		a1 = _imul_y_div_255(a1, r1); \
-		r1 = g1 = b1 = 255; \
-	} \
 	if (a1 == 0) return; \
 	if (cover == NULL) { \
 		if (a1 == 255) { \
@@ -1855,11 +1964,62 @@ static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
 			} \
 		} \
 	} \
+} \
+static void ipixel_hline_draw_proc_##fmt##_1(void *bits, \
+	int offset, int w, IUINT32 color, const IUINT8 *cover, \
+	const iColorIndex *idx) \
+{ \
+	unsigned char *dst = ((unsigned char*)bits) + offset * nbytes; \
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx; \
+	IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1); \
+	if (a1 == 0) return; \
+	if (cover == NULL) { \
+		r2 = g2 = b2 = a2 = 0; \
+		IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, a2, b2); \
+		r1 = r2; g1 = g2; b1 = b2; a1 = a2; \
+		for (; w > 0; dst += nbytes, w--) { \
+			cc = _ipixel_fetch(bpp, dst, 0); \
+			IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+			r2 = ICLIP_256(r1 + r2); \
+			g2 = ICLIP_256(g1 + g2); \
+			b2 = ICLIP_256(b1 + b2); \
+			a2 = ICLIP_256(a1 + a2); \
+			cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+			_ipixel_store(bpp, dst, 0, cc); \
+		} \
+	}	else { \
+		if (a1 == 255) { \
+			for (; w > 0; dst += nbytes, w--) { \
+				a1 = *cover++; \
+				if (a1 > 0) { \
+					cc = _ipixel_fetch(bpp, dst, 0); \
+					IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+					IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
+					cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+					_ipixel_store(bpp, dst, 0, cc); \
+				} \
+			} \
+		}	\
+		else if (a1 > 0) { \
+			a1 = _ipixel_norm(a1); \
+			for (; w > 0; dst += nbytes, w--) { \
+				cx = *cover++; \
+				if (cx > 0) { \
+					cx = (cx * a1) >> 8; \
+					cc = _ipixel_fetch(bpp, dst, 0); \
+					IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+					IBLEND_ADDITIVE(r1, g1, b1, cx, r2, g2, b2, a2); \
+					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+					_ipixel_store(bpp, dst, 0, cc); \
+				} \
+			} \
+		} \
+	} \
 }
 
-
-#define IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode, add, init) \
-static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
+/* hline filling: 8/4/1 bits with or without palette */
+#define IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode, init) \
+static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 	int offset, int w, IUINT32 col, const IUINT8 *cover, \
 	const iColorIndex *_ipixel_src_index) \
 { \
@@ -1867,10 +2027,6 @@ static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
 	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx; \
 	init; \
 	IRGBA_FROM_A8R8G8B8(col, r1, g1, b1, a1); \
-	if (r1 == b1 && b1 == g1) { \
-		a1 = _imul_y_div_255(a1, r1); \
-		r1 = g1 = b1 = 255; \
-	} \
 	if (a1 == 0) return; \
 	if (cover == NULL) { \
 		if (a1 == 255) { \
@@ -1923,20 +2079,72 @@ static void ipixel_hline_draw_proc_##fmt##_##add(void *bits, \
 			} \
 		} \
 	} \
+} \
+static void ipixel_hline_draw_proc_##fmt##_1(void *bits, \
+	int offset, int w, IUINT32 col, const IUINT8 *cover, \
+	const iColorIndex *_ipixel_src_index) \
+{ \
+	unsigned char *dst = ((unsigned char*)bits); \
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx; \
+	init; \
+	IRGBA_FROM_A8R8G8B8(col, r1, g1, b1, a1); \
+	if (a1 == 0) return; \
+	if (cover == NULL) { \
+		r2 = g2 = b2 = a2 = 0; \
+		IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, a2, b2); \
+		r1 = r2; g1 = g2; b1 = b2; a1 = a2; \
+		for (; w > 0; dst += nbytes, w--) { \
+			cc = _ipixel_fetch(bpp, dst, offset); \
+			IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+			r2 = ICLIP_256(r1 + r2); \
+			g2 = ICLIP_256(g1 + g2); \
+			b2 = ICLIP_256(b1 + b2); \
+			a2 = ICLIP_256(a1 + a2); \
+			cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+			_ipixel_store(bpp, dst, offset, cc); \
+		} \
+	}	else { \
+		if (a1 == 255) { \
+			for (; w > 0; offset++, w--) { \
+				a1 = *cover++; \
+				if (a1 > 0) { \
+					cc = _ipixel_fetch(bpp, dst, offset); \
+					IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+					IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
+					cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
+					_ipixel_store(bpp, dst, offset, cc); \
+				} \
+			} \
+		}	\
+		else if (a1 > 0) { \
+			a1 = _ipixel_norm(a1); \
+			for (; w > 0; offset++, w--) { \
+				cx = *cover++; \
+				if (cx > 0) { \
+					cx = (cx * a1) >> 8; \
+					cc = _ipixel_fetch(bpp, dst, offset); \
+					IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
+					IBLEND_ADDITIVE(r1, g1, b1, cx, r2, g2, b2, a2); \
+					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+					_ipixel_store(bpp, dst, offset, cc); \
+				} \
+			} \
+		} \
+	} \
 }
 
+/* hline filling: 8/4/1 bits without palette */
+#define IPIXEL_HLINE_DRAW_PROC_BITS(fmt, bpp, nbytes, mode) \
+		IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode, {})
 
-#define IPIXEL_HLINE_DRAW_PROC_BITS(fmt, bpp, nbytes, mode, add) \
-		IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode, add, {})
-
-#define IPIXEL_HLINE_DRAW_PROC_PAL(fmt, bpp, nbytes, mode, add) \
-		IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode, add,  \
+/* hline filling: 8/4/1 bits with palette */
+#define IPIXEL_HLINE_DRAW_PROC_PAL(fmt, bpp, nbytes, mode) \
+		IPIXEL_HLINE_DRAW_PROC_X(fmt, bpp, nbytes, mode,  \
 				const iColorIndex *_ipixel_dst_index = _ipixel_src_index) 
 
-
+/* hline filling: main macro */
 #define IPIXEL_HLINE_DRAW_MAIN(type, fmt, bpp, nbytes, mode) \
-	IPIXEL_HLINE_DRAW_PROC_##type(fmt, bpp, nbytes, mode, 0) \
-	IPIXEL_HLINE_DRAW_PROC_##type(fmt, bpp, nbytes, ADDITIVE, 1)
+	IPIXEL_HLINE_DRAW_PROC_##type(fmt, bpp, nbytes, mode) 
 
 
 #if 1
@@ -1989,7 +2197,7 @@ IPIXEL_HLINE_DRAW_MAIN(PAL, C4X4, 8, 1, STATIC)
 IPIXEL_HLINE_DRAW_MAIN(N, G4X4, 8, 1, STATIC)
 IPIXEL_HLINE_DRAW_MAIN(N, A4X4, 8, 1, STATIC)
 IPIXEL_HLINE_DRAW_MAIN(PAL, C4, 4, 1, STATIC)
-IPIXEL_HLINE_DRAW_MAIN(N, G4, 4, 1, STATIC)
+IPIXEL_HLINE_DRAW_MAIN(BITS, G4, 4, 1, STATIC)
 IPIXEL_HLINE_DRAW_MAIN(BITS, A4, 4, 1, STATIC)
 IPIXEL_HLINE_DRAW_MAIN(BITS, R1G2B1, 4, 1, STATIC)
 IPIXEL_HLINE_DRAW_MAIN(BITS, B1G2R1, 4, 1, STATIC)
