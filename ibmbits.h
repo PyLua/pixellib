@@ -381,10 +381,10 @@ int ibestfit_color(const IRGB *pal, int r, int g, int b, int palsize);
 int ipalette_to_index(iColorIndex *index, const IRGB *pal, int palsize);
 
 /* get raw color */
- IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a);
+IUINT32 ipixel_assemble(int pixfmt, int r, int g, int b, int a);
 
 /* get r, g, b, a from color */
- void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g, 
+void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g, 
 	IINT32 *b, IINT32 *a);
 	
 
