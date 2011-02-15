@@ -1389,7 +1389,7 @@ static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
 				_ipixel_store(bpp, dst, 0, cc); \
 			} \
-			else if (r2 > 0) { \
+			else if (r2 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, 0); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
@@ -1425,7 +1425,7 @@ static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 		for (inc = w; inc > 0; inc--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (a1 + cc > 0) { \
+			if (a1 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, 0); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
@@ -1474,7 +1474,7 @@ static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
 				_ipixel_store(bpp, dst, 0, cc); \
 			} \
-			else if (r2 > 0) { \
+			else if (r2 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				r1 = dst[0]; \
 				cc = _ipixel_lut_##fmt[r1]; \
@@ -1512,7 +1512,7 @@ static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 		for (inc = w; inc > 0; inc--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (a1 + cc > 0) { \
+			if (a1 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				r1 = dst[0]; \
 				cc = _ipixel_lut_##fmt[r1]; \
@@ -1561,7 +1561,7 @@ static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 				cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
 				_ipixel_store(bpp, dst, inc, cc); \
 			} \
-			else if (r2 > 0) { \
+			else if (r2 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, inc); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
@@ -1596,7 +1596,7 @@ static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 		for (inc = offset; w > 0; inc++, w--) { \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			cc = *cover++; \
-			if (r1 + cc > 0) { \
+			if (r1 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				cc = _ipixel_fetch(bpp, dst, inc); \
 				IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
