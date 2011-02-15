@@ -326,7 +326,7 @@ extern const unsigned char *iclip256;
 extern unsigned char ipixel_blend_lut[2048 * 2];
 
 #define ICLIP_256(x) IMINMAX256[256 + (x)]
-#define ICLIP_FAST(x) ( (IUINT32) ( (IUINT8) ((x) | (1 - ((x) >> 8))) ) )
+#define ICLIP_FAST(x) ( (IUINT32) ( (IUINT8) ((x) | (0 - ((x) >> 8))) ) )
 
 
 #define IPIXEL_FORMAT_BPP(pixfmt)      ipixelfmt[pixfmt].bpp
