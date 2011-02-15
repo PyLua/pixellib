@@ -471,6 +471,12 @@ void ipixel_card_multi(IUINT32 *card, int size, IUINT32 color);
 /* mask card */
 void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask);
 
+/* mask cover */
+void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover);
+
+/* card proc set */
+void ipixel_card_set_proc(int id, void *proc);
+
 
 /**********************************************************************
  * MACRO: Pixel Fetching & Storing
@@ -939,9 +945,15 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask);
 
 
 #if IWORDS_BIG_ENDIAN
-#define _ipixel_load_card	_ipixel_load_card_msb
+	#define _ipixel_load_card	_ipixel_load_card_msb
 #else
-#define _ipixel_load_card	_ipixel_load_card_lsb
+	#define _ipixel_load_card	_ipixel_load_card_lsb
+#endif
+
+#if IWORDS_BIG_ENDIAN
+	#define _ipixel_card_alpha	0
+#else
+	#define _ipixel_card_alpha	3
 #endif
 
 
