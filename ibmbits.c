@@ -1823,7 +1823,7 @@ void ipixel_card_reverse(IUINT32 *card, int size)
 
 
 /* multi card */
-void ipixel_card_multi(IUINT32 *card, int size, IUINT32 color)
+void ipixel_card_multi_default(IUINT32 *card, int size, IUINT32 color)
 {
 	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, f;
 	IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1);
@@ -1883,8 +1883,18 @@ void ipixel_card_multi(IUINT32 *card, int size, IUINT32 color)
 }
 
 
+void (*ipixel_card_multi_proc)(IUINT32 *card, int size, IUINT32 color) =
+	ipixel_card_multi_default;
+
+
+void ipixel_card_multi(IUINT32 *card, int size, IUINT32 color)
+{
+	ipixel_card_multi_proc(card, size, color);
+}
+
+
 /* mask card */
-void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask)
+void ipixel_card_mask_default(IUINT32 *card, int size, const IUINT32 *mask)
 {
 	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
 	for (; size > 0; card++, mask++, size--) {
@@ -1895,6 +1905,67 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask)
 		b2 = _imul_y_div_255(b2, b1);
 		a2 = _imul_y_div_255(a2, a1);
 		*card = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+}
+
+void (*ipixel_card_mask_proc)(IUINT32 *card, int size, const IUINT32 *mask) =
+	ipixel_card_mask_default;
+
+void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask)
+{
+	ipixel_card_mask_proc(card, size, mask);
+}
+
+/* cover multi */
+void ipixel_card_cover_default(IUINT32 *card, int size, const IUINT8 *cover)
+{
+	IINT32 cc, aa;
+	for (; size > 0; card++, size--) {
+		cc = *cover++;
+		if (cc == 0) {
+			((IUINT8*)card)[_ipixel_card_alpha] = 0;
+		}
+		else {
+			aa = ((IUINT8*)card)[_ipixel_card_alpha];
+			if (aa == 0) continue;
+			aa *= cc;
+			((IUINT8*)card)[_ipixel_card_alpha] = (IUINT8)_idiv_255(aa);
+		}
+	}
+}
+
+void (*ipixel_card_cover_proc)(IUINT32 *card, int size, const IUINT8 *cover) 
+	= ipixel_card_cover_default;
+
+void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover)
+{
+	ipixel_card_cover_proc(card, size, cover);
+}
+
+
+/* card proc set */
+void ipixel_card_set_proc(int id, void *proc)
+{
+	if (id == 0) {
+		if (proc == NULL) ipixel_card_multi_proc = ipixel_card_multi_default;
+		else {
+			ipixel_card_multi_proc = 
+				(void (*)(IUINT32 *, int, IUINT32))proc;
+		}
+	}
+	else if (id == 1) {
+		if (proc == NULL) ipixel_card_mask_proc = ipixel_card_mask_default;
+		else {
+			ipixel_card_mask_proc = 
+				(void (*)(IUINT32 *, int, const IUINT32 *))proc;
+		}
+	}
+	else if (id == 2) {
+		if (proc == NULL) ipixel_card_cover_proc = ipixel_card_cover_default;
+		else {
+			ipixel_card_cover_proc = 
+				(void (*)(IUINT32 *, int, const IUINT8 *))proc;
+		}
 	}
 }
 
@@ -2335,9 +2406,6 @@ void ipixel_set_hline_proc(int fmt, int isadditive, iHLineDrawProc proc)
 	if (isadditive == 0) ipixel_hline_proc_list[fmt].blend = proc;
 	else ipixel_hline_proc_list[fmt].additive = proc;
 }
-
-void (*ipixel_card_multi_proc)(IUINT32 *card, int size, IUINT32 color) =
-	ipixel_card_multi;
 
 
 /* ipixel_blend - blend between two formats 
