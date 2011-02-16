@@ -2020,16 +2020,13 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 		else if (a1 > 0) { \
 			a1 = _ipixel_norm(a1); \
 			for (; w > 0; dst += nbytes, w--) { \
-				cx = (*cover++ * a1) >> 8; \
-				if (cx == 255) { \
-					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
-					_ipixel_store(bpp, dst, 0, cc); \
-				} \
-				else if (cx > 0) { \
+				cx = *cover++; \
+				if (cx > 0) { \
+					cx = (cx * a1) >> 8; \
 					cc = _ipixel_fetch(bpp, dst, 0); \
 					IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
 					IBLEND_##mode(r1, g1, b1, cx, r2, g2, b2, a2); \
-					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+					cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
 					_ipixel_store(bpp, dst, 0, cc); \
 				} \
 			} \
@@ -2080,7 +2077,7 @@ static void ipixel_hline_draw_proc_##fmt##_1(void *bits, \
 					cc = _ipixel_fetch(bpp, dst, 0); \
 					IRGBA_FROM_PIXEL(fmt, cc, r2, g2, b2, a2); \
 					IBLEND_ADDITIVE(r1, g1, b1, cx, r2, g2, b2, a2); \
-					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
+					cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
 					_ipixel_store(bpp, dst, 0, cc); \
 				} \
 			} \
