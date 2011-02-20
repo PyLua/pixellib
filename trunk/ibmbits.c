@@ -1827,20 +1827,15 @@ void ipixel_card_multi_default(IUINT32 *card, int size, IUINT32 color)
 {
 	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, f;
 	IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1);
-	if (r1 == g1 && g1 == b1) {
-		a1 = _imul_y_div_255(a1, r1);
-		r1 = g1 = b1 = 255;
-		f = 1;
-	}	else {
-		f = 0;
-	}
+	if ((color & 0xffffff) == 0xffffff) f = 1;
+	else f = 0;
 	if (color == 0xffffffff) {
 		return;
 	}
 	else if (color == 0) {
 		memset(card, 0, sizeof(IUINT32) * size);
 	}
-	else if (f == 1) {
+	else if (f) {
 		IUINT8 *src = (IUINT8*)card;
 		if (a1 == 0) {
 			for (; size > 0; size--) {
