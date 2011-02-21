@@ -1,1160 +1,489 @@
-/**********************************************************************
- *
- * ibmcols.h - internal color definition
- *
- * NOTE: arch. independence header
- * for more information, please see the readme file
- *
- **********************************************************************/
-
-
+//=====================================================================
+//
+// ibmcols.h - ibitmap color components interface
+//
+// NOTE:
+// for more information, please see the readme file
+//
+//=====================================================================
 #ifndef __IBMCOLS_H__
 #define __IBMCOLS_H__
 
 #include "ibitmap.h"
+#include "ibmbits.h"
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
+
+//---------------------------------------------------------------------
+// IUINT64 / IINT64 definition
+//---------------------------------------------------------------------
+#ifndef __IINT64_DEFINED
+	#define __IINT64_DEFINED
+	#if defined(_MSC_VER) || defined(__BORLANDC__)
+		typedef __int64 IINT64;
+	#else
+		typedef long long IINT64;
+	#endif
+#endif
+
+#ifndef __IUINT64_DEFINED
+	#define __IUINT64_DEFINED
+	#if defined(_MSC_VER) || defined(__BORLANDC__)
+		typedef unsigned __int64 IUINT64;
+	#else
+		typedef unsigned long long IUINT64;
+	#endif
 #endif
 
 
-/**********************************************************************
- * COLOR SIZE DEFINITION (ICOLORB:8bit, ICOLORW:16bit, ICOLORD:32bit)
- **********************************************************************/
-#ifndef __IBITMAP_COLOR_TYPES
-#define __IBITMAP_COLOR_TYPES
-typedef unsigned char ICOLORB;
-typedef unsigned short ICOLORW;
-#if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64) \
-	 || defined(__i386__) || defined(__i386) || defined(_M_X86)
-	typedef unsigned int ICOLORD;
-	typedef int ISTDINT32;
-#elif defined(__MACOS__)
-	typedef UInt32 ICOLORD;
-	typedef SInt32 ISTDINT32;
-#elif defined(__APPLE__) && defined(__MACH__)
-	#include <sys/types.h>
-	typedef u_int32_t ICOLORD;
-	typedef int32_t ISTDINT32;
-#elif defined(__BEOS__)
-	#include <sys/inttypes.h>
-	typedef u_int32_t ICOLORD;
-	typedef int32_t ISTDINT32;
-#elif defined(__x86_64) || defined(__x86_64__) || defined(__amd64__) || \
-	defined(__amd64) || defined(_M_IA64) || defined(_M_AMD64)
-	typedef unsigned int ICOLORD;
-	typedef int ISTDINT32;
-#elif (defined(_MSC_VER) || defined(__BORLANDC__)) && (!defined(__MSDOS__))
-	typedef unsigned __int32 ICOLORD;
-	typedef __int32 ISTDINT32;
-#elif defined(__GNUC__)
-	#include <stdint.h>
-	typedef uint32_t ICOLORD;
-	typedef int32_t ISTDINT32;
-#else 
-	typedef unsigned long ICOLORD; 
-	typedef long ISTDINT32;
-#endif
-#endif
+//---------------------------------------------------------------------
+// misc structures
+//---------------------------------------------------------------------
 
-#ifndef __IINT32_DEFINED
-#define __IINT32_DEFINED
-typedef ISTDINT32 IINT32;
-#endif
+// 采样越界控制
+enum IBOM
+{
+	IBOM_TRANSPARENT = 0,	// 越界时，使用透明色，即 IBITMAP::mask
+	IBOM_REPEAT = 1,		// 越界时，重复边界颜色
+	IBOM_WRAP = 2,			// 越界时，使用下一行颜色
+	IBOM_MIRROR = 3,		// 越界时，使用镜像颜色
+};
 
-#ifndef __IUINT32_DEFINED
-#define __IUINT32_DEFINED
-typedef ICOLORD IUINT32;
-#endif
+// 滤波模式
+enum IPIXELFILTER
+{
+	IPIXEL_FILTER_BILINEAR	= 0,	// 滤波模式：双线性过滤采样
+	IPIXEL_FILTER_NEAREST	= 1,	// 滤波模式：最近采样
+};
 
-#ifndef __IINT8_DEFINED
-#define __IINT8_DEFINED
-typedef char IINT8;
-#endif
+// 矩形申明
+struct IRECT
+{
+	int left;
+	int top;
+	int right;
+	int bottom;
+};
 
-#ifndef __IUINT8_DEFINED
-#define __IUINT8_DEFINED
-typedef unsigned char IUINT8;
-#endif
+// 位图模式
+struct IMODE
+{
+	union {
+		struct { 
+			unsigned char reserve1;		// 保留
+			unsigned char reserve2;		// 保留
+			unsigned char pixfmt : 6;	// 颜色格式
+			unsigned char fmtset : 1;	// 是否设置颜色格式
+			unsigned char overflow : 2;	// 越界采样模式，见 IBOM定义
+			unsigned char filter : 2;	// 过滤器
+			unsigned char refbits : 1;	// 是否引用数据
+			unsigned char subpixel : 2;	// 子像素模式
+		};
+		unsigned long mode;
+	};
+};
 
-#ifndef __IUINT16_DEFINED
-#define __IUINT16_DEFINED
-typedef unsigned short IUINT16;
-#endif
-
-#ifndef __IINT16_DEFINED
-#define __IINT16_DEFINED
-typedef short IINT16;
-#endif
-
-
-/**********************************************************************
- * COLOR OPERATION MACRO
- **********************************************************************/
-#ifndef __IBITMAP_COLOR_TYPES
-#define __IBITMAP_COLOR_TYPES
-typedef unsigned long ICOLORD;     /* RAW-COLOR INTEGER: 32bit */
-typedef unsigned short ICOLORW;     /* RAW-COLOR INTEGER: 16bit */
-typedef unsigned char ICOLORB;     /* RAW-COLOR INTEGER: 8bit. */
-#endif
-
-typedef struct IRGB
-{ 
-	unsigned char r, g, b; 
-	unsigned char reserved;
-}	IRGB;
-
+typedef struct IBITMAP IBITMAP;
+typedef struct IRECT IRECT;
+typedef struct IMODE IMODE;
+typedef enum IBOM IBOM;
+typedef enum IPIXELFILTER IPIXELFILTER;
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* endian checking */
-extern long _ishift_endian;
-extern long _ishift_endmag;
+//---------------------------------------------------------------------
+// 位图操作
+//---------------------------------------------------------------------
 
-/* bytes shift 24bits */
-extern int _ishift_data_b1;
-extern int _ishift_data_b2;
-extern int _ishift_data_b3;
+// 取得像素格式，见ibmbits.h中的 IPIX_FMT_xxx
+int ibitmap_pixfmt_get(const IBITMAP *bmp);
 
-/* color scale 1/4/5/6 bits -> 8 bits lookup table */
-extern int _iscale_rgb_1[];
-extern int _iscale_rgb_4[];
-extern int _iscale_rgb_5[];  
-extern int _iscale_rgb_6[];
+// 设置像素格式
+void ibitmap_pixfmt_set(IBITMAP *bmp, int pixfmt);
 
-#ifndef IDISABLE_CONVERT
+// 猜测颜色格式
+int ibitmap_pixfmt_guess(const IBITMAP *src);
 
-/* color converter 15/16 bits -> 32 bits lookup table */
-extern ICOLORD _iconvert_rgb_15_32[];
-extern ICOLORD _iconvert_rgb_16_32[];
+// 取得over flow模式
+enum IBOM ibitmap_overflow_get(const IBITMAP *bmp);
 
-/* color converter 15 bits <-> 16 bits lookup table */
-extern ICOLORW _iconvert_rgb_15_16[];
-extern ICOLORW _iconvert_rgb_16_15[];
-extern ICOLORW _iconvert_rgb_15_15[];
-extern ICOLORW _iconvert_rgb_16_16[];
+// 设置over flow模式
+void ibitmap_overflow_set(IBITMAP *bmp, enum IBOM mode);
 
-/* color converter 1555 <-> 4444 <-> 8888 lookup table */
-extern ICOLORW _iconvert_rgb_1555_4444[];
-extern ICOLORW _iconvert_rgb_4444_1555[];
-extern ICOLORD _iconvert_rgb_1555_8888[];
-extern ICOLORD _iconvert_rgb_4444_8888[];
+// 取得颜色索引
+iColorIndex *ibitmap_index_get(IBITMAP *bmp);
 
-#endif
+// 设置颜色索引
+void ibitmap_index_set(IBITMAP *bmp, iColorIndex *index);
 
-/* global palette array */
-extern IRGB _ipaletted[];
-extern int _icolorconv;
+// 设置滤波器
+void ibitmap_filter_set(IBITMAP *bmp, enum IPIXELFILTER filter);
 
-/* 8 bits min/max saturation table */
-extern const unsigned char _IMINMAX8[];
-extern const unsigned char*_iminmax8;
-extern const unsigned char*_iclip256;
+// 取得滤波器
+enum IPIXELFILTER ibitmap_filter_get(const IBITMAP *bmp);
+
+// BLIT 裁剪
+int ibitmap_clipex(const IBITMAP *dst, int *dx, int *dy, const IBITMAP *src,
+	int *sx, int *sy, int *sw, int *sh, const IRECT *clip, int flags);
 
 
-/**********************************************************************
- * COLOR READ/WRITE FUNCTION (using default A-R-G-B bits order)
- **********************************************************************/
-#define _im_getr8(c) (_ipaletted[c].r)
-#define _im_getg8(c) (_ipaletted[c].g)
-#define _im_getb8(c) (_ipaletted[c].b)
-#define _im_geta8(c) 255
+#define IBLIT_NOCLIP	16
+#define IBLIT_ADDITIVE	32
 
-#define _im_getr15(c) (_iscale_rgb_5[((c) >> 10) & 0x1F])
-#define _im_getg15(c) (_iscale_rgb_5[((c) >> 5) & 0x1F])
-#define _im_getb15(c) (_iscale_rgb_5[((c) >> 0) & 0x1F])
-#define _im_geta15(c) 255
-
-#define _im_getr16(c) (_iscale_rgb_5[((c) >> 11) & 0x1F])
-#define _im_getg16(c) (_iscale_rgb_6[((c) >> 5) & 0x3F])
-#define _im_getb16(c) (_iscale_rgb_5[((c) >> 0) & 0x1F])
-#define _im_geta16(c) 255
-
-#define _im_getr24(c) ( ((c) >> 16) & 0xFF )
-#define _im_getg24(c) ( ((c) >> 8) & 0xFF )
-#define _im_getb24(c) ( ((c) >> 0) & 0xFF )
-#define _im_geta24(c) 255
-
-#define _im_getr32(c) ( ((c) >> 16) & 0xFF )
-#define _im_getg32(c) ( ((c) >> 8) & 0xFF )
-#define _im_getb32(c) ( ((c) >> 0) & 0xFF )
-#define _im_geta32(c) ( ((c) >> 24) & 0xFF )
-
-#define _im_getr4444(c) (_iscale_rgb_4[((c) >> 8) & 15])
-#define _im_getg4444(c) (_iscale_rgb_4[((c) >> 4) & 15])
-#define _im_getb4444(c) (_iscale_rgb_4[((c) >> 0) & 15])
-#define _im_geta4444(c) (_iscale_rgb_4[((c) >> 12) & 15])
-
-#define _im_getr1555(c) (_iscale_rgb_5[((c) >> 10) & 31])
-#define _im_getg1555(c) (_iscale_rgb_5[((c) >> 5) & 31])
-#define _im_getb1555(c) (_iscale_rgb_5[((c) >> 0) & 31])
-#define _im_geta1555(c) (_iscale_rgb_1[((c) >> 15) &  1])
-
-#define _im_getr5551(c) (_iscale_rgb_5[((c) >> 11) & 31])
-#define _im_getg5551(c) (_iscale_rgb_5[((c) >>  6) & 31])
-#define _im_getb5551(c) (_iscale_rgb_5[((c) >>  1) & 31])
-#define _im_geta5551(c) (_iscale_rgb_1[((c) >>  0) &  1])
+// 混色绘制
+void ibitmap_blend(IBITMAP *dst, int dx, int dy, const IBITMAP *src, int sx, 
+	int sy, int w, int h, IUINT32 color, const IRECT *clip, int flags);
 
 
-/* approximate color fetching */
-#define _im_getir8(c) _im_getr8(c)
-#define _im_getig8(c) _im_getg8(c)
-#define _im_getib8(c) _im_getb8(c)
-#define _im_getia8(c) 255
+// 颜色转换
+void ibitmap_convert(IBITMAP *dst, int dx, int dy, const IBITMAP *src, 
+	int sx, int sy, int w, int h, const IRECT *clip, int flags);
 
-#if 1
-/* however switching the '#if' abrove to 1 seems faster then 0 in GCC -O3 */
-#define _im_getir15(c) ( (((c) >> 10) & 0x1F) << 3 )
-#define _im_getig15(c) ( (((c) >> 5) & 0x1F) << 3 )
-#define _im_getib15(c) ( (((c) >> 0) & 0x1F) << 3 )
-#define _im_getia15(c) 255
+// 颜色转换，生成新的IBITMAP
+IBITMAP *ibitmap_convfmt(int dfmt, const IBITMAP *src, const IRGB *spal, 
+	const IRGB *dpal);
 
-#define _im_getir16(c) ( (((c) >> 11) & 0x1F) << 3 )
-#define _im_getig16(c) ( (((c) >> 5) & 0x3F) << 2 )
-#define _im_getib16(c) ( (((c) >> 0) & 0x1F) << 3 )
-#define _im_getia16(c) 255
+// 引用BITMAP
+IBITMAP *ibitmap_reference_new(void *ptr, long pitch, int w, int h, int fmt);
 
-#else
-/* strange why the implementation below is slower than abrove in GCC -O3 */
-#define _im_getir15(c) ( (((c) >> 7) & 0xf8) )
-#define _im_getig15(c) ( (((c) >> 2) & 0xf8) )
-#define _im_getib15(c) ( (((c) << 3) & 0xf8) )
-#define _im_getia15(c) 255
+// 删除引用
+void ibitmap_reference_del(IBITMAP *bitmap);
 
-#define _im_getir16(c) ( (((c) >> 8) & 0xf8) )
-#define _im_getig16(c) ( (((c) >> 3) & 0xfc) )
-#define _im_getib16(c) ( (((c) << 3) & 0xf8) )
-#define _im_getia16(c) 255
+// 调整引用
+void ibitmap_reference_adjust(IBITMAP *bmp, void *ptr, long pitch);
+
+// 绘制矩形
+void ibitmap_rectfill(IBITMAP *dst, int x, int y, int w, int h, IUINT32 c);
+
+// 带遮罩的填充，alpha必须是一个8位格式的alpha位图(IPIX_FMT_A8)
+void ibitmap_maskfill(IBITMAP *dst, int dx, int dy, const IBITMAP *alpha,
+	int sx, int sy, int sw, int sh, IUINT32 color, const IRECT *clip);
+
+// 截取IBITMAP 区域中的部分
+IBITMAP *ibitmap_chop(const IBITMAP *src, int x, int y, int w, int h);
+
+
+//=====================================================================
+// 32位定点数：高16位表示整数，低16位为小数
+//=====================================================================
+#ifndef CFIXED_16_16
+#define CFIXED_16_16
+typedef IINT32 cfixed;
+
+#define cfixed_from_int(i)		(((cfixed)(i)) << 16)
+#define cfixed_from_float(x)	((cfixed)((x) * 65536.0f))
+#define cfixed_from_double(d)	((cfixed)((d) * 65536.0))
+#define cfixed_to_int(f)		((f) >> 16)
+#define cfixed_to_float(x)		((float)((x) / 65536.0f))
+#define cfixed_to_double(f)		((double)((f) / 65536.0))
+#define cfixed_const_1			(cfixed_from_int(1))
+#define cfixed_const_e			((cfixed)(1))
+#define cfixed_const_1_m_e		(cfixed_const_1 - cfixed_const_e)
+#define cfixed_const_half		(cfixed_const_1 >> 1)
+#define cfixed_frac(f)			((f) & cfixed_const_1_m_e)
+#define cfixed_floor(f)			((f) & (~cfixed_const_1_m_e))
+#define cfixed_ceil(f)			(cfixed_floor((f) + 0xffff))
+#define cfixed_mul(x, y)		((cfixed)((((IINT64)(x)) * (y)) >> 16))
+#define cfixed_div(x, y)		((cfixed)((((IINT64)(x)) << 16) / (y)))
+#define cfixed_const_max		((IINT64)0x7fffffff)
+#define cfixed_const_min		(-((((IINT64)1) << 31)))
 
 #endif
 
-#define _im_getir24(c) _im_getr24(c)
-#define _im_getig24(c) _im_getg24(c)
-#define _im_getib24(c) _im_getb24(c)
-#define _im_getia24(c) 255
-
-#define _im_getir32(c) _im_getr32(c)
-#define _im_getig32(c) _im_getg32(c)
-#define _im_getib32(c) _im_getb32(c)
-#define _im_getia32(c) _im_geta32(c)
-
-#define _im_getia1555(c) ( (((c) >> 15) & 0x1) << 7)
-#define _im_getir1555(c) ( (((c) >> 10) & 0x1F) << 3 )
-#define _im_getig1555(c) ( (((c) >> 5) & 0x1F) << 3 )
-#define _im_getib1555(c) ( (((c) >> 0) & 0x1F) << 3 )
-
-#define _im_getia5551(c) _im_geta5551(c)
-#define _im_getir5551(c) ( (((c) >> 11) & 0x1f) << 3 )
-#define _im_getig5551(c) ( (((c) >>  6) & 0x1f) << 3 )
-#define _im_getib5551(c) ( (((c) >>  1) & 0x1f) << 3 )
-
-#define _im_getia4444(c) ( (((c) >>12) & 0xf) << 4 )
-#define _im_getir4444(c) ( (((c) >> 8) & 0xf) << 4 )
-#define _im_getig4444(c) ( (((c) >> 4) & 0xf) << 4 )
-#define _im_getib4444(c) ( (((c) >> 0) & 0xf) << 4 )
-
-#define _im_getia8888(c) _im_getia32(c)
-#define _im_getir8888(c) _im_getir32(c)
-#define _im_getig8888(c) _im_getig32(c)
-#define _im_getib8888(c) _im_getib32(c)
-#define _im_getia555(c) _im_getia15(c)
-#define _im_getir555(c) _im_getir15(c)
-#define _im_getig555(c) _im_getig15(c)
-#define _im_getib555(c) _im_getib15(c)
-#define _im_getia565(c) _im_getia16(c)
-#define _im_getir565(c) _im_getir16(c)
-#define _im_getig565(c) _im_getig16(c)
-#define _im_getib565(c) _im_getib16(c)
-#define _im_getia888(c) _im_getia24(c)
-#define _im_getir888(c) _im_getir24(c)
-#define _im_getig888(c) _im_getig24(c)
-#define _im_getib888(c) _im_getib24(c)
-
-#define _im_unpack_rgb(col, bpp, r, g, b) do { \
-		(r) = _im_getir##bpp(col); \
-		(g) = _im_getig##bpp(col); \
-		(b) = _im_getib##bpp(col); \
-	}	while (0)
-
-#define _im_unpack_argb(col, bpp, a, r, g, b) do { \
-		(a) = _im_getia##bpp(col); \
-		(r) = _im_getir##bpp(col); \
-		(g) = _im_getig##bpp(col); \
-		(b) = _im_getib##bpp(col); \
-	}	while (0)
 
 
-#define _im_scale_rgb(col, bpp, r, g, b) do { \
-		(r) = _im_getr##bpp(col); \
-		(g) = _im_getg##bpp(col); \
-		(b) = _im_getb##bpp(col); \
-	}	while (0)
+//=====================================================================
+// 扫描线操作
+//=====================================================================
 
-#define _im_scale_bgr(col, bpp, r, g, b) \
-		_im_scale_rgb(col, bpp, b, g, r)
+void ibitmap_scanline_store(IBITMAP *bmp, int x, int y, int w,
+	const IUINT32 *card, const IRECT *clip, iStoreProc store);
 
-#define _im_scale_argb(col, bpp, a, r, g, b) do { \
-		(a) = _im_geta##bpp(col); \
-		(r) = _im_getr##bpp(col); \
-		(g) = _im_getg##bpp(col); \
-		(b) = _im_getb##bpp(col); \
-	}	while (0)
-
-#define _im_scale_abgr(col, bpp, a, r, g, b) \
-		_im_scale_argb(col, bpp, a, b, g, r)
-
-#define _im_scale_rgba(col, bpp, a, r, g, b) \
-		_im_scale_argb(col, bpp, r, g, b, a)
-
-#define _im_scale_bgra(col, bpp, a, r, g, b) \
-		_im_scale_argb(col, bpp, b, g, r, a)
+void ibitmap_scanline_blend(IBITMAP *bmp, int x, int y, int w, const IUINT32 
+	*card, const IUINT8 *cover, const IRECT *clip, iSpanDrawProc span);
 
 
-/* color packing */
-#define _im_pack_c8(r, g, b) ((ICOLORB)( \
-			((ICOLORB)((r) & 0xe0) << 0) | \
-			((ICOLORB)((g) & 0xe0) >> 3) | \
-			((ICOLORB)((b) & 0xff) >> 6)))
+// 取得扫描线像素的函数定义
+typedef void (*iBitmapFetchProc)(const IBITMAP *bmp, IUINT32 *card, int w,
+	const cfixed *srcvec, const cfixed *stepvec, const IRECT *clip);
 
-#define _im_pack_c15(r, g, b) ((ICOLORW)( \
-			((ICOLORW)((r) & 0xf8) << 7) | \
-			((ICOLORW)((g) & 0xf8) << 2) | \
-			((ICOLORW)((b) & 0xf8) >> 3)))
-
-#define _im_pack_c16(r, g, b) ((ICOLORW)( \
-			((ICOLORW)((r) & 0xf8) << 8) | \
-			((ICOLORW)((g) & 0xfc) << 3) | \
-			((ICOLORW)((b) & 0xf8) >> 3)))
-
-#define _im_pack_c24(r, g, b) ((ICOLORD)( \
-            ((ICOLORD)(r) << 16) | \
-            ((ICOLORD)(g) << 8) | \
-            ((ICOLORD)(b) << 0)))
-
-#define _im_pack_c32(r, g, b) ((ICOLORD)( \
-            ((ICOLORD)(r) << 16) | \
-            ((ICOLORD)(g) << 8) | \
-            ((ICOLORD)(b) << 0)))
-
-#define _im_pack_a32(a, r, g, b) ((ICOLORD)( \
-            ((ICOLORD)(r) << 16) | \
-            ((ICOLORD)(g) << 8) | \
-            ((ICOLORD)(b) << 0) | \
-            ((ICOLORD)(a) << 24)))
-
-#define _im_pack_a8888(a, r, g, b) \
-			_im_pack_a32(a, r, g, b)
-
-#define _im_pack_a1555(a, r, g, b) \
-			(_im_pack_c15(r, g, b) | ((((ICOLORW)(a)) & 0x80) << 8))
-
-#define _im_pack_a5551(a, r, g, b) \
-			((_im_pack_c15(r, g, b) << 1) | ((a) >> 7))
-
-#define _im_pack_a4444(a, r, g, b)  ((ICOLORW)( \
-			((ICOLORW)((r) & 0xf0) << 4) | \
-			((ICOLORW)((g) & 0xf0) << 0) | \
-			((ICOLORW)((b) & 0xf0) >> 4) | \
-			((ICOLORW)((a) & 0xf0) << 8)))
-
-#define _im_pack_a8 (a, r, g, b) _im_pack_c8(r, g, b)
-#define _im_pack_a15(a, r, g, b) _im_pack_c15(r, g, b)
-#define _im_pack_a16(a, r, g, b) _im_pack_c16(r, g, b)
-#define _im_pack_a24(a, r, g, b) _im_pack_c24(r, g, b)
-
-#define _im_pack_rgb(bpp, r, g, b) \
-			_im_pack_c##bpp(r, g, b)
-
-#define _im_pack_bgr(bpp, r, g, b) \
-			_im_pack_rgb(bpp, b, g, r)
-
-#define _im_pack_argb(bpp, a, r, g, b) \
-			_im_pack_a##bpp(a, r, g, b)
-
-#define _im_pack_abgr(bpp, a, r, g, b) \
-			_im_pack_argb(bpp, a, b, g, r)
-
-#define _im_pack_rgba(bpp, a, r, g, b) \
-			_im_pack_argb(bpp, r, g, b, a)
-
-#define _im_pack_bgra(bpp, a, r, g, b) \
-			_im_pack_argb(bpp, b, g, r, a)
+// 浮点数取得扫描线的函数定义
+typedef void (*iBitmapFetchFloat)(const IBITMAP *bmp, IUINT32 *card, int w,
+	const float *srcvec, const float *stepvec, const IRECT *clip);
 
 
-#define iRGB(r, g, b) _im_pack_rgb(32, r, g, b)
-#define iARGB(a, r, g, b) _im_pack_argb(32, a, r, g, b)
+// 取得扫描线的模式
+#define IBITMAP_FETCH_GENERAL_NEAREST				0
+#define IBITMAP_FETCH_GENERAL_BILINEAR				1
+#define IBITMAP_FETCH_TRANSLATE_NEAREST				2
+#define IBITMAP_FETCH_TRANSLATE_BILINEAR			3
+#define IBITMAP_FETCH_SCALE_NEAREST					4
+#define IBITMAP_FETCH_SCALE_BILINEAR				5
+#define IBITMAP_FETCH_REPEAT_TRANSLATE_NEAREST		6
+#define IBITMAP_FETCH_REPEAT_TRANSLATE_BILINEAR		7
+#define IBITMAP_FETCH_REPEAT_SCALE_NEAREST			8
+#define IBITMAP_FETCH_REPEAT_SCALE_BILINEAR			9
+#define IBITMAP_FETCH_WRAP_TRANSLATE_NEAREST		10
+#define IBITMAP_FETCH_WRAP_TRANSLATE_BILINEAR		11
+#define IBITMAP_FETCH_WRAP_SCALE_NEAREST			12
+#define IBITMAP_FETCH_WRAP_SCALE_BILINEAR			13
+#define IBITMAP_FETCH_MIRROR_TRANSLATE_NEAREST		14
+#define IBITMAP_FETCH_MIRROR_TRANSLATE_BILINEAR		15
+#define IBITMAP_FETCH_MIRROR_SCALE_NEAREST			16
+#define IBITMAP_FETCH_MIRROR_SCALE_BILINEAR			17
 
 
-/**********************************************************************
- * BYTES GET/PUT
- **********************************************************************/
-#define _im_get1b(p) (((ICOLORB*)(p))[0])
-#define _im_get2b(p) (((ICOLORW*)(p))[0])
-#define _im_get4b(p) (((ICOLORD*)(p))[0])
+// 取得扫描线函数
+iBitmapFetchProc ibitmap_scanline_get_proc(int pixfmt, int mode, int isdef);
 
-#define _im_put1b(p, c) (((ICOLORB*)(p))[0] = (ICOLORB)(c))
-#define _im_put2b(p, c) (((ICOLORW*)(p))[0] = (ICOLORW)(c))
-#define _im_put4b(p, c) (((ICOLORD*)(p))[0] = (ICOLORD)(c))
+// 取得浮点数扫描线函数
+iBitmapFetchFloat ibitmap_scanline_get_float(int pixfmt, int isdefault);
 
-#define _im_get3bx(p, b1, b2, b3) ( \
-		(((ICOLORD)((ICOLORB*)(p))[0]) << (b1)) | \
-		(((ICOLORD)((ICOLORB*)(p))[1]) << (b2)) | \
-		(((ICOLORD)((ICOLORB*)(p))[2]) << (b3)) )
+// 设置扫描线函数
+void ibitmap_scanline_set_proc(int pixfmt, int mode, iBitmapFetchProc proc);
 
-#define _im_put3bx(p, c, b1, b2, b3) \
-		((ICOLORB*)(p))[0] = (ICOLORB)(((c) >> b1) & 0xFF), \
-		((ICOLORB*)(p))[1] = (ICOLORB)(((c) >> b2) & 0xFF), \
-		((ICOLORB*)(p))[2] = (ICOLORB)(((c) >> b3) & 0xFF)
+// 设置扫描线浮点函数
+void ibitmap_scanline_set_float(int pixfmt, iBitmapFetchFloat proc);
 
-#define _im_get3b(p) ( \
-        (((ICOLORD)((ICOLORB*)(p))[0]) << _ishift_data_b1) | \
-		(((ICOLORD)((ICOLORB*)(p))[1]) << _ishift_data_b2) | \
-		(((ICOLORD)((ICOLORB*)(p))[2]) << _ishift_data_b3) )
-
-#define _im_put3b(p, c) do { \
-		((ICOLORB*)(p))[0] = (ICOLORB)(((c) >> _ishift_data_b1) & 0xFF); \
-		((ICOLORB*)(p))[1] = (ICOLORB)(((c) >> _ishift_data_b2) & 0xFF); \
-		((ICOLORB*)(p))[2] = (ICOLORB)(((c) >> _ishift_data_b3) & 0xFF); \
-	}	while (0)
+// 取得模式
+int ibitmap_scanline_get_mode(const IBITMAP *bmp, const cfixed *src,
+	const cfixed *step);
 
 
-#define ICOLORCONV_MASK_TRANS	1
-#define ICOLORCONV_KEEP_TRANS	2
-#define ICOLORCONV_DITHER_BLIT	4
+// 通用取得浮点扫描线
+void ibitmap_scanline_float(const IBITMAP *bmp, IUINT32 *card, int w,
+	const float *srcvec, const float *stepvec, const IRECT *clip);
+
+// 通用取得描线：使用浮点数内核的定点数接口
+void ibitmap_scanline_fixed(const IBITMAP *bmp, IUINT32 *card, int w,
+	const cfixed *srcvec, const cfixed *stepvec, const IRECT *clip);
 
 
-void _ishift_init(void);
-int _igenerate_332_palette(IRGB *pal);
+//---------------------------------------------------------------------
+// 通用部分
+//---------------------------------------------------------------------
+#define ibitmap_imode(bmp, _FIELD) (((IMODE*)&((bmp)->mode))->_FIELD)
+
+#define ibitmap_imode_const(bmp, _FIELD) \
+	(((const IMODE*)&((bmp)->mode))->_FIELD)
+
+#ifndef IBITMAP_STACK_BUFFER
+	#define IBITMAP_STACK_BUFFER	16384
+#endif
+
+/* draw pixel list with single color */
+typedef void (*iPixelListSC)(IBITMAP *bmp, const IUINT32 *xy, int count,
+	IUINT32 color, int additive);
+
+/* draw pixel list with different color */
+typedef void (*iPixelListMC)(IBITMAP *bmp, const IUINT32 *xycol, int count,
+	int additive);
 
 
+iPixelListSC ibitmap_get_pixel_list_sc_proc(int pixfmt, int isdefault);
 
-/**********************************************************************
- * PIXEL FORMAT 
- **********************************************************************/
-#define IPIX_FMT_NONE	0
-#define IPIX_FMT_8		1
-#define IPIX_FMT_RGB15	2
-#define IPIX_FMT_BGR15	3
-#define IPIX_FMT_RGB16	4
-#define IPIX_FMT_BGR16	5
-#define IPIX_FMT_RGB24	6
-#define IPIX_FMT_BGR24	7
-#define IPIX_FMT_RGB32	8
-#define IPIX_FMT_BGR32	9
+iPixelListMC ibitmap_get_pixel_list_mc_proc(int pixfmt, int isdefault);
 
-#define IPIX_FMT_ARGB32	10
-#define IPIX_FMT_ABGR32	11
-#define IPIX_FMT_RGBA32	12
-#define IPIX_FMT_BGRA32	13
+void ibitmap_set_pixel_list_sc_proc(int pixfmt, iPixelListSC proc);
 
-#define IPIX_FMT_ARGB_4444	14
-#define IPIX_FMT_ABGR_4444	15
-#define IPIX_FMT_RGBA_4444	16
-#define IPIX_FMT_BGRA_4444	17
-
-#define IPIX_FMT_ARGB_1555 18
-#define IPIX_FMT_ABGR_1555 19
-#define IPIX_FMT_RGBA_5551 20
-#define IPIX_FMT_BGRA_5551 21
-#define IPIX_FMT_OTHER     22
+void ibitmap_set_pixel_list_mc_proc(int pixfmt, iPixelListMC proc);
 
 
-struct IPIXELFMT
+void ibitmap_draw_pixel_list_sc(IBITMAP *bmp, const IUINT32 *xy, int count,
+	IUINT32 color, int additive);
+
+void ibitmap_draw_pixel_list_mc(IBITMAP *bmp, const IUINT32 *xyc, int count,
+	int additive);
+
+
+//=====================================================================
+// GLYPH IMPLEMENTATION
+//=====================================================================
+typedef struct
 {
-	int type;                     /* IPIX_FMT_...          */
-	int bpp;                      /* pixel depth           */
-	int use_bgr;                  /* 0: RGB, 1: BGR        */
-	int has_alpha;                /* 0: no alpha, 1: alpha */
-	int alpha_pos;                /* 0: AXXX, 1: XXXA      */
-	ICOLORD rmask;
-	ICOLORD gmask;
-	ICOLORD bmask;
-	ICOLORD amask;
-	int rshift;
-	int gshift;
-	int bshift;
-	int ashift;
-	int rloss;
-	int gloss;
-	int bloss;
-	int aloss;
-};
-
-extern const struct IPIXELFMT ipixel_fmt[];
-typedef struct IPIXELFMT IPIXELFMT;
-
-/* set pixel format */
-void ibitmap_set_pixfmt(struct IBITMAP *bmp, int pixelfmt);
-
-
-/* set rgb color in given format */
-ICOLORD _im_color_set(int pixfmt, ICOLORD rgb, const IRGB *pal);
-
-/* get raw color from given format */
-ICOLORD _im_color_get(int pixfmt, ICOLORD raw, const IRGB *pal);
-
-
-/**********************************************************************
- * PIXEL GET/PUT
- **********************************************************************/
-#define _ipixel_get_1(ptr)   _im_get1b(ptr)
-#define _ipixel_get_2(ptr)   _im_get2b(ptr)
-#define _ipixel_get_3(ptr)   _im_get3b(ptr)
-#define _ipixel_get_4(ptr)   _im_get4b(ptr)
-#define _ipixel_get_8(ptr)   _im_get1b(ptr)
-#define _ipixel_get_15(ptr)  _im_get2b(ptr)
-#define _ipixel_get_16(ptr)  _im_get2b(ptr)
-#define _ipixel_get_24(ptr)  _im_get3b(ptr)
-#define _ipixel_get_32(ptr)  _im_get4b(ptr)
-
-#define _ipixel_put_1(ptr, col)  _im_put1b(ptr, col)
-#define _ipixel_put_2(ptr, col)  _im_put2b(ptr, col)
-#define _ipixel_put_3(ptr, col)  _im_put3b(ptr, col)
-#define _ipixel_put_4(ptr, col)  _im_put4b(ptr, col)
-#define _ipixel_put_8(ptr, col)  _im_put1b(ptr, col)
-#define _ipixel_put_15(ptr, col) _im_put2b(ptr, col)
-#define _ipixel_put_16(ptr, col) _im_put2b(ptr, col)
-#define _ipixel_put_24(ptr, col) _im_put3b(ptr, col)
-#define _ipixel_put_32(ptr, col) _im_put4b(ptr, col)
-
-#define _ipixel_get(bpp, ptr)      _ipixel_get_##bpp(ptr)
-#define _ipixel_put(bpp, ptr, col) _ipixel_put_##bpp(ptr, col)
-
-
-/**********************************************************************
- * BITMAP OPERATION MACRO
- **********************************************************************/
-typedef struct IBITMAP IBITMAP;
-
-#define IFLAG_USEBGR	1	/* Bitmap - inverse bytes order (b,g,r,a) */
-#define IFLAG_MTLOCK	2	/* Bitmap - must lock the bitmap          */
-#define IFLAG_HAVEALPHA	4	/* Bitmap - have alpha channel            */
-#define IFLAG_ALPHALOW  8   /* Bitmap - alpha in low bit order        */
-
-#define IBCLIP	1			/* BLIT - use area clip			*/
-#define IBCKEY	2			/* BLIT - use source color key	*/
-
-#define _ilineptr(bmp, y) ((unsigned char*)((bmp)->line[y]))
-
-#define _iget8(bmp, x, y ) _im_get1b(_ilineptr(bmp, y) + (x))
-#define _iget15(bmp, x, y) _im_get2b(_ilineptr(bmp, y) + (x) * 2)
-#define _iget16(bmp, x, y) _im_get2b(_ilineptr(bmp, y) + (x) * 2)
-#define _iget24(bmp, x, y) _im_get3b(_ilineptr(bmp, y) + (x) * 3)
-#define _iget32(bmp, x, y) _im_get4b(_ilineptr(bmp, y) + (x) * 4)
-
-#define _iput8(b, x, y, c ) _im_put1b(_ilineptr(b, y) + (x), c)
-#define _iput15(b, x, y, c) _im_put2b(_ilineptr(b, y) + (x) * 2, c)
-#define _iput16(b, x, y, c) _im_put2b(_ilineptr(b, y) + (x) * 2, c)
-#define _iput24(b, x, y, c) _im_put3b(_ilineptr(b, y) + (x) * 3, c)
-#define _iput32(b, x, y, c) _im_put4b(_ilineptr(b, y) + (x) * 4, c)
-
-#define _ibitmap_w(bmp)      ((long)((bmp)->w))
-#define _ibitmap_h(bmp)      ((long)((bmp)->h))
-#define _ibitmap_bpp(bmp)    ((long)((bmp)->bpp))
-#define _ibitmap_pitch(bmp)  ((long)((bmp)->pitch))
-
-#define _ibitmap_mask(bmp)   ((bmp)->mask)
-#define _ibitmap_colorkey(bmp) _ibitmap_mask(bmp)
-#define _ibitmap_npixelbytes(bmp)  ((_ibitmap_bpp(bmp) + 7) >> 3)
-
-#define _ibitmap_mode(b) ((b)->mode)
-#define _ibitmap_code(b) ((b)->code)
-
-#define _ibitmap_flags(b, flag) (_ibitmap_mode(b) & flag)
-#define _ibitmap_flags_chk(b, flag) _ibitmap_flags(b, flag)
-
-#define _ibitmap_flags_set(b, flag) \
-	_ibitmap_mode(b) = (_ibitmap_mode(b) | flag)
-#define _ibitmap_flags_clr(b, flag) \
-	_ibitmap_mode(b) = (_ibitmap_mode(b) & (~((ICOLORD)flag)))
-
-#define _ibitmap_isbgr(b)    _ibitmap_flags(b, IFLAG_USEBGR)
-#define _ibitmap_mustlock(b) _ibitmap_flags(b, IFLAG_MUSTLOCK)
-
-/* set & get byte order */
-#define _ibitmap_order(b) (_ibitmap_mode(b) >> 16)
-#define _ibitmap_set_order(b, order) do { \
-		_ibitmap_mode(b) = (_ibitmap_mode(b) & 0xffff) | \
-		(((order) & 0x7fff) << 16); \
-	}	while (0)
-
-/* set & get color fmt */
-#define _ibitmap_pixfmt(b) ((_ibitmap_mode(b) >> 8) & 0xff)
-#define _ibitmap_set_pixfmt(b, fmt) do { \
-		_ibitmap_mode(b) = (_ibitmap_mode(b) & (~0xff00ul)) | \
-		(((fmt) & 0xff) << 8); \
-	}	while (0)
-
-/* set & get class */
-#define _ibitmap_class(b) (_ibitmap_mode(b) & 0xff)
-#define _ibitmap_set_class(b, c) do { \
-		_ibitmap_mode(b) = (_ibitmap_mode(b) & (~0xfful)) | \
-		((c & 0xff)); \
-	}	while (0)	
-
-
-
-
-/**********************************************************************
- * LIN's LOOP UNROLL MACROs: 
- * Actually Duff's unroll macro isn't compatible with vc7 because
- * of non-standard usage of 'switch' & 'for' statement. 
- * the macros below are standard implementation of loop unroll
- **********************************************************************/
-#define ILINS_LOOP_UNROLL(action, width) do { \
-	unsigned long __width = (unsigned long)(width); \
-	unsigned long __increment = __width >> 3; \
-	for (; __increment > 0; __increment--) { \
-		action; action; action; action; \
-		action; action; action; action; \
-	}	\
-	for (__width = __width & 7; __width > 0; __width--) { action; } \
-}	while (0)
-
-#define ILINS_LOOP_DOUBLE(actionx1, actionx2, width) do { \
-	unsigned long __width = (unsigned long)(width); \
-	unsigned long __increment = __width >> 2; \
-	for (; __increment > 0; __increment--) { actionx2; actionx2; } \
-	if (__width & 2) { actionx2; } \
-	if (__width & 1) { actionx1; }  \
-}	while (0)
-
-#define ILINS_LOOP_QUATRO(actionx1, actionx2, actionx4, width) do { \
-	unsigned long __width = (unsigned long)(width);	\
-	unsigned long __increment = __width >> 2; \
-	for (; __increment > 0; __increment--) { actionx4; }	\
-	if (__width & 2) { actionx2; } \
-	if (__width & 1) { actionx1; } \
-}	while (0)
-
-#define ILINS_LOOP_ONCE(action, width) do { \
-	unsigned long __width = (unsigned long)(width); \
-	for (; __width > 0; __width--) { action; } \
-}	while (0)
-
-
-
-/**********************************************************************
- * PIXEL ASSEMBLEY
- **********************************************************************/
-#define IRGBA_FROM_8(c, r, g, b, a) _im_scale_argb(c, 8, a, r, g, b)
-
-#define IRGBA_FROM_RGB15(c, r, g, b, a) _im_scale_argb(c, 15, a, r, g, b)
-#define IRGBA_FROM_BGR15(c, r, g, b, a) _im_scale_argb(c, 15, a, b, g, r)
-#define IRGBA_FROM_RGB16(c, r, g, b, a) _im_scale_argb(c, 16, a, r, g, b)
-#define IRGBA_FROM_BGR16(c, r, g, b, a) _im_scale_argb(c, 16, a, b, g, r)
-#define IRGBA_FROM_RGB24(c, r, g, b, a) _im_scale_argb(c, 24, a, r, g, b)
-#define IRGBA_FROM_BGR24(c, r, g, b, a) _im_scale_argb(c, 24, a, b, g, r)
-
-#define IRGBA_FROM_RGB32(c, r, g, b, a) { \
-	_im_scale_rgb(c, 32, r, g, b); a = 255; }
-#define IRGBA_FROM_BGR32(c, r, g, b, a) { \
-	_im_scale_rgb(c, 32, b, g, r); a = 255; }
-
-#define IRGBA_FROM_ARGB32(c, r, g, b, a) _im_scale_argb(c, 32, a, r, g, b)
-#define IRGBA_FROM_ABGR32(c, r, g, b, a) _im_scale_argb(c, 32, a, b, g, r)
-#define IRGBA_FROM_RGBA32(c, r, g, b, a) _im_scale_argb(c, 32, r, g, b, a)
-#define IRGBA_FROM_BGRA32(c, r, g, b, a) _im_scale_argb(c, 32, b, g, r, a)
-
-#define IRGBA_FROM_ARGB_4444(c, r, g, b, a) \
-	_im_scale_argb(c, 4444, a, r, g, b)
-
-#define IRGBA_FROM_ABGR_4444(c, r, g, b, a) \
-	_im_scale_argb(c, 4444, a, b, g, r)
-
-#define IRGBA_FROM_RGBA_4444(c, r, g, b, a) \
-	_im_scale_argb(c, 4444, r, g, b, a)
-
-#define IRGBA_FROM_BGRA_4444(c, r, g, b, a) \
-	_im_scale_argb(c, 4444, b, g, r, a)
-
-#define IRGBA_FROM_ARGB_1555(c, r, g, b, a) \
-	_im_scale_argb(c, 1555, a, r, g, b)
-
-#define IRGBA_FROM_ABGR_1555(c, r, g, b, a) \
-	_im_scale_argb(c, 1555, a, b, g, r)
-
-#define IRGBA_FROM_RGBA_5551(c, r, g, b, a) \
-	_im_scale_argb(c, 5551, a, r, g, b)
-
-#define IRGBA_FROM_BGRA_5551(c, r, g, b, a) \
-	_im_scale_argb(c, 5551, a, b, g, r)
-
-
-#define IRGB_FROM_8(c, r, g, b) _im_scale_rgb(c, 8, r, g, b)
-#define IRGB_FROM_RGB15(c, r, g, b) _im_scale_rgb(c, 15, r, g, b)
-#define IRGB_FROM_BGR15(c, r, g, b) _im_scale_rgb(c, 15, b, g, r)
-#define IRGB_FROM_RGB16(c, r, g, b) _im_scale_rgb(c, 16, r, g, b)
-#define IRGB_FROM_BGR16(c, r, g, b) _im_scale_rgb(c, 16, b, g, r)
-#define IRGB_FROM_RGB24(c, r, g, b) _im_scale_rgb(c, 24, r, g, b)
-#define IRGB_FROM_BGR24(c, r, g, b) _im_scale_rgb(c, 24, b, g, r)
-#define IRGB_FROM_RGB32(c, r, g, b) _im_scale_rgb(c, 32, r, g, b)
-#define IRGB_FROM_BGR32(c, r, g, b) _im_scale_rgb(c, 32, b, g, r)
-#define IRGB_FROM_ARGB32(c, r, g, b) _im_scale_rgb(c, 32, r, g, b)
-#define IRGB_FROM_ABGR32(c, r, g, b) _im_scale_rgb(c, 32, b, g, r)
-#define IRGB_FROM_RGBA32(c, r, g, b) { \
-		r = _im_geta32(c); g = _im_getr32(c); b = _im_getg32(c); } 
-#define IRGB_FROM_BGRA32(c, r, g, b) IRGB_FROM_RGBA32(c, b, g, r)
-
-#define IRGB_FROM_ARGB_4444(c, r, g, b) _im_scale_rgb(c, 4444, r, g, b)
-#define IRGB_FROM_ABGR_4444(c, r, g, b) _im_scale_rgb(c, 4444, r, g, b)
-#define IRGB_FROM_RGBA_4444(c, r, g, b) { \
-		r = _im_geta4444(c); g = _im_getr4444(c); b = _im_getg4444(c); }
-#define IRGB_FROM_BGRA_4444(c, r, g, b) IRGB_FROM_RGBA_4444(c, b, g, r)
-
-#define IRGB_FROM_ARGB_1555(c, r, g, b) _im_scale_rgb(c, 1555, r, g, b)
-#define IRGB_FROM_ABGR_1555(c, r, g, b) _im_scale_rgb(c, 1555, b, g, r)
-#define IRGB_FROM_RGBA_5551(c, r, g, b) _im_scale_rgb(c, 5551, r, g, b)
-#define IRGB_FROM_BGRA_5551(c, r, g, b) _im_scale_rgb(c, 5551, b, g, r)
-
-#define IRGBA_TO_8(r, g, b, a) _im_pack_rgb(8, r, g, b)
-#define IRGBA_TO_RGB15(r, g, b, a) _im_pack_rgb(15, r, g, b)
-#define IRGBA_TO_BGR15(r, g, b, a) _im_pack_rgb(15, b, g, r)
-#define IRGBA_TO_RGB16(r, g, b, a) _im_pack_rgb(16, r, g, b)
-#define IRGBA_TO_BGR16(r, g, b, a) _im_pack_rgb(16, b, g, r)
-#define IRGBA_TO_RGB24(r, g, b, a) _im_pack_rgb(24, r, g, b)
-#define IRGBA_TO_BGR24(r, g, b, a) _im_pack_rgb(24, b, g, r)
-#define IRGBA_TO_RGB32(r, g, b, a) _im_pack_rgb(32, r, g, b)
-#define IRGBA_TO_BGR32(r, g, b, a) _im_pack_rgb(32, b, g, r)
-#define IRGBA_TO_ARGB32(r, g, b, a) _im_pack_argb(32, a, r, g, b)
-#define IRGBA_TO_ABGR32(r, g, b, a) _im_pack_argb(32, a, b, g, r)
-#define IRGBA_TO_RGBA32(r, g, b, a) _im_pack_argb(32, r, g, b, a)
-#define IRGBA_TO_BGRA32(r, g, b, a) _im_pack_argb(32, b, g, r, a)
-#define IRGBA_TO_ARGB_4444(r, g, b, a) _im_pack_argb(4444, a, r, g, b)
-#define IRGBA_TO_ABGR_4444(r, g, b, a) _im_pack_argb(4444, a, b, g, r)
-#define IRGBA_TO_RGBA_4444(r, g, b, a) _im_pack_argb(4444, r, g, b, a)
-#define IRGBA_TO_BGRA_4444(r, g, b, a) _im_pack_argb(4444, b, g, r, a)
-#define IRGBA_TO_ARGB_1555(r, g, b, a) _im_pack_argb(1555, a, r, g, b)
-#define IRGBA_TO_ABGR_1555(r, g, b, a) _im_pack_argb(1555, a, b, g, r)
-#define IRGBA_TO_RGBA_5551(r, g, b, a) _im_pack_argb(5551, a, r, g, b)
-#define IRGBA_TO_BGRA_5551(r, g, b, a) _im_pack_argb(5551, a, b, g, r)
-
-
-#define IRGBA_FROM_PIXEL(c, fmt, r, g, b, a) IRGBA_FROM_##fmt(c, r, g, b, a)
-#define IRGB_FROM_PIXEL(c, fmt, r, g, b) IRGB_FROM_##fmt(c, r, g, b)
-
-#define IRGBA_TO_PIXEL(fmt, r, g, b, a) IRGBA_TO_##fmt(r, g, b, a)
-#define IRGB_TO_PIXEL(fmt, r, g, b) IRGBA_TO_PIXEL(fmt, r, g, b, 255)
-
-#define IRGBA_FROM_COLOR(c, fmt, r, g, b, a) do { \
-	r = ((((ICOLORD)(c)) & (fmt)->rmask) >> (fmt)->rshift) << (fmt)->rloss; \
-	g = ((((ICOLORD)(c)) & (fmt)->gmask) >> (fmt)->gshift) << (fmt)->gloss; \
-	b = ((((ICOLORD)(c)) & (fmt)->bmask) >> (fmt)->bshift) << (fmt)->bloss; \
-	a = ((((ICOLORD)(c)) & (fmt)->amask) >> (fmt)->ashift) << (fmt)->aloss; \
-}	while (0)
-
-#define IRGB_FROM_COLOR(c, fmt, r, g, b) do { \
-	r = ((((ICOLORD)(c)) & (fmt)->rmask) >> (fmt)->rshift) << (fmt)->rloss; \
-	g = ((((ICOLORD)(c)) & (fmt)->gmask) >> (fmt)->gshift) << (fmt)->gloss; \
-	b = ((((ICOLORD)(c)) & (fmt)->bmask) >> (fmt)->bshift) << (fmt)->bloss; \
-}	while (0)
-
-#define IRGBA_TO_COLOR(fmt, r, g, b, a) ( \
-	(((r) >> (fmt)->rloss) << (fmt)->rshift) | \
-	(((g) >> (fmt)->gloss) << (fmt)->gshift) | \
-	(((b) >> (fmt)->bloss) << (fmt)->bshift) | \
-	(((a) >> (fmt)->aloss) << (fmt)->ashift))
-
-#define IRGB_TO_COLOR(fmt, r, g, b) ( \
-	(((r) >> (fmt)->rloss) << (fmt)->rshift) | \
-	(((g) >> (fmt)->gloss) << (fmt)->gshift) | \
-	(((b) >> (fmt)->bloss) << (fmt)->bshift))
-
-
-/**********************************************************************
- * PLATFORM DEPEDENCE
- **********************************************************************/
-#if (defined(__BORLANDC__) || defined(__WATCOMC__))
-#if (defined(__BORLANDC__) && (!defined(__MSDOS__)))
-#pragma warn -8002  
-#pragma warn -8004  
-#pragma warn -8008  
-#pragma warn -8012
-#pragma warn -8027
-#pragma warn -8057  
-#pragma warn -8066
-#elif !defined(__BORLANDC__)
-#pragma warn -533
-#endif
-#endif
-
-#if (defined(BUILD_TINY) || defined(__MSDOS__))
-#ifndef IDISABLE_CONVERT
-#define IDISABLE_CONVERT
-#endif
-#ifndef IDISABLE_BLEND
-#define IDISABLE_BLEND
-#endif
-#endif
-
-
-
-/**********************************************************************
- * PALETTE OPERATION
- **********************************************************************/
-
-/* find best fit color */
-int _ibestfit_color(const IRGB *pal, int r, int g, int b, int palsize);
-
-/* generate bestfit color lookup table 
- *     nbits = 4     format = R4G4B4, tabsize = 4096       (2 ^ 12)
- *     nbits = 5     format = R5G5B5, tabsize = 32768      (2 ^ 15)
- *     nbits = 6     format = R6G6B6, tabsize = 262144     (2 ^ 18)
- *     nbits = 7     format = R7G7B7, tabsize = 2097152    (2 ^ 21)
- *     nbits = 8     format = R8G8B8, tabsize = 16777216   (2 ^ 24)
- */
-int _ibestfit_table(const IRGB *pal, int len, unsigned char *out, int nbits);
-
-
-/**********************************************************************
- * BITMAP COLOR CONVERTION
- **********************************************************************/
-
-/* skipping src-mask (src colorkey) when performancing converting,
-   enable this flag will using color-shifting method (no matter
-   wheather ICONV_SHIFT is set */
-#define ICONV_MASK         IBLIT_MASK
-
-/* ICONV_RGB2BGR / ICONV_BGR2RGB is needed when converting needs to swap 
-   color order from RGB to BGR or from BGR to RGB. For example, when you 
-   want to convert R8G8B8 to B8G8R8, R5B5G5 to B8G8R8, just enable it */
-#define ICONV_RGB2BGR      32
-#define ICONV_BGR2RGB      ICONV_RGB2BGR
-
-/* when converting lowwer color bits to higher bits, 16bits -> 24bits etc,
-   there are two way to do it: lookup-table (default) & bits-shifting
-   lookup-table will not cause color losing and fast in most platform,
-   bits-shifting will cause color losing, enable ICONV_SHIFT to use it */
-#define ICONV_SHIFT        64
-
-#define ICONV_ALPHALOW     128
-
-/* don't call extra converter */
-#define ICONV_DEFAULT      256
-
-#define ICONV_CLIP         IBLIT_CLIP
-#define ICONV_HFLIP        IBLIT_HFLIP
-#define ICONV_VFLIP        IBLIT_VFLIP
-
-
-/* default converter which can convert all pixel formats (but slow) */
-void _iconvert_pixfmt(IBITMAP *dst, int dx, int dy, IBITMAP *src, int x, 
-	int y, int w, int h, const IRGB *dpal, const IRGB *spal, int flag);
-
-
-/**********************************************************************
- * CONVERT BLIT
- **********************************************************************/
-
-/**
- * _iconvert_blit:
- *
- * color format converting routine, supports endian indepedance, 
- * mask color converting, lookup-table color scaling and color order
- * swapping. EACH converting is compiled into DIFFERENT-C-FUNCTION
- * to get the high performance.
- * 
- * parameters:
- * dst, dx, dy - destination bitmap and position
- * src, sx, sy - source bitmap and position
- * w, h        - size
- * pal         - palette (can be used when srcbpp/dstbpp is 8 bits
- * flags       - enable ICONV_RGB2BGR or ICONV_SHIFT or ICONV_MASK
-*/
-void _iconvert_blit(IBITMAP *dst, int dx, int dy, IBITMAP *src,
-	int sx, int sy, int w, int h, const IRGB *dpal, const IRGB *spal, 
-	int flags);
-
-
-/* converter interface */
-typedef int (*ICONVERTER)(unsigned char *dst, long dpitch, int dfmt,
-	const unsigned char *src, long spitch, int sfmt, int w, int h, 
-	ICOLORD mask, int flags);
-
-/* converter list: external converter [dst][src] */
-/* _iconvert_blit will call it first, returns zero for success */
-/* returns non-zero will cause _iconvert_blit use default converter */
-extern ICONVERTER _iconverter[24][24];
-
-
-
-
-/**********************************************************************
- * BITMAP BLIT EFFECT
- **********************************************************************/
-
-/* filling driver */
-typedef int (*IBLIT_FILL_PROC)(unsigned char *ptr, long pitch, int w, int h, ICOLORD color);
-
-/* blending driver: returns zero for successful non-zero for failed */
-typedef int (*IBLIT_BLEND_PROC)(unsigned char *dst, long dpitch, 
-	const unsigned char *src, long spitch, int w, int h, ICOLORD color,
-	int dfmt, int sfmt, ICOLORD mask, int flags);
-
-/* external fill proc by pixfmt */
-extern IBLIT_FILL_PROC _iblit_fill_proc[];
-
-/* external blend proc by pixfmt [dst][src] */
-extern IBLIT_BLEND_PROC _iblit_blend_proc[24][24];
-
-void _iblit_fastfill(unsigned char *ptr, long pitch, int w, int h, 
-	ICOLORD color, int fmt);
-
-void _iblit_fill(IBITMAP *dst, int dx, int dy, int w, int h, ICOLORD col);
-
-
-
-
-/**********************************************************************
- * COLOR SHIFTING
- **********************************************************************/
-
-
-/**********************************************************************
- * COLOR Macros
- **********************************************************************/
-#define IRGBA_DISEMBLE(c, fmt, r, g, b, a) do { \
-	switch(fmt) { \
-	case IPIX_FMT_8: IRGBA_FROM_8(c, r, g, b, a); break; \
-	case IPIX_FMT_RGB15: IRGBA_FROM_RGB15(c, r, g, b, a); break; \
-	case IPIX_FMT_BGR15: IRGBA_FROM_BGR15(c, r, g, b, a); break; \
-	case IPIX_FMT_RGB16: IRGBA_FROM_RGB16(c, r, g, b, a); break; \
-	case IPIX_FMT_BGR16: IRGBA_FROM_BGR16(c, r, g, b, a); break; \
-	case IPIX_FMT_RGB24: IRGBA_FROM_RGB24(c, r, g, b, a); break; \
-	case IPIX_FMT_BGR24: IRGBA_FROM_BGR24(c, r, g, b, a); break; \
-	case IPIX_FMT_RGB32: IRGBA_FROM_RGB32(c, r, g, b, a); break; \
-	case IPIX_FMT_BGR32: IRGBA_FROM_BGR32(c, r, g, b, a); break; \
-	case IPIX_FMT_ARGB32: IRGBA_FROM_ARGB32(c, r, g, b, a); break; \
-	case IPIX_FMT_ABGR32: IRGBA_FROM_ABGR32(c, r, g, b, a); break; \
-	case IPIX_FMT_RGBA32: IRGBA_FROM_RGBA32(c, r, g, b, a); break; \
-	case IPIX_FMT_BGRA32: IRGBA_FROM_BGRA32(c, r, g, b, a); break; \
-	case IPIX_FMT_ARGB_4444: IRGBA_FROM_ARGB_4444(c, r, g, b, a); break; \
-	case IPIX_FMT_ABGR_4444: IRGBA_FROM_ABGR_4444(c, r, g, b, a); break; \
-	case IPIX_FMT_RGBA_4444: IRGBA_FROM_RGBA_4444(c, r, g, b, a); break; \
-	case IPIX_FMT_BGRA_4444: IRGBA_FROM_BGRA_4444(c, r, g, b, a); break; \
-	case IPIX_FMT_ARGB_1555: IRGBA_FROM_ARGB_1555(c, r, g, b, a); break; \
-	case IPIX_FMT_ABGR_1555: IRGBA_FROM_ABGR_1555(c, r, g, b, a); break; \
-	case IPIX_FMT_RGBA_5551: IRGBA_FROM_RGBA_5551(c, r, g, b, a); break; \
-	case IPIX_FMT_BGRA_5551: IRGBA_FROM_BGRA_5551(c, r, g, b, a); break; \
-	default: a = r = g = b = 0; break; \
-	} \
-}	while (0)
-
-#define IRGBA_ASSEMBLE(c, fmt, r, g, b, a) do { \
-	switch (fmt) { \
-	case IPIX_FMT_8: c = IRGBA_TO_8(r, g, b, a); break; \
-	case IPIX_FMT_RGB15: c = IRGBA_TO_RGB15(r, g, b, a); break; \
-	case IPIX_FMT_BGR15: c = IRGBA_TO_BGR15(r, g, b, a); break; \
-	case IPIX_FMT_RGB16: c = IRGBA_TO_RGB16(r, g, b, a); break; \
-	case IPIX_FMT_BGR16: c = IRGBA_TO_BGR16(r, g, b, a); break; \
-	case IPIX_FMT_RGB24: c = IRGBA_TO_RGB24(r, g, b, a); break; \
-	case IPIX_FMT_BGR24: c = IRGBA_TO_BGR24(r, g, b, a); break; \
-	case IPIX_FMT_RGB32: c = IRGBA_TO_RGB32(r, g, b, a); break; \
-	case IPIX_FMT_BGR32: c = IRGBA_TO_BGR32(r, g, b, a); break; \
-	case IPIX_FMT_ARGB32: c = IRGBA_TO_ARGB32(r, g, b, a); break; \
-	case IPIX_FMT_ABGR32: c = IRGBA_TO_ABGR32(r, g, b, a); break; \
-	case IPIX_FMT_RGBA32: c = IRGBA_TO_RGBA32(r, g, b, a); break; \
-	case IPIX_FMT_BGRA32: c = IRGBA_TO_BGRA32(r, g, b, a); break; \
-	case IPIX_FMT_ARGB_4444: c = IRGBA_TO_ARGB_4444(r, g, b, a); break; \
-	case IPIX_FMT_ABGR_4444: c = IRGBA_TO_ABGR_4444(r, g, b, a); break; \
-	case IPIX_FMT_RGBA_4444: c = IRGBA_TO_RGBA_4444(r, g, b, a); break; \
-	case IPIX_FMT_BGRA_4444: c = IRGBA_TO_BGRA_4444(r, g, b, a); break; \
-	case IPIX_FMT_ARGB_1555: c = IRGBA_TO_ARGB_1555(r, g, b, a); break; \
-	case IPIX_FMT_ABGR_1555: c = IRGBA_TO_ABGR_1555(r, g, b, a); break; \
-	case IPIX_FMT_RGBA_5551: c = IRGBA_TO_RGBA_5551(r, g, b, a); break; \
-	case IPIX_FMT_BGRA_5551: c = IRGBA_TO_BGRA_5551(r, g, b, a); break; \
-	default: c = 0; break; \
-	}	\
-}	while (0)
-
-#define IBPP_TO_BYTES(bpp) (((bpp) + 7) >> 3)
-
-#define IPIXEL_FROM_PTR(pixel, fmt, ptr) do { \
-	int __dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
-	pixel = 0; \
-	switch (__dsize) { \
-	case 1: pixel = _ipixel_get(1, ptr); break; \
-	case 2: pixel = _ipixel_get(2, ptr); break; \
-	case 3: pixel = _ipixel_get(3, ptr); break; \
-	case 4: pixel = _ipixel_get(4, ptr); break; \
-	} \
-}	while (0)
-
-#define IPIXEL_TO_PTR(pixel, fmt, ptr) do { \
-	int __dsize = IBPP_TO_BYTES(ipixel_fmt[fmt].bpp); \
-	switch (__dsize) { \
-	case 1: _ipixel_put(1, ptr, pixel); break; \
-	case 2: _ipixel_put(2, ptr, pixel); break; \
-	case 3: _ipixel_put(3, ptr, pixel); break; \
-	case 4: _ipixel_put(4, ptr, pixel); break; \
-	}	\
-}	while (0)
-
-#define IRGBA_FROM_PTR(ptr, fmt, r, g, b, a) do { \
-	ICOLORD __raw = 0; \
-	IPIXEL_FROM_PTR(__raw, fmt, ptr); \
-	IRGBA_DISEMBLE(__raw, fmt, r, g, b, a); \
-}	while (0)
-
-#define IRGBA_TO_PTR(ptr, fmt, r, g, b, a) do { \
-	ICOLORD __raw = 0; \
-	IRGBA_ASSEMBLE(__raw, fmt, r, g, b, a); \
-	IPIXEL_TO_PTR(__raw, fmt, ptr); \
-}	while (0)
-
-
-#define IPIX_SIZE_8				1
-#define IPIX_SIZE_RGB15			2
-#define IPIX_SIZE_BGR15			2
-#define IPIX_SIZE_RGB16			2
-#define IPIX_SIZE_BGR16			2
-#define IPIX_SIZE_RGB24			3
-#define IPIX_SIZE_BGR24			3
-#define IPIX_SIZE_RGB32			4
-#define IPIX_SIZE_BGR32			4
-#define IPIX_SIZE_ARGB32		4
-#define IPIX_SIZE_ABGR32		4
-#define IPIX_SIZE_RGBA32		4
-#define IPIX_SIZE_BGRA32		4
-#define IPIX_SIZE_ARGB_4444		2
-#define IPIX_SIZE_ABGR_4444		2
-#define IPIX_SIZE_RGBA_4444		2
-#define IPIX_SIZE_BGRA_4444		2
-#define IPIX_SIZE_ARGB_1555		2
-#define IPIX_SIZE_ABGR_1555		2
-#define IPIX_SIZE_RGBA_5551		2
-#define IPIX_SIZE_BGRA_5551		2
-
-#define IPIX_READ_8(ptr)			_ipixel_get(1, ptr)
-#define IPIX_READ_RGB15(ptr)		_ipixel_get(2, ptr)
-#define IPIX_READ_BGR15(ptr)		_ipixel_get(2, ptr)
-#define IPIX_READ_RGB16(ptr)		_ipixel_get(2, ptr)
-#define IPIX_READ_BGR16(ptr)		_ipixel_get(2, ptr)
-#define IPIX_READ_RGB24(ptr)		_ipixel_get(3, ptr)
-#define IPIX_READ_BGR24(ptr)		_ipixel_get(3, ptr)
-#define IPIX_READ_RGB32(ptr)		_ipixel_get(4, ptr)
-#define IPIX_READ_BGR32(ptr)		_ipixel_get(4, ptr)
-#define IPIX_READ_ARGB32(ptr)		_ipixel_get(4, ptr)
-#define IPIX_READ_ABGR32(ptr)		_ipixel_get(4, ptr)
-#define IPIX_READ_RGBA32(ptr)		_ipixel_get(4, ptr)
-#define IPIX_READ_BGRA32(ptr)		_ipixel_get(4, ptr)
-#define IPIX_READ_ARGB_4444(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_ABGR_4444(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_RGBA_4444(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_BGRA_4444(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_ARGB_1555(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_ABGR_1555(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_RGBA_5551(ptr)	_ipixel_get(2, ptr)
-#define IPIX_READ_BGRA_5551(ptr)	_ipixel_get(2, ptr)
-
-#define IPIX_WRITE_8(ptr, c)		_ipixel_put(1, ptr, c)
-#define IPIX_WRITE_RGB15(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_BGR15(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_RGB16(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_BGR16(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_RGB24(ptr, c)	_ipixel_put(3, ptr, c)
-#define IPIX_WRITE_BGR24(ptr, c)	_ipixel_put(3, ptr, c)
-#define IPIX_WRITE_RGB32(ptr, c)	_ipixel_put(4, ptr, c)
-#define IPIX_WRITE_BGR32(ptr, c)	_ipixel_put(4, ptr, c)
-#define IPIX_WRITE_ARGB32(ptr, c)	_ipixel_put(4, ptr, c)
-#define IPIX_WRITE_ABGR32(ptr, c)	_ipixel_put(4, ptr, c)
-#define IPIX_WRITE_RGBA32(ptr, c)	_ipixel_put(4, ptr, c)
-#define IPIX_WRITE_BGRA32(ptr, c)	_ipixel_put(4, ptr, c)
-#define IPIX_WRITE_ARGB_4444(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_ABGR_4444(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_RGBA_4444(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_BGRA_4444(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_ARGB_1555(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_ABGR_1555(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_RGBA_5551(ptr, c)	_ipixel_put(2, ptr, c)
-#define IPIX_WRITE_BGRA_5551(ptr, c)	_ipixel_put(2, ptr, c)
-
-#define IPIX_FMT_SIZE(fmt) IPIX_SIZE_##fmt
-#define IPIX_FMT_READ(fmt, ptr) IPIX_READ_##fmt(ptr)
-#define IPIX_FMT_WRITE(fmt, ptr, c) IPIX_WRITE_##fmt(ptr, c)
-
-#define IPIX_FMT_READ_RGBA(fmt, ptr, r, g, b, a) { \
-	ICOLORD __col = IPIX_FMT_READ(fmt, ptr); \
-	IRGBA_FROM_PIXEL(__col, fmt, r, g, b, a); \
+	int w;
+	int h;
+	unsigned char data[1];
+}	IGLYPHCHAR;
+
+typedef struct
+{
+	int w;
+	int h;
+	const unsigned char *font;
+}	IGLYPHFONT;
+
+
+
+void ibitmap_draw_glyph(IBITMAP *dst, const IGLYPHCHAR *glyph, int x, int y,
+	const IRECT *clip, IUINT32 color, IUINT32 bk, int additive);
+
+void ibitmap_draw_ascii(IBITMAP *dst, const IGLYPHFONT *font, int x, int y,
+	const char *string, const IRECT *clip, IUINT32 col, IUINT32 bk, int add);
+
+
+
+//=====================================================================
+// 位图实用工具
+//=====================================================================
+int ibitmap_clip_scale(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
+	const IBITMAP *src, IRECT *srect);
+
+// 缩放绘制：接受IBLIT_MASK参数，不接受 IBLIT_HFLIP, IBLIT_VFLIP
+int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
+	const IRECT *rectsrc, const IRECT *clip, int flags);
+
+// 重新采样
+IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound, 
+	int newwidth, int newheight, int mode);
+
+
+//=====================================================================
+// Inline Utilities
+//=====================================================================
+static inline IRECT *ipixel_rect_set(IRECT *dst, int l, int t, int r, int b)
+{
+	dst->left = l;
+	dst->top = t;
+	dst->right = r;
+	dst->bottom = b;
+	return dst;
+}
+
+static inline IRECT *ipixel_rect_copy(IRECT *dst, const IRECT *src)
+{
+	dst->left = src->left;
+	dst->top = src->top;
+	dst->right = src->right;
+	dst->bottom = src->bottom;
+	return dst;
+}
+
+static inline IRECT *ipixel_rect_offset(IRECT *self, int x, int y)
+{
+	self->left += x;
+	self->top += y;
+	self->right += x;
+	self->bottom += y;
+	return self;
+}
+
+static inline int ipixel_rect_contains(const IRECT *self, int x, int y)
+{
+	return (x >= self->left && y >= self->top &&
+		x < self->right && y < self->bottom);
+}
+
+static inline int ipixel_rect_intersects(const IRECT *self, const IRECT *src)
+{
+	return !((src->right <= self->left) || (src->bottom <= self->top) ||
+		(src->left >= self->right) || (src->top >= self->bottom));
+}
+
+static inline IRECT *ipixel_rect_intersection(IRECT *dst, const IRECT *src)
+{
+	int x1 = (dst->left > src->left)? dst->left : src->left;
+	int x2 = (dst->right < src->right)? dst->right : src->right;
+	int y1 = (dst->top > src->top)? dst->top : src->top;
+	int y2 = (dst->bottom < src->bottom)? dst->bottom : src->bottom;
+	if (x1 > x2 || y1 > y2) {
+		dst->left = 0;
+		dst->top = 0;
+		dst->right = 0;
+		dst->bottom = 0;
+	}	else {
+		dst->left = x1;
+		dst->top = y1;
+		dst->right = x2;
+		dst->bottom = y2;
+	}
+	return dst;
+}
+
+static inline IRECT *ipixel_rect_union(IRECT *dst, const IRECT *src)
+{
+	int x1 = (dst->left < src->left)? dst->left : src->left;
+	int x2 = (dst->right > src->right)? dst->right : src->right;
+	int y1 = (dst->top < src->top)? dst->top : src->top;
+	int y2 = (dst->bottom > src->bottom)? dst->bottom : src->bottom;
+	dst->left = x1;
+	dst->top = y1;
+	dst->right = x2;
+	dst->bottom = y2;
+	return dst;
+}
+
+static inline cfixed cfixed_abs(cfixed x) {
+	return (x < 0)? (-x) : x;
+}
+
+static inline cfixed cfixed_min(cfixed x, cfixed y) {
+	return (x < y)? x : y;
+}
+
+static inline cfixed cfixed_max(cfixed x, cfixed y) {
+	return (x > y)? x : y;
+}
+
+static inline cfixed cfixed_inverse(cfixed x) {
+	return (cfixed) ((((IINT64)cfixed_const_1) * cfixed_const_1) / x);
+}
+
+static inline int cfixed_within_epsilon(cfixed a, cfixed b, cfixed epsilon) {
+	cfixed c = a - b;
+	if (c < 0) c = -c;
+	return c <= epsilon;
+}
+
+static inline int cfloat_within_epsilon(float a, float b, float epsilon) {
+	float c = a - b;
+	if (c < 0) c = -c;
+	return c <= epsilon;
+}
+
+static inline int cfloat_to_int_ieee(float f) {
+	union { IINT32 intpart; float floatpart; } convert;
+	IINT32 sign, mantissa, exponent, r;
+	convert.floatpart = f;
+	sign = (convert.intpart >> 31);
+	mantissa = (convert.intpart & ((1 << 23) - 1)) | (1 << 23);
+	exponent = ((convert.intpart & 0x7ffffffful) >> 23) - 127;
+	r = ((IUINT32)(mantissa) << 8) >> (31 - exponent);
+	return ((r ^ sign) - sign) & ~(exponent >> 31);
+}
+
+static inline int cfloat_ieee_enable() {
+	return (cfloat_to_int_ieee(1234.56f) == 1234);
+}
+
+static inline cfixed cfixed_from_float_ieee(float f) {
+	return (cfixed)cfloat_to_int_ieee(f * 65536.0f);
 }
 
 
-/**********************************************************************
- * BLEND HELP
- **********************************************************************/
+#define IEPSILON_E4     ((float)1E-4)
+#define IEPSILON_E5     ((float)1E-5)
+#define IEPSILON_E6     ((float)1E-6)
 
-/* normal blend */
-#define _iblend_normalize(alpha) (((alpha) << 8) / 255)
-#define _iblend_norm_fast(alpha) (((alpha) >> 7) + (alpha))
-#define _iblend_unnorm(alpha) ((((alpha) << 8) - (alpha)) >> 8)
+#define CFIXED_EPSILON  ((cfixed)3)
+#define CFLOAT_EPSILON  IEPSILON_E5
 
-/* destalpha and srcalpha must be normalized:  */
-#define _iblend_final_alpha(destalpha, srcalpha) \
-	((destalpha) + (((256 - (destalpha)) * (srcalpha)) >> 8))
+#define cfixed_is_same(a, b)  (cfixed_within_epsilon(a, b, CFIXED_EPSILON))
+#define cfixed_is_zero(a)     cfixed_is_same(a, 0)
+#define cfixed_is_one(a)      cfixed_is_same(a, cfixed_const_1)
+#define cfixed_is_int(a)      cfixed_is_same(cfixed_frac(a), 0)
 
-
-#define IBLEND_STATIC(sr, sg, sb, sa, dr, dg, db, da) do { \
-	IINT32 SA = _iblend_norm_fast(sa); \
-	dr = (((((IINT32)sr) - ((IINT32)dr)) * SA) >> 8) + dr; \
-	dg = (((((IINT32)sg) - ((IINT32)dg)) * SA) >> 8) + dg; \
-	db = (((((IINT32)sb) - ((IINT32)db)) * SA) >> 8) + db; \
-	da = 255; \
-}	while (0)
+#define cfloat_is_same(a, b)  (cfloat_within_epsilon(a, b, CFLOAT_EPSILON))
+#define cfloat_is_zero(a)     cfloat_is_same(a, 0.0f)
+#define cfloat_is_one(a)      cfloat_is_same(a, 1.0f)
 
 
-#define IBLEND_NORMAL(sr, sg, sb, sa, dr, dg, db, da) do { \
-	IINT32 SA = _iblend_norm_fast(sa); \
-	IINT32 DA = _iblend_norm_fast(da); \
-	IINT32 FA = DA + (((256 - DA) * SA) >> 8); \
-	SA = (FA != 0)? ((SA << 8) / FA) : (0); \
-	da = _iblend_unnorm(FA); \
-	dr = (((((IINT32)sr) - ((IINT32)dr)) * SA) >> 8) + dr; \
-	dg = (((((IINT32)sg) - ((IINT32)dg)) * SA) >> 8) + dg; \
-	db = (((((IINT32)sb) - ((IINT32)db)) * SA) >> 8) + db; \
-}	while (0)
-
-#define IBLEND_ADDITIVE(sr, sg, sb, sa, dr, dg, db, da) do { \
-	IINT32 XA = _iblend_norm_fast(sa); \
-	IINT32 XR = sr * XA; \
-	IINT32 XG = sg * XA; \
-	IINT32 XB = sb * XA; \
-	XR = XR >> 8; \
-	XG = XG >> 8; \
-	XB = XB >> 8; \
-	XA = sa + da; \
-	XR += dr; \
-	XG += dg; \
-	XB += db; \
-	dr = _iclip256[XR]; \
-	dg = _iclip256[XG]; \
-	db = _iclip256[XB]; \
-	da = _iclip256[XA]; \
-}	while (0)
-
-
-/**********************************************************************
- * DEFAULT ALPHA BLENDING (SLOW)
- **********************************************************************/
-int _iblit_alpha(IBITMAP *dst, int dx, int dy, IBITMAP *src, 
-	int sx, int sy, int w, int h, ICOLORD color, int flags);
-
-#ifndef IDISABLE_CONVERT
-/**********************************************************************
- * COLOR DITHER
- **********************************************************************/
-long _iconvert_dither(IBITMAP *dst, int dx, int dy, IBITMAP *src,
-	int sx, int sy, int w, int h, IRGB *pal, int flags, int dmode, 
-	void *buffer, long bufsize);
-
-#endif
 
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif
 

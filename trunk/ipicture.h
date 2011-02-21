@@ -11,6 +11,7 @@
 #define __I_PICTURE_H__
 
 #include "ibitmap.h"
+#include "ibmbits.h"
 #include "ibmcols.h"
 
 #ifdef __cplusplus
@@ -78,16 +79,6 @@ int is_close_file(IMDIO *stream);
 
 void _is_perrno_set(long v);
 long _is_perrno_get(void);
-
-//---------------------------------------------------------------------
-// BITMAP PIXEL OPERATION
-//---------------------------------------------------------------------
-unsigned long _is_get3b(const void *p);
-unsigned long _is_put3b(void *p, unsigned long c);
-
-// bitmap getpixel / putpixel interface
-unsigned long _is_getpx(const struct IBITMAP *bmp, int x, int y);
-unsigned long _is_putpx(struct IBITMAP *bmp, int x, int y, unsigned long c);
 
 
 //=====================================================================
@@ -161,8 +152,7 @@ int isave_gif_file(const char *file, struct IBITMAP *bmp, const IRGB *pal);
 struct IBITMAP *ipic_load_file(const char *file, long pos, IRGB *pal);
 struct IBITMAP *ipic_load_mem(const void *ptr, long size, IRGB *pal);
 
-struct IBITMAP *ipic_convert(struct IBITMAP *src, int bpp, const IRGB *pal);
-struct IBITMAP *ipic_convfmt(struct IBITMAP *src, int fmt, const IRGB *pal);
+struct IBITMAP *ipic_convert(struct IBITMAP *src, int fmt, const IRGB *pal);
 
 
 //---------------------------------------------------------------------
@@ -203,7 +193,7 @@ struct IGIFDESC			/* gif descriptor */
 	int hoty;			/* extension - hotpoint y */
 	IRGB *pal;			/* current palette */
 	IMDIO *stream;	/* input / output stream */
-	IBITMAP *bitmap;	/* bitmap */
+	struct IBITMAP *bitmap;	/* bitmap */
 	unsigned char background;		/* background color */
 	unsigned char string[4096];		/* decode string */
 	unsigned char newc[4096];		/* dict new char */
