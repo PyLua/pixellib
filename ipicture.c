@@ -7,8 +7,9 @@
 //
 //=====================================================================
 
-#include "ipicture.h"
+#include "ibmbits.h"
 #include "ibmcols.h"
+#include "ipicture.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -286,28 +287,14 @@ void is_seekcur(IMDIO *stream, long skip)
 //---------------------------------------------------------------------
 #define _is_bmline(bmp, y) ((unsigned char*)((bmp)->line[y]))
 
-unsigned long _is_get3b(const void *p)
+static inline IUINT32 _is_get3b(const void *p)
 {
-	unsigned long c1, c2, c3;
-	static int flag = 0;
-	if (flag++ == 0) _ishift_init();
-	c1 = ((unsigned long)((unsigned char*)p)[0]) << _ishift_data_b1;
-	c2 = ((unsigned long)((unsigned char*)p)[1]) << _ishift_data_b2;
-	c3 = ((unsigned long)((unsigned char*)p)[2]) << _ishift_data_b3;
-	return (c1 | c2 | c3);
+	return _ipixel_fetch_24(p, 0);
 }
 
-unsigned long _is_put3b(void *p, unsigned long c)
+static inline IUINT32 _is_put3b(void *p, IUINT32 c)
 {
-	unsigned long c1, c2, c3;
-	static int flag = 0;
-	if (flag++ == 0) _ishift_init();
-	c1 = (c >> _ishift_data_b1) & 0xFF;
-	c2 = (c >> _ishift_data_b2) & 0xFF;
-	c3 = (c >> _ishift_data_b3) & 0xFF;
-	((unsigned char*)p)[0] = (unsigned char)c1;
-	((unsigned char*)p)[1] = (unsigned char)c2;
-	((unsigned char*)p)[2] = (unsigned char)c3;
+	_ipixel_store_24(p, 0, c);
 	return c;
 }
 
@@ -317,92 +304,117 @@ unsigned long _is_put3b(void *p, unsigned long c)
 		return 0; \
 }	while (0)
 
-unsigned long _is_get8(const struct IBITMAP *bmp, int x, int y)
+static inline IUINT32 _is_get8(const struct IBITMAP *bmp, int x, int y)
 {
 	_IS_HEADER1();
 	return _is_bmline(bmp, y)[x];
 }
 
-unsigned long _is_get15(const struct IBITMAP *bmp, int x, int y)
+static inline IUINT32 _is_get15(const struct IBITMAP *bmp, int x, int y)
 {
 	_IS_HEADER1();
-	return ((unsigned short*)_is_bmline(bmp, y))[x];
+	return ((IUINT16*)_is_bmline(bmp, y))[x];
 }
 
-unsigned long _is_get16(const struct IBITMAP *bmp, int x, int y)
+static inline IUINT32 _is_get16(const struct IBITMAP *bmp, int x, int y)
 {
 	_IS_HEADER1();
-	return ((unsigned short*)_is_bmline(bmp, y))[x];
+	return ((IUINT16*)_is_bmline(bmp, y))[x];
 }
 
-unsigned long _is_get24(const struct IBITMAP *bmp, int x, int y)
+static inline IUINT32 _is_get24(const struct IBITMAP *bmp, int x, int y)
 {
 	_IS_HEADER1();
 	return _is_get3b(_is_bmline(bmp, y) + (x) * 3);
 }
 
-unsigned long _is_get32(const struct IBITMAP *bmp, int x, int y)
+static inline IUINT32 _is_get32(const struct IBITMAP *bmp, int x, int y)
 {
 	_IS_HEADER1();
-	return ((unsigned long*)_is_bmline(bmp, y))[x];
+	return ((IUINT32*)_is_bmline(bmp, y))[x];
 }
 
-unsigned long _is_put8(struct IBITMAP *bmp, int x, int y, unsigned long c)
+static inline IUINT32 _is_put8(struct IBITMAP *bmp, int x, int y, IUINT32 c)
 {
 	_IS_HEADER1();
 	_is_bmline(bmp, y)[x] = (unsigned char)(c & 0xFF);
 	return c;
 }
 
-unsigned long _is_put15(struct IBITMAP *bmp, int x, int y, unsigned long c)
+static inline IUINT32 _is_put15(struct IBITMAP *bmp, int x, int y, IUINT32 c)
 {
 	_IS_HEADER1();
-	((unsigned short*)_is_bmline(bmp, y))[x] = (unsigned short)(c & 0xFFFF);
+	((IUINT16*)_is_bmline(bmp, y))[x] = (IUINT16)(c & 0xFFFF);
 	return c;
 }
 
-unsigned long _is_put16(struct IBITMAP *bmp, int x, int y, unsigned long c)
+static inline IUINT32 _is_put16(struct IBITMAP *bmp, int x, int y, IUINT32 c)
 {
 	_IS_HEADER1();
-	((unsigned short*)_is_bmline(bmp, y))[x] = (unsigned short)(c & 0xFFFF);
+	((IUINT16*)_is_bmline(bmp, y))[x] = (IUINT16)(c & 0xFFFF);
 	return c;
 }
 
-unsigned long _is_put24(struct IBITMAP *bmp, int x, int y, unsigned long c)
+static inline IUINT32 _is_put24(struct IBITMAP *bmp, int x, int y, IUINT32 c)
 {
 	_IS_HEADER1();
 	_is_put3b(_is_bmline(bmp, y) + (x) * 3, c);
 	return c;
 }
 
-unsigned long _is_put32(struct IBITMAP *bmp, int x, int y, unsigned long c)
+static inline IUINT32 _is_put32(struct IBITMAP *bmp, int x, int y, IUINT32 c)
 {
 	_IS_HEADER1();
-	((unsigned long*)_is_bmline(bmp, y))[x] = c;
+	((IUINT32*)_is_bmline(bmp, y))[x] = c;
 	return c;
 }
 
-unsigned long _is_getpx(const struct IBITMAP *bmp, int x, int y)
+static inline IUINT32 _is_getpx(const struct IBITMAP *bmp, int x, int y)
 {
 	_IS_HEADER1();
 	if (bmp->bpp == 8) return _is_get8(bmp, x, y);
-	if (bmp->bpp == 15) return _is_get15(bmp, x, y);
-	if (bmp->bpp == 16) return _is_get16(bmp, x, y);
-	if (bmp->bpp == 24) return _is_get24(bmp, x, y);
-	if (bmp->bpp == 32) return _is_get32(bmp, x, y);
+	else if (bmp->bpp == 15) return _is_get15(bmp, x, y);
+	else if (bmp->bpp == 16) return _is_get16(bmp, x, y);
+	else if (bmp->bpp == 24) return _is_get24(bmp, x, y);
+	else if (bmp->bpp == 32) return _is_get32(bmp, x, y);
 	return 0;
 }
 
-unsigned long _is_putpx(struct IBITMAP *bmp, int x, int y, unsigned long c)
+static inline IUINT32 _is_putpx(struct IBITMAP *bmp, int x, int y, IUINT32 c)
 {
 	_IS_HEADER1();
 	if (bmp->bpp == 8) return _is_put8(bmp, x, y, c);
-	if (bmp->bpp == 15) return _is_put15(bmp, x, y, c);
-	if (bmp->bpp == 16) return _is_put16(bmp, x, y, c);
-	if (bmp->bpp == 24) return _is_put24(bmp, x, y, c);
-	if (bmp->bpp == 32) return _is_put32(bmp, x, y, c);
+	else if (bmp->bpp == 15) return _is_put15(bmp, x, y, c);
+	else if (bmp->bpp == 16) return _is_put16(bmp, x, y, c);
+	else if (bmp->bpp == 24) return _is_put24(bmp, x, y, c);
+	else if (bmp->bpp == 32) return _is_put32(bmp, x, y, c);
 	return 0;
 }
+
+int _ibitmap_guess_pixfmt(const IBITMAP *bmp)
+{
+	int fmt;
+	fmt = ibitmap_pixfmt_get(bmp);
+	if (fmt < 0) {
+		if (bmp->bpp == 8) return IPIX_FMT_C8;
+		if (bmp->bpp == 15) return IPIX_FMT_X1R5G5B5;
+		if (bmp->bpp == 16) return IPIX_FMT_R5G6B5;
+		if (bmp->bpp == 24) return IPIX_FMT_R8G8B8;
+		if (bmp->bpp == 32) return IPIX_FMT_A8R8G8B8;
+	}
+	return fmt;
+}
+
+IUINT32 _im_color_get(int fmt, IUINT32 c, const IRGB *pal)
+{
+	IINT32 r, g, b, a;
+	if (ipixelfmt[fmt].type == IPIX_FMT_TYPE_INDEX) {
+		return IRGBA_TO_A8R8G8B8(pal[c].r, pal[c].g, pal[c].b, 255);
+	}
+	IRGBA_DISEMBLE(fmt, c, r, g, b, a);
+	return IRGBA_TO_A8R8G8B8(r, g, b, a);
+}
+
 
 #undef _IS_HEADER1
 
@@ -509,20 +521,20 @@ int is_close_file(IMDIO *stream)
 
 typedef struct _IBITMAPFILEHEADER
 {
-	unsigned long  bfType;
-	unsigned long  bfSize;
-	unsigned short bfReserved1;
-	unsigned short bfReserved2;
-	unsigned long  bfOffBits;
+	IUINT32  bfType;
+	IUINT32  bfSize;
+	IUINT16 bfReserved1;
+	IUINT16 bfReserved2;
+	IUINT32  bfOffBits;
 }	IBITMAPFILEHEADER;
 
 
 typedef struct _IBITMAPINFOHEADER
 {
-	unsigned long  biWidth;
-	unsigned long  biHeight;
-	unsigned short biBitCount;
-	unsigned long  biCompression;
+	IUINT32  biWidth;
+	IUINT32  biHeight;
+	IUINT16 biBitCount;
+	IUINT32  biCompression;
 }	IBITMAPINFOHEADER;
 
 
@@ -551,32 +563,32 @@ static int iread_bminfoheader(IMDIO *stream, IBITMAPINFOHEADER *infoheader,
 	long data[20];
 
 	if (ihsize == IWININFOHEADERSIZE) {
-		data[0] = is_igetl(stream);		/* unsigned long  biWidth......... */
-		data[1] = is_igetl(stream);		/* unsigned long  biHeight........ */
-		data[2] = is_igetw(stream);		/* unsigned short biPlanes........ */
-		data[3] = is_igetw(stream);		/* unsigned short biBitCount...... */
-		data[4] = is_igetl(stream);		/* unsigned long  biCompression... */
-		data[5] = is_igetl(stream);		/* unsigned long  biSizeImage..... */
-		data[6] = is_igetl(stream);		/* unsigned long  biXPelsPerMeters */
-		data[7] = is_igetl(stream);		/* unsigned long  biYPelsPerMeters */
-		data[8] = is_igetl(stream);		/* unsigned long  biClrUsed....... */
-		data[9] = is_igetl(stream);		/* unsigned long  biClrImportant.. */
+		data[0] = is_igetl(stream);		/* IUINT32  biWidth......... */
+		data[1] = is_igetl(stream);		/* IUINT32  biHeight........ */
+		data[2] = is_igetw(stream);		/* IUINT16 biPlanes........ */
+		data[3] = is_igetw(stream);		/* IUINT16 biBitCount...... */
+		data[4] = is_igetl(stream);		/* IUINT32  biCompression... */
+		data[5] = is_igetl(stream);		/* IUINT32  biSizeImage..... */
+		data[6] = is_igetl(stream);		/* IUINT32  biXPelsPerMeters */
+		data[7] = is_igetl(stream);		/* IUINT32  biYPelsPerMeters */
+		data[8] = is_igetl(stream);		/* IUINT32  biClrUsed....... */
+		data[9] = is_igetl(stream);		/* IUINT32  biClrImportant.. */
 
 		infoheader->biWidth = data[0];
 		infoheader->biHeight = data[1];
-		infoheader->biBitCount = (unsigned short)data[3];
+		infoheader->biBitCount = (IUINT16)data[3];
 		infoheader->biCompression = data[4];
 	}	
 	else 
 	if (ihsize == IOS2INFOHEADERSIZE) {
-		data[0] = is_igetw(stream);		/* unsigned short biWidth......... */
-		data[1] = is_igetw(stream);		/* unsigned short biHeight........ */
-		data[2] = is_igetw(stream);		/* unsigned short biPlanes........ */
-		data[3] = is_igetw(stream);		/* unsigned short biBitCount...... */
+		data[0] = is_igetw(stream);		/* IUINT16 biWidth......... */
+		data[1] = is_igetw(stream);		/* IUINT16 biHeight........ */
+		data[2] = is_igetw(stream);		/* IUINT16 biPlanes........ */
+		data[3] = is_igetw(stream);		/* IUINT16 biBitCount...... */
 
 		infoheader->biWidth = data[0];
 		infoheader->biHeight= data[1];
-		infoheader->biBitCount = (unsigned short)data[3];
+		infoheader->biBitCount = (IUINT16)data[3];
 		infoheader->biCompression = 0;
 	}
 	else {
@@ -609,7 +621,7 @@ static void ibmp_read_image(IMDIO *stream, ibitmap_t *bmp, const
 {
 	long line, start, length;
 	long i, j, k, a, nbytes;
-	unsigned long n;
+	IUINT32 n;
 	unsigned char b[32];
 	IRGB c;
 
@@ -639,8 +651,8 @@ static void ibmp_read_image(IMDIO *stream, ibitmap_t *bmp, const
 				if (j == 0) {
 					n = is_igetl(stream);
 					for (k = 0; k < 4; k++) {
-						b[k * 2 + 1] = (ICOLORB)(((n & 0xFF) >> 0) & 0x0F);
-						b[k * 2 + 0] = (ICOLORB)(((n & 0xFF) >> 4) & 0x0F);
+						b[k * 2 + 1] = (IUINT8)(((n & 0xFF) >> 0) & 0x0F);
+						b[k * 2 + 0] = (IUINT8)(((n & 0xFF) >> 4) & 0x0F);
 						n = n >> 8;
 					}
 				}
@@ -656,11 +668,11 @@ static void ibmp_read_image(IMDIO *stream, ibitmap_t *bmp, const
 
 		case 24:
 			for (nbytes = 0, i = 0; i < length; i++, nbytes += 3) {
-				ICOLORD cc;
+				IUINT32 cc;
 				c.b = is_getc(stream);
 				c.g = is_getc(stream);
 				c.r = is_getc(stream);
-				cc = iRGB(c.r, c.g, c.b);
+				cc = IRGBA_TO_R8G8B8(c.r, c.g, c.b, 255);
 				_is_put24(bmp, i, line, cc);
 			}
 			nbytes = nbytes % 4;
@@ -674,10 +686,10 @@ static void ibmp_read_image(IMDIO *stream, ibitmap_t *bmp, const
 				c.r = is_getc(stream);
 				a = is_getc(stream);
 				if (bmp->bpp == 32) {
-					ICOLORD cc = iARGB(a, c.r, c.g, c.b);
+					IUINT32 cc = IRGBA_TO_A8R8G8B8(c.r, c.g, c.b, a);
 					_is_put32(bmp, i, line, cc);
 				}	else {
-					ICOLORD cc = iARGB(a, c.r, c.g, c.b);
+					IUINT32 cc = IRGBA_TO_A8R8G8B8(c.r, c.g, c.b, a);
 					_is_put24(bmp, i, line, cc);
 				}
 			}
@@ -696,7 +708,7 @@ static void ibmp_read_bitfields_image(IMDIO *stream, ibitmap_t *bmp,
 	long bpp;
 	int bytes_per_pixel;
 	int red, grn, blu;
-	unsigned long buffer;
+	IUINT32 buffer;
 
 	bpp = bmp->bpp;
 	bytes_per_pixel = (bpp + 7) / 8;
@@ -713,7 +725,7 @@ static void ibmp_read_bitfields_image(IMDIO *stream, ibitmap_t *bmp,
 				buffer |= is_getc(stream) << 16;
 			}	
 			else if (bytes_per_pixel == 4) {
-				buffer = (unsigned long)is_igetl(stream);
+				buffer = (IUINT32)is_igetl(stream);
 			}
 
 			if (bpp == 15) {
@@ -818,14 +830,13 @@ struct IBITMAP *iload_bmp_stream(IMDIO *stream, IRGB *pal)
 	struct IBITMAP *bmp;
 	long want_palette = 1;
 	long ncol;
-	unsigned long biSize;
+	IUINT32 biSize;
 	int bpp, dest_depth;
 	IRGB tmppal[256];
 
 	assert(stream);
 
 	_is_perrno_set(0);
-	_ishift_init();
 
 	if (!pal) {
 		want_palette = 0;
@@ -864,9 +875,9 @@ struct IBITMAP *iload_bmp_stream(IMDIO *stream, IRGB *pal)
 	else bpp = 8;
 
 	if (infoheader.biCompression == IBI_BITFIELDS) {
-		unsigned long redMask = is_igetl(stream);
-		unsigned long grnMask = is_igetl(stream);
-		unsigned long bluMask = is_igetl(stream);
+		IUINT32 redMask = is_igetl(stream);
+		IUINT32 grnMask = is_igetl(stream);
+		IUINT32 bluMask = is_igetl(stream);
 		(void)grnMask;
 		if ((bluMask == 0x001f) && (redMask == 0x7C00)) bpp = 15;
 		else if ((bluMask == 0x001f) && (redMask == 0xF800)) bpp = 16;
@@ -908,9 +919,11 @@ struct IBITMAP *iload_bmp_stream(IMDIO *stream, IRGB *pal)
 		if ((bpp != 8) && (!want_palette)) pal = NULL;
 	}
 
+	ibitmap_pixfmt_set(bmp, ibitmap_pixfmt_guess(bmp));
+
 	/* construct a fake palette if 8-bit mode is not involved */
 	if ((bpp != 8) && (dest_depth != 8) && want_palette) {
-		_igenerate_332_palette(pal);
+		//_igenerate_332_palette(pal);
 	}
 
 	return bmp;
@@ -921,7 +934,7 @@ struct IBITMAP *iload_bmp_stream(IMDIO *stream, IRGB *pal)
 //---------------------------------------------------------------------
 int isave_bmp_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 {
-	unsigned long c, p;
+	IUINT32 c, p;
 	long i, j;
 	IRGB tmppal[256];
 	int bfSize;
@@ -929,6 +942,7 @@ int isave_bmp_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 	int depth;
 	int bpp;
 	int filler;
+	int fmt;
 
 	assert(bmp);
 	assert(stream);
@@ -986,13 +1000,13 @@ int isave_bmp_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 		is_iputl(stream, 0);                /* biClrImportant */
 	}
 
-	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	fmt = _ibitmap_guess_pixfmt(bmp);
 
 	/* image data */
 	for (j = (long)bmp->h - 1; j >= 0; j--) {
 		for (i = 0; i < (long)bmp->w; i++) {
 			c = _is_getpx(bmp, i, j);
-			p = _im_color_get(_ibitmap_pixfmt(bmp), c, pal);
+			p = _im_color_get(fmt, c, pal);
 			if (bpp == 8) {
 				is_putc(stream, (long)c);
 			}	else {
@@ -1035,34 +1049,35 @@ int isave_bmp_file(const char *file, struct IBITMAP *bmp, const IRGB *pal)
 //---------------------------------------------------------------------
 // tga - single_tga_readn
 //---------------------------------------------------------------------
-static ICOLORD single_tga_readn(IMDIO *stream, int bpp)
+static IUINT32 single_tga_readn(IMDIO *stream, int bpp)
 {
-	ICOLORD r, g, b, a, c;
+	IUINT32 r, g, b, a, c;
 
 	if (bpp == 8) return is_getc(stream);
 	if (bpp == 15) {
 		c = is_igetw(stream);
-		r = _iscale_rgb_5[(c >> 10) & 0x1F];
-		g = _iscale_rgb_5[(c >>  5) & 0x1F];
-		b = _iscale_rgb_5[(c >>  0) & 0x1F];
-		return _im_pack_rgb(15, r, g, b);
+		r = _ipixel_scale_5[(c >> 10) & 0x1F];
+		g = _ipixel_scale_5[(c >>  5) & 0x1F];
+		b = _ipixel_scale_5[(c >>  0) & 0x1F];
+		return IRGBA_TO_X1R5G5B5(r, g, b, 255);
 	}
 	if (bpp == 16) {
 		c = is_igetw(stream);
-		r = _iscale_rgb_5[(c >> 11) & 0x1F];
-		g = _iscale_rgb_6[(c >>  5) & 0x3F];
-		b = _iscale_rgb_5[(c >>  0) & 0x1F];
-		return _im_pack_rgb(16, r, g, b);
+		r = _ipixel_scale_5[(c >> 11) & 0x1F];
+		g = _ipixel_scale_6[(c >>  5) & 0x3F];
+		b = _ipixel_scale_5[(c >>  0) & 0x1F];
+		return IRGBA_TO_R5G6B5(r, g, b, 255);
 	}
 	if (bpp != 24 && bpp != 32) {
-		return _im_pack_argb(32, 0xff, 0xff, 0xff, 0xff);
+		return 0xffffffff;
 	}
 
 	b = is_getc(stream);
 	g = is_getc(stream);
 	r = is_getc(stream);
 	a = (bpp == 32)? is_getc(stream) : 0;
-	c = (bpp == 32)? iARGB(a, r, g, b) : iRGB(r, g, b);
+	c = IRGBA_TO_A8R8G8B8(r, g, b, a);
+	if (bpp == 24) c &= 0xffffff;
 
 	return c;
 }
@@ -1073,15 +1088,15 @@ static ICOLORD single_tga_readn(IMDIO *stream, int bpp)
 static void *raw_tga_readn(void *b, int w, int bpp, IMDIO *stream)
 {
 	unsigned char *lptr = (unsigned char*)b;
-	unsigned long c, n;
+	IUINT32 c, n;
 
 	n = (bpp + 7) >> 3;
 	for (; w > 0; w--, lptr += n) {
 		c = single_tga_readn(stream, bpp);
-		if (n == 1) _im_put1b(lptr, c);
-		else if (n == 2) _im_put2b(lptr, c);
-		else if (n == 3) _im_put3b(lptr, c);
-		else if (n == 4) _im_put4b(lptr, c);
+		if (n == 1) _ipixel_store_8(lptr, 0, c);
+		else if (n == 2) _ipixel_store_16(lptr, 0, c);
+		else if (n == 3) _ipixel_store_24(lptr, 0, c);
+		else if (n == 4) _ipixel_store_32(lptr, 0, c);
 	}
 
 	return (void*)lptr;
@@ -1095,9 +1110,9 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 	unsigned char image_palette[256][3];
 	unsigned char id_length, palette_type, image_type, palette_entry_size;
 	unsigned char bpp, descriptor_bits;
-	unsigned long c, i, y, yc, n, x;
-	unsigned short palette_colors;
-	unsigned short image_width, image_height;
+	IUINT32 c, i, y, yc, n, x;
+	IUINT16 palette_colors;
+	IUINT16 image_width, image_height;
 	unsigned char *lptr;
 	struct IBITMAP *bmp;
 	int compressed, want_palette, count;
@@ -1106,7 +1121,6 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 	assert(stream);
 
 	_is_perrno_set(0);
-	_ishift_init();
 
 	want_palette = 1;
 	if (!pal) {
@@ -1130,12 +1144,12 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 	is_seekcur(stream, id_length);
 
 	if (palette_type == 1) {
-		for (i = 0; i < palette_colors; i++) {
+		for (i = 0; i < (IUINT32)palette_colors; i++) {
 			if (palette_entry_size == 16) {
 				c = is_igetw(stream);
-				image_palette[i][0] = (ICOLORB)_iscale_rgb_5[(c >>  0) & 31];
-				image_palette[i][1] = (ICOLORB)_iscale_rgb_5[(c >>  5) & 31];
-				image_palette[i][2] = (ICOLORB)_iscale_rgb_5[(c >> 10) & 31];
+				image_palette[i][0] = (IUINT8)_ipixel_scale_5[(c >>  0) & 31];
+				image_palette[i][1] = (IUINT8)_ipixel_scale_5[(c >>  5) & 31];
+				image_palette[i][2] = (IUINT8)_ipixel_scale_5[(c >> 10) & 31];
 			}
 			else if (palette_entry_size >= 24) {
 				image_palette[i][0] = is_getc(stream);
@@ -1168,7 +1182,7 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 			_is_perrno_set(11);
 			return NULL;
 		}
-		for(i = 0; i < palette_colors; i++) {
+		for(i = 0; i < (IUINT32)palette_colors; i++) {
 			pal[i].r = image_palette[i][2];
 			pal[i].g = image_palette[i][1];
 			pal[i].b = image_palette[i][0];
@@ -1213,16 +1227,16 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 		if (compressed == 0) {
 			raw_tga_readn(lptr, image_width, bpp, stream);
 		}	else {
-			for (x = 0; x < image_width; x += count) {
+			for (x = 0; x < (IUINT32)image_width; x += count) {
 				count = is_getc(stream);
 				if (count & 0x80) {
 					count = (count & 0x7F) + 1;
 					c = single_tga_readn(stream, bpp);
-					for (i = 0; i < (unsigned long)count; i++, lptr += n) {
-						if (n == 1) _im_put1b(lptr, c);
-						else if (n == 2) _im_put2b(lptr, c);
-						else if (n == 3) _im_put3b(lptr, c);
-						else if (n == 4) _im_put4b(lptr, c);
+					for (i = 0; i < (IUINT32)count; i++, lptr += n) {
+						if (n == 1) _ipixel_store_8(lptr, 0, c);
+						else if (n == 2) _ipixel_store_16(lptr, 0, c);
+						else if (n == 3) _ipixel_store_24(lptr, 0, c);
+						else if (n == 4) _ipixel_store_32(lptr, 0, c);
 					}
 				}	else {
 					count = count + 1;
@@ -1238,9 +1252,11 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 		return NULL;
 	}
 
+	ibitmap_pixfmt_set(bmp, ibitmap_pixfmt_guess(bmp));
+
 	/* construct a fake palette if 8-bit mode is not involved */
 	if ((bpp != 8) && want_palette) {
-		_igenerate_332_palette(pal);
+//		_igenerate_332_palette(pal);
 	}
       
 	return bmp;
@@ -1252,9 +1268,10 @@ struct IBITMAP *iload_tga_stream(IMDIO *stream, IRGB *pal)
 int isave_tga_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 {
 	unsigned char image_palette[256][3];
-	unsigned long c, a, r, g, b, p;
+	IUINT32 c, a, r, g, b, p;
 	long x, y, depth, n;
 	IRGB tmppal[256];
+	int fmt;
 
 	assert(bmp);
 	assert(stream);
@@ -1296,12 +1313,12 @@ int isave_tga_stream(IMDIO *stream, struct IBITMAP *bmp, const IRGB *pal)
 
 	n = (bmp->bpp + 7) / 8;
 
-	if (_ibitmap_pixfmt(bmp) == 0) ibitmap_set_pixfmt(bmp, 0);
+	fmt = _ibitmap_guess_pixfmt(bmp);
 
 	for (y = (long)bmp->h - 1; y >= 0; y--) {
 		for (x = 0; x < (long)bmp->w; x++) {
 			c = _is_getpx(bmp, x, y);
-			p = _im_color_get(_ibitmap_pixfmt(bmp), c, pal);
+			p = _im_color_get(fmt, c, pal);
 			a = (p >> 24) & 0xFF;
 			r = (p >> 16) & 0xFF;
 			g = (p >>  8) & 0xFF;
@@ -1414,30 +1431,21 @@ void ipic_write_pal(const void *_pal)
 	memcpy(_idefault_pal, _pal, 256 * 4);
 }
 
-struct IBITMAP *ipic_convert(struct IBITMAP *src, int bpp, const IRGB *pal)
+struct IBITMAP *ipic_convert(struct IBITMAP *src, int dfmt, const IRGB *pal)
 {
-	IBITMAP *bmp;
-	IRGB *p = _idefault_pal;
-	int flags = bpp >= 0 ? 0 : ICONV_RGB2BGR;
-	if (src == NULL) return NULL;
-	if (pal != NULL) p = (IRGB*)pal;
-	bmp = ibitmap_create(src->w, src->h, bpp >= 0 ? bpp : (-bpp));
-	if (bmp == NULL) return NULL;
-	//_iconvert_slow(bmp, 0, 0, src, 0, 0, src->w, src->h, p, flags);
-	_iconvert_blit(bmp, 0, 0, src, 0, 0, src->w, src->h, NULL, p, flags);
-	return bmp;
-}
-
-struct IBITMAP *ipic_convfmt(struct IBITMAP *src, int fmt, const IRGB *pal)
-{
-	IBITMAP *bmp;
-	IRGB *p = _idefault_pal;
-	if (src == NULL) return NULL;
-	if (pal != NULL) p = (IRGB*)pal;
-	bmp = ibitmap_create(src->w, src->h, ipixel_fmt[fmt].bpp);
-	if (bmp == NULL) return NULL;
-	ibitmap_set_pixfmt(bmp, fmt);
-	_iconvert_blit(bmp, 0, 0, src, 0, 0, src->w, src->h, NULL, p, 0);
+	struct IBITMAP *bmp;
+	int sfmt;
+	int w, h;
+	w = (int)src->w;
+	h = (int)src->h;
+	sfmt = _ibitmap_guess_pixfmt(src);
+	if (sfmt == dfmt) {
+		bmp = ibitmap_create(w, h, src->bpp);
+		if (bmp == NULL) return NULL;
+		ibitmap_blit(bmp, 0, 0, src, 0, 0, w, h, 0);
+		return bmp;
+	}
+	bmp = ibitmap_convfmt(dfmt, src, pal, pal);
 	return bmp;
 }
 
@@ -1616,7 +1624,6 @@ int ipic_gif_open(IGIFDESC *gif, IMDIO *stream, IRGB *pal, int customer)
 	memset(gif, 0, sizeof(IGIFDESC));
 
 	gif->stream = stream;
-	_ishift_init();
 
 	c = is_mgetw(stream) << 8;
 	c = c | is_getc(stream);
@@ -1663,6 +1670,7 @@ int ipic_gif_open(IGIFDESC *gif, IMDIO *stream, IRGB *pal, int customer)
 		}
 		ibitmap_fill(gif->bitmap, 0, 0, gif->width, gif->height * 2,
 			gif->background, 0);
+		ibitmap_pixfmt_set(gif->bitmap, IPIX_FMT_C8);
 	}	
 
 	gif->state = 1;
@@ -1944,8 +1952,8 @@ int ipic_gif_read_frame(IGIFDESC *gif)
 //---------------------------------------------------------------------
 struct IBITMAP *iload_gif_stream(IMDIO *stream, IRGB *pal)
 {
+	struct IBITMAP *bmp;
 	IGIFDESC *gif;
-	IBITMAP *bmp;
 	gif = (IGIFDESC*)malloc(sizeof(IGIFDESC));
 	if (gif == NULL) return NULL;
 	if (ipic_gif_open(gif, stream, pal, 0) != 0) {
@@ -1981,7 +1989,6 @@ int ipic_gif_wopen(IGIFDESC *gif, IMDIO *stream, const IRGB *pal,
 	assert(gif && stream);
 	memset(gif, 0, sizeof(IGIFDESC));
 
-	_ishift_init();
 	pal = pal ? pal : (const IRGB*)_ipaletted;
 
 	gif->stream = stream;
@@ -2092,7 +2099,7 @@ static int _igif_get_next_color(IGIFDESC *gif)
 
 	if (--gif->string_length < 0) return -1;
 
-	c = ((unsigned char*)_ilineptr(gif->bitmap, y))[x];
+	c = ((unsigned char*)gif->bitmap->line[y])[x];
 	if (++x >= gif->image_x + gif->image_w) {
 		x = gif->image_x;
 		y += gif->interlace;
