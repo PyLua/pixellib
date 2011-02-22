@@ -119,7 +119,6 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
  * src       - source bitmap 
  * sx, sy    - source rectangle position in source bitmap
  * w, h      - source rectangle width and height in source bitmap
- * mask      - coloekey of source bitmap, ignored if no IBLIT_MASK
  * mode      - flags of IBLIT_CLIP, IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
  */
 int ibitmap_blit(struct IBITMAP *dst, int dx, int dy, 

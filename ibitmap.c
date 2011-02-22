@@ -273,7 +273,6 @@ ibitmap_blitter_flip ibitmap_blitf = ibitmap_blitfc;
  * src       - source bitmap 
  * sx, sy    - source rectangle position in source bitmap
  * w, h      - source rectangle width and height in source bitmap
- * mask      - coloekey of source bitmap, ignored if no IBLIT_MASK
  * mode      - blit flag bits (IBLIT_CLIP, IBLIT_MASK)
  */
 int ibitmap_blit(struct IBITMAP *dst, int x, int y, 
