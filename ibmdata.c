@@ -2138,7 +2138,7 @@ int ibitmap_raster_float(IBITMAP *dst, const ipixel_point_t *pts,
 
 // 旋转/缩放绘制
 int ibitmap_raster_draw(IBITMAP *dst, double x, double y, const IBITMAP *src,
-	const IRECT *rect, int offset_x, int offset_y, double scale_x, 
+	const IRECT *rect, double offset_x, double offset_y, double scale_x, 
 	double scale_y, double theta, IUINT32 color, const IRECT *clip)
 {
 	ipixel_point_t pts[4];
@@ -2196,7 +2196,7 @@ int ibitmap_raster_draw(IBITMAP *dst, double x, double y, const IBITMAP *src,
 
 // 三维旋转/缩放绘制
 int ibitmap_raster_draw_3d(IBITMAP *dst, double x, double y, double z,
-	const IBITMAP *src, const IRECT *rect, int offset_x, int offset_y,
+	const IBITMAP *src, const IRECT *rect, double offset_x, double offset_y,
 	double scale_x, double scale_y, double angle_x, double angle_y, 
 	double angle_z, IUINT32 color, const IRECT *clip)
 {
