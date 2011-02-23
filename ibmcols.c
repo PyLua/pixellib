@@ -2427,7 +2427,7 @@ int ibitmap_clip_scale(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
 
 
 // Ëõ·Å»æÖÆ£º
-int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
+int ibitmap_stretch2(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
 	const IRECT *rectsrc, const IRECT *clip, int flags)
 {
 	IINT32 dx, dy, dw, dh, sx, sy, sw, sh;
@@ -2439,9 +2439,6 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src,
 
 	if (src->bpp != dst->bpp) 
 		return -100;
-
-	if (flags & (IBLIT_HFLIP | IBLIT_VFLIP))
-		return -200;
 
 	if (ibitmap_clip_scale(dst, &drect, clip, src, &srect) != 0) 
 		return -300;
@@ -2456,10 +2453,6 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src,
 	sh = srect.bottom - sy;
 
 	#define ibitmap_stretch_routine(nbytes, bpp) {	\
-			unsigned char *dstrow = (IUINT8*)dst->line[dy] + dx * nbytes; \
-			unsigned char *srcrow = (IUINT8*)src->line[sy] + sx * nbytes; \
-			long srcpitch = src->pitch;	\
-			long dstpitch = dst->pitch; \
 			int dstwidth = dw; \
 			int dstheight = dh; \
 			int dstwidth2 = dw * 2; \
@@ -2469,12 +2462,21 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src,
 			int werr = 0; \
 			int herr = srcheight2 - dstheight2; \
 			int loopw = 0; \
-			int looph = 0; \
+			int YS = 0; \
+			int YD = 0; \
+			int incx = nbytes; \
 			IUINT32 mask, c; \
 			mask = src->mask; \
-			for (looph = 0; looph < dstheight; looph++) { \
-				unsigned char *dstpix = dstrow; \
-				unsigned char *srcpix = srcrow; \
+			for (YD = 0; YD < dstheight; YD++) { \
+				IUINT8 *dstpix = (IUINT8*)dst->line[dy + YD] + dx * nbytes; \
+				IUINT8 *srcpix = (IUINT8*)src->line[sy + YS] + sx * nbytes; \
+				if (flags & IBLIT_VFLIP) \
+					srcpix = (IUINT8*)src->line[sy + dh - 1 - YS] + \
+							sx * nbytes; \
+				if (flags & IBLIT_HFLIP) { \
+					incx = -nbytes; \
+					srcpix += (sw - 1) * nbytes; \
+				} \
 				werr = srcwidth2 - dstwidth2; \
 				if ((flags & IBLIT_MASK) == 0) { \
 					for (loopw = dstwidth; loopw > 0; loopw--) { \
@@ -2482,7 +2484,7 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src,
 						_ipixel_store(bpp, dstpix, 0, c); \
 						dstpix += nbytes; \
 						while (werr >= 0) { \
-							srcpix += nbytes, werr -= dstwidth2; \
+							srcpix += incx, werr -= dstwidth2; \
 						}	\
 						werr += srcwidth2; \
 					} \
@@ -2494,15 +2496,14 @@ int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src,
 						}	\
 						dstpix += nbytes; \
 						while (werr >= 0) { \
-							srcpix += nbytes, werr -= dstwidth2; \
+							srcpix += incx, werr -= dstwidth2; \
 						}	\
 						werr += srcwidth2; \
 					} \
 				}	\
 				while (herr >= 0) { \
-					srcrow += srcpitch, herr -= dstheight2; \
+					YS++, herr -= dstheight2; \
 				}	\
-				dstrow += dstpitch; \
 				herr += srcheight2; \
 			}	\
 		}
@@ -2562,13 +2563,10 @@ IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound,
 		ibitmap_smooth_resize(bitmap, &drect, src, &srect);
 	}	
 	else {
-		ibitmap_stretch(bitmap, &drect, src, &srect, NULL, 0);
+		ibitmap_stretch2(bitmap, &drect, src, &srect, NULL, 0);
 	}
 
 	return bitmap;
 }
 
 
-//! flag: -O3
-
-// ibmtrap.h

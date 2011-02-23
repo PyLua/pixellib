@@ -890,6 +890,253 @@ int ibitmap_fillc(char *dst, long pitch, int w, int h, int pixsize,
 }
 
 
+/* ibitmap_stretch - copies a bitmap from a source rectangle into a 
+ * destination rectangle, stretching or compressing the bitmap to fit 
+ * the dimensions of the destination rectangle
+ * returns zero for successful, others for invalid rectangle
+ * dst       - dest bitmap to draw on
+ * dx, dy    - target rectangle position of dest bitmap to draw on
+ * dw, dh    - target rectangle width and height in dest bitmap
+ * src       - source bitmap 
+ * sx, sy    - source rectangle position in source bitmap
+ * sw, sh    - source rectangle width and height in source bitmap
+ * mode      - flags of IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
+ * it uses bresenham like algorithm instead of fixed point or indexing 
+ * to avoid integer size overflow and memory allocation, just use it 
+ * when you don't have a stretch function.
+ */
+int ibitmap_stretch(struct IBITMAP *dst, int dx, int dy, int dw, int dh,
+    const struct IBITMAP *src, int sx, int sy, int sw, int sh, int mode)
+{
+    int dstwidth, dstheight, dstwidth2, dstheight2, srcwidth2, srcheight2;
+    int werr, herr, incx, incy, i, j, nbytes; 
+    static unsigned long endian = 0x11223344;
+    unsigned long mask, key24;
+    long longsize, isize;
+
+    /* check whether parametes is error */
+    assert(src && dst);
+    assert(src->bpp == dst->bpp);
+
+    if (src->bpp != dst->bpp)
+        return -10;
+
+    if (dw == sw && dh == sh) {
+        mode |= IBLIT_CLIP;
+        return ibitmap_blit(dst, dx, dy, src, sx, sy, sw, sh, mode);
+    }
+
+    if (dx < 0 || dx + dw > (int)dst->w || dy < 0 || dy + dh > (int)dst->h ||
+        sx < 0 || sx + sw > (int)src->w || sy < 0 || sy + sh > (int)src->h ||
+        sh <= 0 || sw <= 0 || dh <= 0 || dw <= 0) 
+        return -20;
+
+    dstwidth = dw;
+    dstheight = dh;
+    dstwidth2 = dw * 2;
+    dstheight2 = dh * 2;
+    srcwidth2 = sw * 2;
+    srcheight2 = sh * 2;
+
+    if (mode & IBLIT_VFLIP) sy = sy + sh - 1, incy = -1;
+    else incy = 1;
+
+    herr = srcheight2 - dstheight2;
+    nbytes = (src->bpp + 7) / 8;
+
+    isize = sizeof(int);
+    longsize = sizeof(long);
+    mask = (unsigned long)src->mask;
+
+    for (j = 0; j < dstheight; j++) {
+        const unsigned char *srcrow = (const unsigned char*)src->line[sy];
+        unsigned char *dstrow = (unsigned char*)dst->line[dy];
+        const unsigned char *srcpix = srcrow + nbytes * sx;
+        unsigned char *dstpix = dstrow + nbytes * dx;
+        incx = nbytes;
+        if (mode & IBLIT_HFLIP) {
+            srcpix += (sw - 1) * nbytes;
+            incx = -nbytes;
+        }
+        werr = srcwidth2 - dstwidth2;
+
+        switch (nbytes)
+        {
+        case 1:
+            {
+                unsigned char mask8;
+                if ((mode & IBLIT_MASK) == 0) {
+                    for (i = dstwidth; i > 0; i--) {
+                        *dstpix++ = *srcpix;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }   else {
+                    mask8 = (unsigned char)(src->mask & 0xff);
+                    for (i = dstwidth; i > 0; i--) {
+                        if (*srcpix != mask8) *dstpix = *srcpix;
+                        dstpix++;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }
+            }
+            break;
+
+        case 2:
+            {
+                unsigned short mask16;
+                if ((mode & IBLIT_MASK) == 0) {
+                    for (i = dstwidth; i > 0; i--) {
+                        *((unsigned short*)dstpix) = 
+                                            *((unsigned short*)srcpix);
+                        dstpix += 2;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }   else {
+                    mask16 = (unsigned short)(src->mask & 0xffff);
+                    for (i = dstwidth; i > 0; i--) {
+                        if (*((unsigned short*)srcpix) != mask16) 
+                            *((unsigned short*)dstpix) = 
+                                            *((unsigned short*)srcpix);
+                        dstpix += 2;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }
+            }
+            break;
+        
+        case 3:
+            if (((unsigned char*)&endian)[0] != 0x44) key24 = mask;
+            else key24 = ((mask & 0xFFFF) << 8) | ((mask >> 16) & 0xFF);
+            if ((mode & IBLIT_MASK) == 0) {
+                for (i = dstwidth; i > 0; i--) {
+                    dstpix[0] = srcpix[0];
+                    dstpix[1] = srcpix[1];
+                    dstpix[2] = srcpix[2];
+                    dstpix += 3;
+                    while (werr >= 0) {
+                        srcpix += incx, werr -= dstwidth2;
+                    }
+                    werr += srcwidth2;
+                }
+            }
+            else if (longsize == 4) {
+                unsigned long longmask, k;
+                longmask = key24 & 0xffffff;
+                for (i = dstwidth; i > 0; i--) {
+                    k = (((unsigned long)(*(unsigned short*)srcpix)) << 8);
+                    if ((k | srcpix[2]) != longmask) {
+                        dstpix[0] = srcpix[0];
+                        dstpix[1] = srcpix[1];
+                        dstpix[2] = srcpix[2];
+                    }
+                    dstpix += 3;
+                    while (werr >= 0) {
+                        srcpix += incx, werr -= dstwidth2;
+                    }
+                    werr += srcwidth2;
+                }
+            }
+            else if (isize == 4) {
+                unsigned int imask, k;
+                imask = key24 & 0xffffff;
+                for (i = dstwidth; i > 0; i--) {
+                    k = (((unsigned int)(*(unsigned short*)srcpix)) << 8);
+                    if ((k | srcpix[2]) != imask) {
+                        dstpix[0] = srcpix[0];
+                        dstpix[1] = srcpix[1];
+                        dstpix[2] = srcpix[2];
+                    }
+                    dstpix += 3;
+                    while (werr >= 0) {
+                        srcpix += incx, werr -= dstwidth2;
+                    }
+                    werr += srcwidth2;
+                }
+            }
+            break;
+
+        case 4:
+            if (longsize == 4) {
+                unsigned long masklong;
+                if ((mode & IBLIT_MASK) == 0) {
+                    for (i = dstwidth; i > 0; i--) {
+                        *((unsigned long*)dstpix) = 
+                                            *((unsigned long*)srcpix);
+                        dstpix += 4;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }   else {
+                    masklong = (unsigned long)(src->mask);
+                    for (i = dstwidth; i > 0; i--) {
+                        if (*((unsigned long*)srcpix) != masklong) 
+                            *((unsigned long*)dstpix) = 
+                                            *((unsigned long*)srcpix);
+                        dstpix += 4;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }
+            }
+            else if (isize == 4) {
+                unsigned int maskint;
+                if ((mode & IBLIT_MASK) == 0) {
+                    for (i = dstwidth; i > 0; i--) {
+                        *((unsigned int*)dstpix) = *((unsigned int*)srcpix);
+                        dstpix += 4;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }   else {
+                    maskint = (unsigned int)(src->mask);
+                    for (i = dstwidth; i > 0; i--) {
+                        if (*((unsigned int*)srcpix) != maskint) 
+                            *((unsigned int*)dstpix) = 
+                                            *((unsigned int*)srcpix);
+                        dstpix += 4;
+                        while (werr >= 0) {
+                            srcpix += incx, werr -= dstwidth2;
+                        }
+                        werr += srcwidth2;
+                    }
+                }
+            }    
+            else {
+                assert(0);
+            }
+            break;
+        }
+
+        while (herr >= 0) {
+            sy += incy, herr -= dstheight2;
+        }
+
+        herr += srcheight2; 
+        dy++;
+    }
+
+    return 0;
+}
+
+
 
 /*
  * ibitmap_funcset - set basic bitmap functions, returns zero for successful

@@ -121,8 +121,8 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
  * w, h      - source rectangle width and height in source bitmap
  * mode      - flags of IBLIT_CLIP, IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
  */
-int ibitmap_blit(struct IBITMAP *dst, int dx, int dy, 
-    const struct IBITMAP *src, int x, int y, int w, int h, int mode);
+int ibitmap_blit(struct IBITMAP *dst, int x, int y, 
+    const struct IBITMAP *src, int sx, int sy, int w, int h, int mode);
 
 
 /*
@@ -143,6 +143,24 @@ int ibitmap_setmask(struct IBITMAP *bmp, unsigned long mask);
 int ibitmap_fill(struct IBITMAP *dst, int dx, int dy, int w, int h,
     unsigned long col, int noclip);
 
+
+/* ibitmap_stretch - copies a bitmap from a source rectangle into a 
+ * destination rectangle, stretching or compressing the bitmap to fit 
+ * the dimensions of the destination rectangle
+ * returns zero for successful, others for invalid rectangle
+ * dst       - dest bitmap to draw on
+ * dx, dy    - target rectangle position of dest bitmap to draw on
+ * dw, dh    - target rectangle width and height in dest bitmap
+ * src       - source bitmap 
+ * sx, sy    - source rectangle position in source bitmap
+ * sw, sh    - source rectangle width and height in source bitmap
+ * mode      - flags of IBLIT_MASK, IBLIT_HFLIP, IBLIT_VFLIP...
+ * it uses bresenham like algorithm instead of fixed point or indexing 
+ * to avoid integer size overflow and memory allocation, just use it 
+ * when you don't have a stretch function.
+ */
+int ibitmap_stretch(struct IBITMAP *dst, int dx, int dy, int dw, int dh,
+    const struct IBITMAP *src, int sx, int sy, int sw, int sh, int mode);
 
 
 /**********************************************************************
