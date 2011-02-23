@@ -332,12 +332,13 @@ int ibitmap_clip_scale(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
 	const IBITMAP *src, IRECT *srect);
 
 // 缩放绘制：接受IBLIT_MASK参数，不接受 IBLIT_HFLIP, IBLIT_VFLIP
-int ibitmap_stretch(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
+int ibitmap_stretch2(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
 	const IRECT *rectsrc, const IRECT *clip, int flags);
 
 // 重新采样
 IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound, 
 	int newwidth, int newheight, int mode);
+
 
 
 //=====================================================================
