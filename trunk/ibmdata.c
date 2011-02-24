@@ -1839,12 +1839,14 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 	const IRECT *clip, void *workmem)
 {
 	int ntraps, width, height, startx, starty, endx, i, j, sm, sn;
+	const iColorIndex *dindex = (const iColorIndex*)dst->extra;
 	IUINT8 *workptr = (IUINT8*)workmem;
 	ipixel_trapezoid_t traps[4];
 	ipixel_point_fixed_t spts[4];
 	ipixel_transform_t matrix;
 	iBitmapFetchProc fetch;
 	iSpanDrawProc draw;
+	iStoreProc store;
 	IRECT bound_trap;
 	IRECT bound_dst;
 	IRECT bound_src;
@@ -1916,7 +1918,7 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 	}
 
 	// 如果没有变换则直接绘制
-	if (direct) {
+	if (direct == 1) {
 		int dx = cfixed_to_int(pts[0].x);
 		int dy = cfixed_to_int(pts[0].y);
 		int sx = rect->left;
@@ -1932,8 +1934,14 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 			&sw, &sh, clip, 0) != 0) {
 			return -1;
 		}
-		if (flags & IBITMAP_RASTER_FLAG_ADD) operate = IPIXEL_BLEND_OP_ADD;
-		else operate = IPIXEL_BLEND_OP_BLEND;
+		if (flags & IBITMAP_RASTER_FLAG_ADD) {
+			operate = IPIXEL_BLEND_OP_ADD;
+		}
+		else if (flags & IBITMAP_RASTER_FLAG_COPY) {
+			operate = IPIXEL_BLEND_OP_COPY;
+		}	else {
+			operate = IPIXEL_BLEND_OP_BLEND;
+		}
 		ipixel_blend(dfmt, dst->line[dy], (long)dst->pitch, dx, sfmt,
 			src->line[sy], (long)src->pitch, sx, sw, sh, color, 
 			operate, 0, dindex, sindex, workmem);
@@ -2038,6 +2046,12 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 	// 得到绘制函数
 	draw = ipixel_get_span_proc(ibitmap_pixfmt_guess(dst), 
 			(flags & IBITMAP_RASTER_FLAG_ADD)? 1 : 0, 0);
+
+	// 取得存储的函数
+	store = ipixel_get_store(ibitmap_pixfmt_guess(dst), 0);
+
+	// 判断合法的颜色索引器
+	if (dindex == NULL) dindex = _ipixel_dst_index;
 	
 	// 主要绘制循环
 	for (j = 0; j < height; j++) {
@@ -2076,7 +2090,11 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 			ipixel_card_multi(card, xw, color);
 
 		// 绘制图像
-		ibitmap_scanline_blend(dst, xl, line, xw, card, cover, clip, draw);
+		if (flags & IBITMAP_RASTER_FLAG_COPY) {
+			store(dst->line[line], card, xl, xw, dindex);
+		}	else {
+			draw(dst->line[line], xl, xw, card, cover, dindex);
+		}
 
 		// 清空 Alpha Map
 		if (cover) memset(cover, 0, xw);
