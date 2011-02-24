@@ -328,12 +328,13 @@ void ibitmap_draw_ascii(IBITMAP *dst, const IGLYPHFONT *font, int x, int y,
 //=====================================================================
 // 位图实用工具
 //=====================================================================
-int ibitmap_clip_scale(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
-	const IBITMAP *src, IRECT *srect);
+// 缩放裁剪
+int ibitmap_clip_scale(const IRECT *clipdst, const IRECT *clipsrc, 
+	IRECT *bound_dst, IRECT *bound_src, int mode);
 
 // 缩放绘制：接受IBLIT_MASK参数，不接受 IBLIT_HFLIP, IBLIT_VFLIP
-int ibitmap_stretch2(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
-	const IRECT *rectsrc, const IRECT *clip, int flags);
+int ibitmap_scale(IBITMAP *dst, const IRECT *bound_dst, const IBITMAP *src,
+	const IRECT *bound_src, const IRECT *clip, int mode);
 
 // 重新采样
 IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound, 
