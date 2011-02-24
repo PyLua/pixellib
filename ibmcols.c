@@ -2355,180 +2355,811 @@ int ibitmap_smooth_resize(IBITMAP *dst, const IRECT *rectdst,
 //=====================================================================
 // 位图实用工具
 //=====================================================================
-int ibitmap_clip_scale(const IBITMAP *dst, IRECT *drect, const IRECT *clip,
-	const IBITMAP *src, IRECT *srect)
+int ibitmap_clip_scale(const IRECT *clipdst, const IRECT *clipsrc, 
+	IRECT *bound_dst, IRECT *bound_src, int mode)
 {
-	int x1 = drect->left;
-	int y1 = drect->top;
-	int w1 = drect->right - x1;
-	int h1 = drect->bottom - y1;
-	int x2 = srect->left;
-	int y2 = srect->top;
-	int w2 = srect->right - x2;
-	int h2 = srect->bottom - y2;
-	int cl, ct, cr, cb;
-	int cw, ch;
-	if (clip == NULL) {
-		cl = 0, ct = 0, cr = dst->w, cb = dst->h;
-	}	else {
-		cl = clip->left;
-		ct = clip->top;
-		cr = clip->right;
-		cb = clip->bottom;
-	}
-	cw = cr - cl;
-	ch = cb - ct;
-	if (w1 <= 0 || h1 <= 0 || w2 <= 0 || h2 <= 0) return -1;
-	if (x1 >= cl && y1 >= ct && w1 <= cw && h1 <= ch &&
-		x2 >= 0 && y2 >= 0 && w2 <= (int)src->w && h2 <= (int)src->h) {
+	int dcl = clipdst->left;
+	int dct = clipdst->top;
+	int dcr = clipdst->right;
+	int dcb = clipdst->bottom;
+	int scl = clipsrc->left;
+	int sct = clipsrc->top;
+	int scr = clipsrc->right;
+	int scb = clipsrc->bottom;
+	int dl = bound_dst->left;
+	int dt = bound_dst->top;
+	int dr = bound_dst->right;
+	int db = bound_dst->bottom;
+	int sl = bound_src->left;
+	int st = bound_src->top;
+	int sr = bound_src->right;
+	int sb = bound_src->bottom;
+	int dw = dr - dl;
+	int dh = db - dt;
+	int sw = sr - sl;
+	int sh = sb - st;
+	int hflip, vflip;
+	float fx, fy;
+	float ix, iy;
+	int d;
+
+    hflip = (mode & IBLIT_HFLIP)? 1 : 0;
+    vflip = (mode & IBLIT_VFLIP)? 1 : 0;
+
+	if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) 
+		return -1;
+
+	if (dl >= dcl && dt >= dct && dr <= dcr && db <= dcb &&
+		sl >= scl && st >= sct && sr <= scr && sb <= scb)
 		return 0;
-	}	else {
-		float fx = ((float)w2) / w1;
-		float fy = ((float)h2) / h1;
-		float ix = 1.0f / fx;
-		float iy = 1.0f / fy;
-		int ds, d;
-		if (x1 < cl) {
-			d = cl - x1;
-			x2 += (int)(d * fx);
-			w2 -= (int)(d * fx);
-			w1 -= d;
-			x1 = cl;
-		}
-		if (y1 < ct) {
-			d = ct - y1;
-			y2 += (int)(d * fx);
-			h2 -= (int)(d * fx);
-			h1 -= (int)d;
-			y1 = (int)ct;
-		}
-		if (x2 < 0) 
-			x1 += (int)(-x2 * ix), w1 += (int)(x2 * ix), w2 += x2, x2 = 0;
-		if (y2 < 0) 
-			y1 += (int)(-y2 * iy), h2 += (int)(y2 * iy), h2 += y2, y2 = 0;
-		if (x1 >= cr || y1 >= cb) return -2;
-		if (x2 >= (int)src->w || y2 >= (int)src->h) return -3;
-		if (w1 <= 0 || h1 <= 0 || w2 <= 0 || h2 <= 0) return -4;
-		if (x1 + w1 > cr) 
-			ds = x1 + w1 - cr, w1 -= ds, w2 -= (int)(ds * fx);
-		if (y1 + h1 > cb)
-			ds = y1 + h1 - cb, h1 -= ds, h2 -= (int)(ds * fx);
-		if (x2 + w2 > (int)src->w)
-			ds = x2 + w2 - (int)src->w, w1 -= (int)(ds * ix), w2 -= ds;
-		if (y2 + h2 > (int)src->h)
-			ds = y2 + h2 - (int)src->h, h1 -= (int)(ds * iy), h2 -= ds;
-		if (w1 <= 0 || h1 <= 0 || w2 <= 0 || h2 <= 0) 
-			return -5;
+
+	fx = ((float)dw) / sw;
+	fy = ((float)dh) / sh;
+	ix = ((float)sw) / dw;
+	iy = ((float)sh) / dh;
+
+	// check dest clip: left
+	if (dl < dcl) {
+		d = dcl - dl;
+		dl = dcl;
+		if (!hflip) sl += (int)(d * ix);
+		else sr -= (int)(d * ix);
 	}
-	ipixel_rect_set(drect, x1, y1, x1 + w1, y1 + h1);
-	ipixel_rect_set(srect, x2, y2, x2 + w2, y2 + h2);
+
+	// check dest clip: top
+	if (dt < dct) {
+		d = dct - dt;
+		dt = dct;
+		if (!vflip) st += (int)(d * iy);
+		else sb -= (int)(d * iy);
+	}
+
+	if (dl >= dr || dt >= db || sl >= sr || st >= sb)
+		return -2;
+
+	// check dest clip: right
+	if (dr > dcr) {
+		d = dr - dcr;
+		dr = dcr;
+		if (!hflip) sr -= (int)(d * ix);
+		else sl += (int)(d * ix);
+	}
+
+	// check dest clip: bottom
+	if (db > dcb) {
+		d = db - dcb;
+		db = dcb;
+		if (!vflip) sb -= (int)(d * iy);
+		else st += (int)(d * iy);
+	}
+
+	if (dl >= dr || dt >= db || sl >= sr || st >= sb)
+		return -3;
+	
+	// check source clip: left
+	if (sl < scl) {
+		d = scl - sl;
+		sl = scl;
+		if (!hflip) dl += (int)(d * fx);
+		else dr -= (int)(d * fx);
+	}
+
+	// check source clip: top
+	if (st < sct) {
+		d = sct - st;
+		st = sct;
+		if (!vflip) dt += (int)(d * fy);
+		else db -= (int)(d * fy);
+	}
+
+	if (dl >= dr || dt >= db || sl >= sr || st >= sb)
+		return -4;
+
+	// check source clip: right
+	if (sr > scr) {
+		d = sr - scr;
+		sr = scr;
+		if (!hflip) dr -= (int)(d * fx);
+		else dl += (int)(d * fx);
+	}
+
+	// check source clip: bottom
+	if (sb > scb) {
+		d = sb - scb;
+		sb = scb;
+		if (!vflip) db -= (int)(d * fy);
+		else dt += (int)(d * fy);
+	}
+
+	if (dl >= dr || dt >= db || sl >= sr || st >= sb)
+		return -5;
+
+	bound_dst->left = dl;
+	bound_dst->top = dt;
+	bound_dst->right = dr;
+	bound_dst->bottom = db;
+	bound_src->left = sl;
+	bound_src->top = st;
+	bound_src->right = sr;
+	bound_src->bottom = sb;
+
 	return 0;
 }
 
 
-// 缩放绘制：
-int ibitmap_stretch2(IBITMAP *dst, const IRECT *rectdst, const IBITMAP *src, 
-	const IRECT *rectsrc, const IRECT *clip, int flags)
+// 缩放绘制
+int ibitmap_scale(IBITMAP *dst, const IRECT *bound_dst, const IBITMAP *src,
+	const IRECT *bound_src, const IRECT *clip, int mode)
 {
-	IINT32 dx, dy, dw, dh, sx, sy, sw, sh;
-	IRECT drect;
-	IRECT srect;
+	const iColorIndex *sindex;
+	iColorIndex *dindex;
+	IRECT dstclip;
+	IRECT srcclip;
+	IRECT dstrect;
+	IRECT srcrect;
+	IUINT32 mask;
+	int dw, dh;
+	int sw, sh;
+	int sfmt;
+	int dfmt;
 
-	ipixel_rect_copy(&drect, rectdst);
-	ipixel_rect_copy(&srect, rectsrc);
+	if (clip) {
+		dstclip.left = clip->left;
+		dstclip.top = clip->top;
+		dstclip.right = clip->right;
+		dstclip.bottom = clip->bottom;
+	}	else {
+		dstclip.left = 0;
+		dstclip.top = 0;
+		dstclip.right = (int)dst->w;
+		dstclip.bottom = (int)dst->h;
+	}
 
-	if (src->bpp != dst->bpp) 
-		return -100;
+	srcclip.left = 0;
+	srcclip.top = 0;
+	srcclip.right = (int)src->w;
+	srcclip.bottom = (int)src->h;
 
-	if (ibitmap_clip_scale(dst, &drect, clip, src, &srect) != 0) 
-		return -300;
+	if (bound_dst) {
+		dstrect.left = bound_dst->left;
+		dstrect.top = bound_dst->top;
+		dstrect.right = bound_dst->right;
+		dstrect.bottom = bound_dst->bottom;
+	}	else {
+		dstrect.left = dstclip.left;
+		dstrect.top = dstclip.top;
+		dstrect.right = dstclip.right;
+		dstrect.bottom = dstclip.bottom;
+	}
 
-	dx = drect.left;
-	dy = drect.top;
-	dw = drect.right - dx;
-	dh = drect.bottom - dy;
-	sx = srect.left;
-	sy = srect.top;
-	sw = srect.right - sx;
-	sh = srect.bottom - sy;
+	if (bound_src) {
+		srcrect.left = bound_src->left;
+		srcrect.top = bound_src->top;
+		srcrect.right = bound_src->right;
+		srcrect.bottom = bound_src->bottom;
+	}	else {
+		srcrect.left = srcclip.left;
+		srcrect.top = srcclip.top;
+		srcrect.right = srcclip.right;
+		srcrect.bottom = srcclip.bottom;
+	}
 
-	#define ibitmap_stretch_routine(nbytes, bpp) {	\
-			int dstwidth = dw; \
-			int dstheight = dh; \
-			int dstwidth2 = dw * 2; \
-			int dstheight2 = dh * 2; \
-			int srcwidth2 = sw * 2; \
-			int srcheight2 = sh * 2; \
-			int werr = 0; \
-			int herr = srcheight2 - dstheight2; \
-			int loopw = 0; \
-			int YS = 0; \
-			int YD = 0; \
-			int incx = nbytes; \
-			IUINT32 mask, c; \
-			mask = src->mask; \
-			for (YD = 0; YD < dstheight; YD++) { \
-				IUINT8 *dstpix = (IUINT8*)dst->line[dy + YD] + dx * nbytes; \
-				IUINT8 *srcpix = (IUINT8*)src->line[sy + YS] + sx * nbytes; \
-				if (flags & IBLIT_VFLIP) \
-					srcpix = (IUINT8*)src->line[sy + dh - 1 - YS] + \
-							sx * nbytes; \
-				if (flags & IBLIT_HFLIP) { \
-					incx = -nbytes; \
-					srcpix += (sw - 1) * nbytes; \
+	dw = dstrect.right - dstrect.left;
+	dh = dstrect.bottom - dstrect.top;
+	sw = srcrect.right - srcrect.left;
+	sh = srcrect.bottom - srcrect.top;
+
+	dfmt = ibitmap_pixfmt_guess(dst);
+	sfmt = ibitmap_pixfmt_guess(src);
+
+	// direct blit
+	if (dw == sw && dh == sh && sfmt == dfmt) {
+		int dx = dstrect.left;
+		int dy = dstrect.top;
+		int sx = srcrect.left;
+		int sy = srcrect.top;
+		mode &= ~IBLIT_CLIP;
+		if ((mode & IBLIT_NOCLIP) == 0) {
+			if (ibitmap_clipex(dst, &dx, &dy, src, &sx, &sy,
+				&sw, &sh, clip, mode))
+				return -100;
+		}
+		return ibitmap_blit(dst, dx,dy, src, sx, sy, sw, sh, mode);
+	}
+
+	sindex = (const iColorIndex*)(src->extra);
+	dindex = (iColorIndex*)(dst->extra);
+
+	if (sindex == NULL) sindex = _ipixel_src_index;
+	if (dindex == NULL) dindex = _ipixel_dst_index;
+
+	// direct convert pixel format
+	if ((mode & IBLIT_MASK) == 0 && dw == sw && dh == sh && 0) {
+		int dx = dstrect.left;
+		int dy = dstrect.top;
+		int sx = srcrect.left;
+		int sy = srcrect.top;
+		ibitmap_convert(dst, dx, dy, src, sx, sy, sw, sh, clip, mode);
+		return 0;
+	}
+
+	// clip area
+	if ((mode & IBLIT_NOCLIP) == 0) {
+		if (ibitmap_clip_scale(&dstclip, &srcclip, &dstrect, &srcrect, mode))
+			return -200;
+		dw = dstrect.right - dstrect.left;
+		dh = dstrect.bottom - dstrect.top;
+		sw = srcrect.right - srcrect.left;
+		sh = srcrect.bottom - srcrect.top;
+	}
+
+	// use bresenham algorithm for large picture
+	if (dst->w >= 32767 || dst->h >= 32767 || 
+		src->w >= 32767 || src->h >= 32767) {
+		if (sfmt != dfmt) 
+			return -300;
+		// 2048 ms
+		return ibitmap_stretch(dst, dstrect.left, dstrect.top, 
+			dstrect.right - dstrect.left, dstrect.bottom - dstrect.top,
+			src, srcrect.left, srcrect.top, srcrect.right - srcrect.left,
+			srcrect.bottom - srcrect.top, mode);
+	}
+#if 1
+	else if (sfmt == dfmt) {
+		cfixed su, sv, du, dv;
+		IUINT32 cc;
+		int i, j;
+
+		#define IBITMAP_SCALE_BITS(bpp, nbytes) { \
+			for (j = 0; j < dh; sv += dv, j++) { \
+				int srcline = cfixed_to_int(sv); \
+				const IUINT8 *srcrow = (const IUINT8*)src->line[srcline]; \
+				IUINT8 *dstrow = (IUINT8*)dst->line[dstrect.top + j]; \
+				const IUINT8 *srcpix = srcrow; \
+				IUINT8 *dstpix = dstrow + dstrect.left * nbytes; \
+				if (mode & IBLIT_HFLIP) { \
+					su = cfixed_from_int(srcrect.right - 1); \
+				}	else { \
+					su = cfixed_from_int(srcrect.left); \
 				} \
-				werr = srcwidth2 - dstwidth2; \
-				if ((flags & IBLIT_MASK) == 0) { \
-					for (loopw = dstwidth; loopw > 0; loopw--) { \
-						c = _ipixel_fetch(bpp, srcpix, 0); \
-						_ipixel_store(bpp, dstpix, 0, c); \
+				if (mode & IBLIT_MASK) { \
+					for (i = dw; i > 0; su += du, i--) { \
+						srcpix = srcrow + cfixed_to_int(su) * nbytes; \
+						cc = _ipixel_fetch(bpp, srcpix, 0); \
+						if (cc != mask) \
+							_ipixel_store(bpp, dstpix, 0, cc);  \
 						dstpix += nbytes; \
-						while (werr >= 0) { \
-							srcpix += incx, werr -= dstwidth2; \
-						}	\
-						werr += srcwidth2; \
 					} \
 				}	else { \
-					for (loopw = dstwidth; loopw > 0; loopw--) { \
-						c = _ipixel_fetch(bpp, srcpix, 0); \
-						if (c != mask) { \
-							_ipixel_store(bpp, dstpix, 0, c); \
-						}	\
+					for (i = dw; i > 0; su += du, i--) { \
+						srcpix = srcrow + cfixed_to_int(su) * nbytes; \
+						cc = _ipixel_fetch(bpp, srcpix, 0); \
+						_ipixel_store(bpp, dstpix, 0, cc);  \
 						dstpix += nbytes; \
-						while (werr >= 0) { \
-							srcpix += incx, werr -= dstwidth2; \
-						}	\
-						werr += srcwidth2; \
 					} \
-				}	\
-				while (herr >= 0) { \
-					YS++, herr -= dstheight2; \
-				}	\
-				herr += srcheight2; \
-			}	\
+				} \
+			} \
+		}
+		// 400
+		if (mode & IBLIT_VFLIP) {
+			sv = cfixed_from_int(srcrect.bottom - 1);
+			dv = -cfixed_div(cfixed_from_int(sh), cfixed_from_int(dh));
+		}	else {
+			sv = cfixed_from_int(srcrect.top);
+			dv = cfixed_div(cfixed_from_int(sh), cfixed_from_int(dh));
+		}
+		if (mode & IBLIT_HFLIP) {
+			du = -cfixed_div(cfixed_from_int(sw), cfixed_from_int(dw));
+		}	else {
+			du = cfixed_div(cfixed_from_int(sw), cfixed_from_int(dw));
 		}
 
-	switch (src->bpp) 
-	{
-	case 8: 
-		ibitmap_stretch_routine(1, 8); 
-		break;
-	case 15:
-	case 16:
-		ibitmap_stretch_routine(2, 16);
-		break;
-	case 24:
-		ibitmap_stretch_routine(3, 24);
-		break;
-	case 32:
-		ibitmap_stretch_routine(4, 32); 
-		break;
-	}
+		mask = (IUINT32)src->mask;
 
-	#undef ibitmap_stretch_routine
+		switch (src->bpp)
+		{
+		case  8: IBITMAP_SCALE_BITS( 8, 1); break;
+		case 15:
+		case 16: IBITMAP_SCALE_BITS(16, 2); break;
+		case 24: IBITMAP_SCALE_BITS(24, 3); break;
+		case 32: IBITMAP_SCALE_BITS(32, 4); break;
+		}
+
+		#undef IBITMAP_SCALE_BITS
+	}
+#endif
+	else {
+		const iColorIndex *_ipixel_src_index = sindex;
+		iColorIndex *_ipixel_dst_index = dindex;
+		cfixed su, sv, du, dv;
+		int dstbytes, srcbytes;
+		int i, j;
+
+		if (mode & IBLIT_VFLIP) {
+			sv = cfixed_from_int(srcrect.bottom - 1);
+			dv = -cfixed_div(cfixed_from_int(sh), cfixed_from_int(dh));
+		}	else {
+			sv = cfixed_from_int(srcrect.top);
+			dv = cfixed_div(cfixed_from_int(sh), cfixed_from_int(dh));
+		}
+
+		if (mode & IBLIT_HFLIP) {
+			du = -cfixed_div(cfixed_from_int(sw), cfixed_from_int(dw));
+		}	else {
+			du = cfixed_div(cfixed_from_int(sw), cfixed_from_int(dw));
+		}
+
+		dstbytes = ipixelfmt[dfmt].pixelbyte;
+		srcbytes = ipixelfmt[sfmt].pixelbyte;
+		mask = (IUINT32)src->mask;
+
+		for (j = 0; j < dh; sv += dv, j++) {
+			int srcline = cfixed_to_int(sv);
+			int dstline = dstrect.top + j;
+			const IUINT8 *srcrow = (const IUINT8*)src->line[srcline];
+			IUINT8 *dstrow = (IUINT8*)dst->line[dstline];
+			const IUINT8 *srcpix = NULL;
+			IUINT8 *dstpix = dstrow + dstbytes * dstrect.left;
+			IUINT32 cc, r, g, b, a, index;
+
+			if (mode & IBLIT_HFLIP) {
+				su = cfixed_from_int(srcrect.right - 1);
+			}	else {
+				su = cfixed_from_int(srcrect.left);
+			}
+
+			// 3480 ms
+			for (i = 0; i < dw; su += du, dstpix += dstbytes, i++) {
+				index = cfixed_to_int(su);
+				switch (sfmt)
+				{
+				case IPIX_FMT_A8R8G8B8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A8B8G8R8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_A8B8G8R8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R8G8B8A8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_R8G8B8A8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B8G8R8A8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_B8G8R8A8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X8R8G8B8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_X8R8G8B8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X8B8G8R8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_X8B8G8R8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R8G8B8X8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_R8G8B8X8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B8G8R8X8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_B8G8R8X8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_P8R8G8B8:
+						srcpix = srcrow + index * 4;
+						cc = _ipixel_fetch(32, srcpix, 0);
+						IRGBA_FROM_P8R8G8B8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R8G8B8:
+						srcpix = srcrow + index * 3;
+						cc = _ipixel_fetch(24, srcpix, 0);
+						IRGBA_FROM_R8G8B8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B8G8R8:
+						srcpix = srcrow + index * 3;
+						cc = _ipixel_fetch(24, srcpix, 0);
+						IRGBA_FROM_B8G8R8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R5G6B5:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_R5G6B5(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B5G6R5:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_B5G6R5(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X1R5G5B5:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_X1R5G5B5(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X1B5G5R5:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_X1B5G5R5(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R5G5B5X1:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_R5G5B5X1(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B5G5R5X1:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_B5G5R5X1(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A1R5G5B5:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_A1R5G5B5(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A1B5G5R5:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_A1B5G5R5(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R5G5B5A1:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_R5G5B5A1(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B5G5R5A1:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_B5G5R5A1(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X4R4G4B4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_X4R4G4B4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X4B4G4R4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_X4B4G4R4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R4G4B4X4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_R4G4B4X4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B4G4R4X4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_B4G4R4X4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A4R4G4B4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_A4R4G4B4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A4B4G4R4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_A4B4G4R4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R4G4B4A4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_R4G4B4A4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B4G4R4A4:
+						srcpix = srcrow + index * 2;
+						cc = _ipixel_fetch(16, srcpix, 0);
+						IRGBA_FROM_B4G4R4A4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_C8:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_C8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_G8:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_G8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A8:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_A8(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R3G3B2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_R3G3B2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B2G3R3:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_B2G3R3(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X2R2G2B2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_X2R2G2B2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X2B2G2R2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_X2B2G2R2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R2G2B2X2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_R2G2B2X2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B2G2R2X2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_B2G2R2X2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A2R2G2B2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_A2R2G2B2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A2B2G2R2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_A2B2G2R2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_R2G2B2A2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_R2G2B2A2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_B2G2R2A2:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_B2G2R2A2(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X4C4:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_X4C4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X4G4:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_X4G4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_X4A4:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_X4A4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_C4X4:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_C4X4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_G4X4:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_G4X4(cc, r, g, b, a);
+						break;
+				case IPIX_FMT_A4X4:
+						srcpix = srcrow + index * 1;
+						cc = _ipixel_fetch(8, srcpix, 0);
+						IRGBA_FROM_A4X4(cc, r, g, b, a);
+						break;
+				default: 
+						r = g = b = a = cc = 0;
+						break;
+				}
+				if (mask == cc && (mode & IBLIT_MASK)) continue;
+				switch (dfmt)
+				{
+				case IPIX_FMT_A8R8G8B8:
+						cc = IRGBA_TO_A8R8G8B8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A8B8G8R8:
+						cc = IRGBA_TO_A8B8G8R8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R8G8B8A8:
+						cc = IRGBA_TO_R8G8B8A8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B8G8R8A8:
+						cc = IRGBA_TO_B8G8R8A8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X8R8G8B8:
+						cc = IRGBA_TO_X8R8G8B8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X8B8G8R8:
+						cc = IRGBA_TO_X8B8G8R8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R8G8B8X8:
+						cc = IRGBA_TO_R8G8B8X8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B8G8R8X8:
+						cc = IRGBA_TO_B8G8R8X8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_P8R8G8B8:
+						cc = IRGBA_TO_P8R8G8B8(r, g, b, a);
+						_ipixel_store(32, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R8G8B8:
+						cc = IRGBA_TO_R8G8B8(r, g, b, a);
+						_ipixel_store(24, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B8G8R8:
+						cc = IRGBA_TO_B8G8R8(r, g, b, a);
+						_ipixel_store(24, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R5G6B5:
+						cc = IRGBA_TO_R5G6B5(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B5G6R5:
+						cc = IRGBA_TO_B5G6R5(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X1R5G5B5:
+						cc = IRGBA_TO_X1R5G5B5(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X1B5G5R5:
+						cc = IRGBA_TO_X1B5G5R5(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R5G5B5X1:
+						cc = IRGBA_TO_R5G5B5X1(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B5G5R5X1:
+						cc = IRGBA_TO_B5G5R5X1(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A1R5G5B5:
+						cc = IRGBA_TO_A1R5G5B5(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A1B5G5R5:
+						cc = IRGBA_TO_A1B5G5R5(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R5G5B5A1:
+						cc = IRGBA_TO_R5G5B5A1(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B5G5R5A1:
+						cc = IRGBA_TO_B5G5R5A1(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X4R4G4B4:
+						cc = IRGBA_TO_X4R4G4B4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X4B4G4R4:
+						cc = IRGBA_TO_X4B4G4R4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R4G4B4X4:
+						cc = IRGBA_TO_R4G4B4X4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B4G4R4X4:
+						cc = IRGBA_TO_B4G4R4X4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A4R4G4B4:
+						cc = IRGBA_TO_A4R4G4B4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A4B4G4R4:
+						cc = IRGBA_TO_A4B4G4R4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R4G4B4A4:
+						cc = IRGBA_TO_R4G4B4A4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B4G4R4A4:
+						cc = IRGBA_TO_B4G4R4A4(r, g, b, a);
+						_ipixel_store(16, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_C8:
+						cc = IRGBA_TO_C8(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_G8:
+						cc = IRGBA_TO_G8(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A8:
+						cc = IRGBA_TO_A8(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R3G3B2:
+						cc = IRGBA_TO_R3G3B2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B2G3R3:
+						cc = IRGBA_TO_B2G3R3(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X2R2G2B2:
+						cc = IRGBA_TO_X2R2G2B2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X2B2G2R2:
+						cc = IRGBA_TO_X2B2G2R2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R2G2B2X2:
+						cc = IRGBA_TO_R2G2B2X2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B2G2R2X2:
+						cc = IRGBA_TO_B2G2R2X2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A2R2G2B2:
+						cc = IRGBA_TO_A2R2G2B2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A2B2G2R2:
+						cc = IRGBA_TO_A2B2G2R2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_R2G2B2A2:
+						cc = IRGBA_TO_R2G2B2A2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_B2G2R2A2:
+						cc = IRGBA_TO_B2G2R2A2(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X4C4:
+						cc = IRGBA_TO_X4C4(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X4G4:
+						cc = IRGBA_TO_X4G4(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_X4A4:
+						cc = IRGBA_TO_X4A4(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_C4X4:
+						cc = IRGBA_TO_C4X4(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_G4X4:
+						cc = IRGBA_TO_G4X4(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				case IPIX_FMT_A4X4:
+						cc = IRGBA_TO_A4X4(r, g, b, a);
+						_ipixel_store(8, dstpix, 0, cc);
+						break;
+				}
+			}
+		}
+	}
 
 	return 0;
 }
+
 
 
 // 重新采样
@@ -2563,7 +3194,7 @@ IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound,
 		ibitmap_smooth_resize(bitmap, &drect, src, &srect);
 	}	
 	else {
-		ibitmap_stretch2(bitmap, &drect, src, &srect, NULL, 0);
+		ibitmap_scale(bitmap, &drect, src, &srect, NULL, 0);
 	}
 
 	return bitmap;

@@ -181,14 +181,14 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
         return -3;
 
     /* check dest clip: right */
-    if (dx + w >= dcr) {
+    if (dx + w > dcr) {
         d = dx + w - dcr;
         if (!hflip) sr -= d;
         else sl += d;
     }
 
     /* check dest clip: bottom */
-    if (dy + h >= dcb) {
+    if (dy + h > dcb) {
         d = dy + h - dcb;
         if (!vflip) sb -= d;
         else st += d;
@@ -215,14 +215,14 @@ int ibitmap_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
         return -5;
 
     /* check source clip: right */
-    if (sr >= scr) {
+    if (sr > scr) {
         d = sr - scr;
         sr = scr;
         if (hflip) dx += d;
     }
 
     /* check source clip: bottom */
-    if (sb >= scb) {
+    if (sb > scb) {
         d = sb - scb;
         sb = scb;
         if (vflip) dy += d;
