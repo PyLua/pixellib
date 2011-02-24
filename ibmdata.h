@@ -327,6 +327,7 @@ iBitmapFetchProc ipixel_span_get_proc(const IBITMAP *image,
 
 #define IBITMAP_RASTER_FLAG_OVER			0	// 绘制OVER
 #define IBITMAP_RASTER_FLAG_ADD				4	// 绘制ADD
+#define IBITMAP_RASTER_FLAG_COPY			8	// 绘制COPY
 
 
 // 低层次光栅化位图
