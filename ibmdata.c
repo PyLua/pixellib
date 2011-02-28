@@ -2375,3 +2375,4 @@ int ibitmap_raster_draw_3d(IBITMAP *dst, double x, double y, double z,
 }
 
 
+
