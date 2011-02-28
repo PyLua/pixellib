@@ -2092,8 +2092,35 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 		// 绘制图像
 		if (flags & IBITMAP_RASTER_FLAG_COPY) {
 			store(dst->line[line], card, xl, xw, dindex);
-		}	else {
-			draw(dst->line[line], xl, xw, card, cover, dindex);
+		}	
+		else {	// 绘制线段
+			if (cover == NULL) {
+				draw(dst->line[line], xl, xw, card, NULL, dindex);
+			}
+			else {
+				int fastmode = 0;
+			#if 1
+				if (xw > 16) {
+					fastmode = (cover[3] == 255 && cover[xw - 4] == 255);
+				}
+			#endif
+				if (fastmode) {
+					int fastsize = xw - 8;
+					IUINT8 *cc = cover;
+					IUINT32 *ss = card;
+					draw(dst->line[line], xl, 4, ss, cc, dindex);
+					xl += 4;
+					ss += 4;
+					cc += 4;
+					draw(dst->line[line], xl, fastsize, ss, NULL, dindex);
+					xl += fastsize;
+					ss += fastsize;
+					cc += fastsize;
+					draw(dst->line[line], xl, 4, ss, cc, dindex);
+				}	else {
+					draw(dst->line[line], xl, xw, card, cover, dindex);
+				}
+			}
 		}
 
 		// 清空 Alpha Map
