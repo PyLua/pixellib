@@ -1498,6 +1498,359 @@ static void ibitmap_fetch_translate_int(const IBITMAP *bmp, IUINT32 *card,
 }
 
 
+void ibitmap_fetch_scale_A8R8G8B8_nearest(const IBITMAP *bmp, IUINT32 *card, 
+	int width, const cfixed *source, const cfixed *step, const IRECT *clip)
+{
+	int pixfmt = ibitmap_pixfmt_guess(bmp);
+	int filter = ibitmap_imode_const(bmp, filter);
+	int overflow = ibitmap_imode_const(bmp, overflow);
+	cfixed u = source[0] - cfixed_const_e;
+	cfixed v = source[1] - cfixed_const_e;
+	cfixed du = step[0];
+	IUINT32 *endup = card + width;
+	int top = cfixed_to_int(v);
+
+	if (filter != IPIXEL_FILTER_NEAREST || overflow > 1) {
+		iBitmapFetchProc proc;
+		proc = ibitmap_scanline_get_proc(pixfmt, filter? 0 : 1, 0);
+		proc(bmp, card, width, source, step, clip);
+		return;
+	}
+
+	if (overflow == IBOM_TRANSPARENT) {
+		if (top < clip->top || top >= clip->bottom) {
+			IUINT32 mask = (IUINT32)bmp->mask;
+			while (card < endup) *card++ = mask;
+			return;
+		}
+	}	else {
+		if (top < clip->top) top = clip->top;
+		else if (top >= clip->bottom) top = clip->bottom - 1;
+	}
+
+	if (du >= 0) {
+		cfixed w = cfixed_from_int(clip->left);
+		const IUINT32 *line;
+		IUINT32 color, mask;
+
+		line = (IUINT32*)bmp->line[top];
+
+		mask = (pixfmt != IPIX_FMT_A8R8G8B8)? 0xff000000 : 0;
+		color = line[clip->left] | mask;
+
+		if (overflow == IBOM_TRANSPARENT) color = (IUINT32)bmp->mask;
+
+		while (card < endup && u < w) {
+			*card++ = color;
+			u += du;
+		}
+
+		w = cfixed_from_int(clip->right);
+
+		if (mask == 0) {
+			while (card < endup && u < w) {
+				*card++ = line[cfixed_to_int(u)];
+				u += du;
+			}
+		}	else {
+			while (card < endup && u < w) {
+				*card++ = line[cfixed_to_int(u)] | mask;
+				u += du;
+			}
+		}
+
+		color = line[clip->right - 1] | mask;
+		if (overflow == IBOM_TRANSPARENT) color = (IUINT32)bmp->mask;
+
+		while (card < endup) {
+			*card++ = color;
+		}
+	}
+	else {
+		cfixed w = cfixed_from_int(clip->right);
+		const IUINT32 *line;
+		IUINT32 color, mask;
+
+		line = (IUINT32*)bmp->line[top];
+
+		mask = (pixfmt != IPIX_FMT_A8R8G8B8)? 0xff000000 : 0;
+		color = line[clip->right - 1] | mask;
+
+		if (overflow == IBOM_TRANSPARENT) color = (IUINT32)bmp->mask;
+
+		while (card < endup && u >= w) {
+			*card++ = color;
+			u += du;
+		}
+
+		w = cfixed_from_int(clip->left);
+
+		if (mask == 0) {
+			while (card < endup && u >= w) {
+				*card++ = line[cfixed_to_int(u)];
+				u += du;
+			}
+		}	else {
+			while (card < endup && u >= w) {
+				*card++ = line[cfixed_to_int(u)] | mask;
+				u += du;
+			}
+		}
+
+		color = line[clip->left] | mask;
+		if (overflow == IBOM_TRANSPARENT) color = (IUINT32)bmp->mask;
+
+		while (card < endup) {
+			*card++ = color;
+		}
+	}
+}
+
+void ibitmap_fetch_scale_A8R8G8B8_bilinear(const IBITMAP *bmp, IUINT32 *card, 
+	int width, const cfixed *source, const cfixed *step, const IRECT *clip)
+{
+	int pixfmt = ibitmap_pixfmt_guess(bmp);
+	int filter = ibitmap_imode_const(bmp, filter);
+	int overflow = ibitmap_imode_const(bmp, overflow);
+	cfixed x = source[0] - cfixed_const_half;
+	cfixed y = source[1] - cfixed_const_half;
+	cfixed du = step[0];
+	cfixed ux, x_top, x_bot, ux_top, ux_bot;
+	IUINT32 *endup = card + width;
+	const IUINT32 *top_row;
+	const IUINT32 *bot_row;
+	IUINT32 top_mask;
+	IUINT32 bot_mask;
+	IUINT32 zero[2];
+	int x1, x2, y1, y2;
+	int distx;
+	int disty;
+
+	if (filter != IPIXEL_FILTER_BILINEAR || overflow > 1) {
+		iBitmapFetchProc proc;
+		proc = ibitmap_scanline_get_proc(pixfmt, filter? 0 : 1, 0);
+		proc(bmp, card, width, source, step, clip);
+		return;
+	}
+	
+	x_top = x_bot = x;
+	ux = ux_top = ux_bot = du;
+
+	y1 = cfixed_to_int(y);
+	y2 = y1 + 1;
+
+	zero[0] = zero[1] = (IUINT32)bmp->mask;
+
+	if (overflow == IBOM_TRANSPARENT) {
+		if (y2 < clip->top || y1 >= clip->bottom) {
+			IUINT32 mask = (IUINT32)bmp->mask;
+			while (card < endup) *card++ = mask;
+			return;
+		}
+		if (y1 < clip->top || y1 >= clip->bottom) {
+			top_row = zero;
+			x_top = 0;
+			ux_top = 0;
+		}	else {
+			top_row = (const IUINT32*)bmp->line[y1];
+		}
+		if (y2 < clip->top || y2 >= clip->bottom) {
+			bot_row = zero;
+			x_bot = 0;
+			ux_bot = 0;
+		}	else {
+			bot_row = (const IUINT32*)bmp->line[y2];
+		}
+	}	else {
+		if (y1 < clip->top) y1 = clip->top;
+		else if (y1 >= clip->bottom) y1 = clip->bottom - 1;
+		if (y2 < clip->top) y2 = clip->top;
+		else if (y2 >= clip->bottom) y2 = clip->bottom - 1;
+		top_row = (const IUINT32*)bmp->line[y1];
+		bot_row = (const IUINT32*)bmp->line[y2];
+	}
+
+	if (top_row == zero && bot_row == zero) {
+		IUINT32 mask = (IUINT32)bmp->mask;
+		while (card < endup) *card++ = mask;
+		return;
+	}
+
+	top_mask = bot_mask = 0;
+
+	if (pixfmt == IPIX_FMT_X8R8G8B8) {
+		top_mask = bot_mask = 0xff000000;
+		if (top_row == zero) top_mask = 0;
+		if (bot_row == zero) bot_mask = 0;
+	}
+
+	disty = (y >> 8) & 0xff;
+
+	if (ux >= 0) {
+		IUINT32 tl, tr, bl, br, cmask;
+		cfixed w;
+
+		if (overflow == IBOM_TRANSPARENT) {
+			cmask = (IUINT32)bmp->mask;
+			tl = bl = cmask;
+			if (top_row != zero) tr = top_row[clip->left] | top_mask;
+			else tr = cmask;
+			if (bot_row != zero) br = bot_row[clip->left] | bot_mask;
+			else br = cmask;
+			w = cfixed_from_int(clip->left - 1);
+		}	else {
+			tl = tr = top_row[clip->left] | top_mask;
+			bl = br = bot_row[clip->left] | bot_mask;
+			cmask = ipixel_biline_interp(tl, tl, bl, bl, 0, disty);
+			w = cfixed_from_int(clip->left);
+		}
+
+		// mask fill
+		while (card < endup && x < w) {
+			*card++ = cmask;
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		// left edge fill
+		w = cfixed_from_int(clip->left);
+		while (card < endup && x < w) {
+			distx = (x >> 8) & 0xff;
+			*card++ = ipixel_biline_interp(tl, tr, bl, br, distx, disty);
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		// main part
+		w = cfixed_from_int(clip->right - 1);
+		while (card < endup && x < w) {
+			x1 = cfixed_to_int(x_top);
+			x2 = cfixed_to_int(x_bot);
+			distx = (x >> 8) & 0xff;
+			tl = top_row[x1 + 0] | top_mask;
+			tr = top_row[x1 + 1] | top_mask;
+			bl = bot_row[x2 + 0] | bot_mask;
+			br = bot_row[x2 + 1] | bot_mask;
+			*card++ = ipixel_biline_interp(tl, tr, bl, br, distx, disty);
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		if (overflow == IBOM_TRANSPARENT) {
+			cmask = (IUINT32)bmp->mask;
+			tr = br = cmask;
+			if (top_row != zero) tl = top_row[clip->right - 1] | top_mask;
+			else tl = cmask;
+			if (bot_row != zero) bl = bot_row[clip->right - 1] | bot_mask;
+			else bl = cmask;
+		}	else {
+			tl = tr = top_row[clip->right - 1] | top_mask;
+			bl = br = bot_row[clip->right - 1] | bot_mask;
+			cmask = ipixel_biline_interp(tl, tl, bl, bl, 0, disty);
+		}
+
+		// right edge
+		w = cfixed_from_int(clip->right);
+		while (card < endup && x < w) {
+			distx = (x >> 8) & 0xff;
+			*card++ = ipixel_biline_interp(tl, tr, bl, br, distx, disty);
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		// left of scanline
+		while (card < endup) {
+			*card++ = cmask;
+		}
+	}
+	else {
+		IUINT32 tl, tr, bl, br, cmask;
+		cfixed w;
+
+		if (overflow == IBOM_TRANSPARENT) {
+			cmask = (IUINT32)bmp->mask;
+			tr = br = cmask;
+			if (top_row != zero) tl = top_row[clip->right - 1] | top_mask;
+			else tl = cmask;
+			if (bot_row != zero) bl = bot_row[clip->right - 1] | bot_mask;
+			else bl = cmask;
+		}	else {
+			tl = tr = top_row[clip->right - 1] | top_mask;
+			bl = br = bot_row[clip->right - 1] | bot_mask;
+			cmask = ipixel_biline_interp(tl, tl, bl, bl, 0, disty);
+		}
+
+		w = cfixed_from_int(clip->right);
+		while (card < endup && x >= w) {
+			*card++ = cmask;
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		// right edge
+		w = cfixed_from_int(clip->right - 1);
+		while (card < endup && x >= w) {
+			distx = (x >> 8) & 0xff;
+			*card++ = ipixel_biline_interp(tl, tr, bl, br, distx, disty);
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		// main part
+		w = cfixed_from_int(clip->left);
+		while (card < endup && x >= w) {
+			x1 = cfixed_to_int(x_top);
+			x2 = cfixed_to_int(x_bot);
+			distx = (x >> 8) & 0xff;
+			tl = top_row[x1 + 0] | top_mask;
+			tr = top_row[x1 + 1] | top_mask;
+			bl = bot_row[x2 + 0] | bot_mask;
+			br = bot_row[x2 + 1] | bot_mask;
+			*card++ = ipixel_biline_interp(tl, tr, bl, br, distx, disty);
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		if (overflow == IBOM_TRANSPARENT) {
+			cmask = (IUINT32)bmp->mask;
+			tl = bl = cmask;
+			if (top_row != zero) tr = top_row[clip->left] | top_mask;
+			else tr = cmask;
+			if (bot_row != zero) br = bot_row[clip->left] | bot_mask;
+			else br = cmask;
+			w = cfixed_from_int(clip->left - 1);
+		}	else {
+			tl = tr = top_row[clip->left] | top_mask;
+			bl = br = bot_row[clip->left] | bot_mask;
+			cmask = ipixel_biline_interp(tl, tl, bl, bl, 0, disty);
+			w = cfixed_from_int(clip->left);
+		}
+
+		// left edge
+		w = cfixed_from_int(clip->left - 1);
+		while (card < endup && x >= w) {
+			distx = (x >> 8) & 0xff;
+			*card++ = ipixel_biline_interp(tl, tr, bl, br, distx, disty);
+			x += ux;
+			x_top += ux_top;
+			x_bot += ux_bot;
+		}
+
+		// left of the scanline
+		while (card < endup) {
+			*card++ = cmask;
+		}
+	}
+}
+
+
 // 初始化函数查找表
 static void ibitmap_fetch_proc_table_init(void)
 {
@@ -1555,6 +1908,41 @@ static void ibitmap_fetch_proc_table_init(void)
 				ibitmap_fetch_translate_int;
 		}
 	}
+	#if 1
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][4][0] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][4][1] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][5][0] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][5][1] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][8][0] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][8][1] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][9][0] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	ibitmap_fetch_proc_table[IPIX_FMT_A8R8G8B8][9][1] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][4][0] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][4][1] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][5][0] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][5][1] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][8][0] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][8][1] =
+		ibitmap_fetch_scale_A8R8G8B8_nearest;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][9][0] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	ibitmap_fetch_proc_table[IPIX_FMT_X8R8G8B8][9][1] =
+		ibitmap_fetch_scale_A8R8G8B8_bilinear;
+	#endif
 #endif
 	#undef ibitmap_fetch_proc_table_init_general
 	inited = 1;
