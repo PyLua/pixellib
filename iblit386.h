@@ -392,6 +392,8 @@ typedef unsigned long long immx_uint64;
 typedef unsigned int immx_uint32;
 typedef long long immx_int64;
 typedef int immx_int32;
+#define immx_const_uint64(__imm__) (__imm__ ## ULL)
+#define immx_const_int64(__imm__) (__imm__ ## LL)
 #elif defined(_MSC_VER) || defined(__BORLANDC__)
 #define immx_op(op)  \
 	_asm { op }
@@ -415,6 +417,8 @@ typedef unsigned __int64 immx_uint64;
 typedef unsigned int immx_uint32;
 typedef __int64 immx_int64;
 typedef int immx_int32;
+#define immx_const_uint64(__imm__) (__imm__ ## UI64)
+#define immx_const_int64(__imm__) (__imm__ ## I64)
 #endif
 
 
