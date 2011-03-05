@@ -366,9 +366,9 @@ void _x86_choose_blitter(void)
 	ibitmap_funcset(1, NULL);
 	if (X86_FEATURE(X86_FEATURE_MMX)) {
 		if (X86_FEATURE(X86_FEATURE_XMM)) 
-			ibitmap_funcset(0, (void*)iblit_sse);
+			ibitmap_funcset(0, (void*)iblit_mix);
 		else
-			ibitmap_funcset(0, (void*)iblit_mmx);
+			ibitmap_funcset(0, (void*)iblit_mix);
 	}
 	if (X86_FEATURE(X86_FEATURE_MMX)) {
 		#ifndef __amd64__
