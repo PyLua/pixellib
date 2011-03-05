@@ -371,23 +371,23 @@ int iblit_mask_mix(char*, long, ISRCPTR, long, int, int, int, long, IMASK32);
 //=====================================================================
 #if defined(__GNUC__)
 #define immx_op(op)	\
-	__asm__ __volatile__ (#op "" : : : "memory")
+	__asm__ __volatile__ (#op "")
 #define immx_op_r_r(op, regd, regs) \
-	__asm__ __volatile__ (#op " %%" #regs ", %%" #regd : : : "memory")
+	__asm__ __volatile__ (#op " %%" #regs ", %%" #regd "" : : : "memory")
 #define immx_op_r_i(op, regd, imm) \
 	__asm__ __volatile__ (#op " %0, %%" #regd : : "i"(imm) : "memory")
 #define immx_op_r_m(op, regd, mem) \
 	__asm__ __volatile__ (#op " %0, %%" #regd : : "m"(*(mem)) : "memory")
 #define immx_op_m_r(op, mem, regs) \
-	__asm__ __volatile__ (#op " %%" #regs ", %0" : : "m"(*(mem)) : "memory")
+	__asm__ __volatile__ (#op " %%" #regs ", %0" : "=X"(*(mem)) : : "memory")
 #define immx_op_r_m32(op, regd, mem32) \
 	immx_op_r_m(op, regd, mem32)
 #define immx_op_m32_r(op, mem32, regs) \
 	immx_op_m_r(op, mem32, regs)
 #define immx_op_r_v(op, regd, vars) \
-	immx_op_r_m(op, regd, &(vars))
+	immx_op_r_m(op, regd, (&(vars)))
 #define immx_op_v_r(op, vard, regs) \
-	immx_op_m_r(op, &(vard), regs)
+	immx_op_m_r(op, (&(vard)), regs)
 typedef unsigned long long immx_uint64;
 typedef unsigned int immx_uint32;
 typedef long long immx_int64;
