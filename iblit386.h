@@ -371,7 +371,7 @@ int iblit_mask_mix(char*, long, ISRCPTR, long, int, int, int, long, IMASK32);
 //=====================================================================
 #if defined(__GNUC__)
 #define immx_op(op)	\
-	__asm__ __volatile__ (#op "")
+	__asm__ __volatile__ (#op "" : : : "memory")
 #define immx_op_r_r(op, regd, regs) \
 	__asm__ __volatile__ (#op " %%" #regs ", %%" #regd "" : : : "memory")
 #define immx_op_r_i(op, regd, imm) \
