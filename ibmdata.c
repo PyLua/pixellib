@@ -2099,24 +2099,26 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 			}
 			else {
 				int fastmode = 0;
+				#define ISPAN_FAST	8
 			#if 1
-				if (xw > 16) {
-					fastmode = (cover[3] == 255 && cover[xw - 4] == 255);
+				if (xw >= (ISPAN_FAST * 2 + 8)) {
+					fastmode = (cover[ISPAN_FAST - 1] == 255 && 
+						cover[xw - ISPAN_FAST] == 255);
 				}
 			#endif
 				if (fastmode) {
-					int fastsize = xw - 8;
+					int fastsize = xw - ISPAN_FAST * 2;
 					IUINT8 *cc = cover;
 					IUINT32 *ss = card;
-					draw(dst->line[line], xl, 4, ss, cc, dindex);
-					xl += 4;
-					ss += 4;
-					cc += 4;
+					draw(dst->line[line], xl, ISPAN_FAST, ss, cc, dindex);
+					xl += ISPAN_FAST;
+					ss += ISPAN_FAST;
+					cc += ISPAN_FAST;
 					draw(dst->line[line], xl, fastsize, ss, NULL, dindex);
 					xl += fastsize;
 					ss += fastsize;
 					cc += fastsize;
-					draw(dst->line[line], xl, 4, ss, cc, dindex);
+					draw(dst->line[line], xl, ISPAN_FAST, ss, cc, dindex);
 				}	else {
 					draw(dst->line[line], xl, xw, card, cover, dindex);
 				}
