@@ -1976,14 +1976,14 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 	const iColorIndex *idx) \
 { \
 	unsigned char *dst = ((unsigned char*)bits) + offset * nbytes; \
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx; \
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx, cz; \
 	IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1); \
 	if (a1 == 0) return; \
+	cz = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
 	if (cover == NULL) { \
 		if (a1 == 255) { \
-			cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
 			for (; w > 0; dst += nbytes, w--) { \
-				_ipixel_store(bpp, dst, 0, cc); \
+				_ipixel_store(bpp, dst, 0, cz); \
 			} \
 		} \
 		else if (a1 > 0) { \
@@ -2000,8 +2000,7 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 			for (; w > 0; dst += nbytes, w--) { \
 				a1 = *cover++; \
 				if (a1 == 255) { \
-					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
-					_ipixel_store(bpp, dst, 0, cc); \
+					_ipixel_store(bpp, dst, 0, cz); \
 				} \
 				else if (a1 > 0) { \
 					cc = _ipixel_fetch(bpp, dst, 0); \
@@ -2087,15 +2086,15 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 	const iColorIndex *_ipixel_src_index) \
 { \
 	unsigned char *dst = ((unsigned char*)bits); \
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx; \
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, cc, cx, cz; \
 	init; \
 	IRGBA_FROM_A8R8G8B8(col, r1, g1, b1, a1); \
 	if (a1 == 0) return; \
+	cz = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
 	if (cover == NULL) { \
 		if (a1 == 255) { \
-			cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
 			for (; w > 0; offset++, w--) { \
-				_ipixel_store(bpp, dst, offset, cc); \
+				_ipixel_store(bpp, dst, offset, cz); \
 			} \
 		} \
 		else if (a1 > 0) { \
@@ -2112,8 +2111,7 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 			for (; w > 0; offset++, w--) { \
 				a1 = *cover++; \
 				if (a1 == 255) { \
-					cc = IRGBA_TO_PIXEL(fmt, r1, g1, b1, 255); \
-					_ipixel_store(bpp, dst, offset, cc); \
+					_ipixel_store(bpp, dst, offset, cz); \
 				} \
 				else if (a1 > 0) { \
 					cc = _ipixel_fetch(bpp, dst, offset); \
