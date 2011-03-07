@@ -551,24 +551,42 @@ static void _ifetch_proc_A8B8G8R8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
-	const IUINT32 *endup = pixel + w;
-	while (pixel < endup) {
-		*buffer++ = ((*pixel & 0xff00ff00) |
-			((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
-		pixel++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*buffer++ = ((*pixel & 0xff00ff00) |
+				((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
+			pixel++;
+		},
+		{
+			*buffer++ = ((*pixel & 0xff00ff00) |
+				((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
+			pixel++;
+			*buffer++ = ((*pixel & 0xff00ff00) |
+				((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
+			pixel++;
+		},
+		w);
 }
 
 static void _ifetch_proc_R8G8B8A8(const void *bits, int x, 
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
-	const IUINT32 *endup = pixel + w;
-	while (pixel < endup) {
-		*buffer++ = ((*pixel & 0xff) << 24) |
-			((*pixel >> 8) & 0xffffff);
-		pixel++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*buffer++ = ((*pixel & 0xff) << 24) |
+				((*pixel >> 8) & 0xffffff);
+			pixel++;
+		},
+		{
+			*buffer++ = ((*pixel & 0xff) << 24) |
+				((*pixel >> 8) & 0xffffff);
+			pixel++;
+			*buffer++ = ((*pixel & 0xff) << 24) |
+				((*pixel >> 8) & 0xffffff);
+			pixel++;
+		},
+		w);
 }
 
 IFETCH_PROC(B8G8R8A8, 32)
@@ -577,10 +595,15 @@ static void _ifetch_proc_X8R8G8B8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
-	const IUINT32 *endup = pixel + w;
-	while (pixel < endup) {
-		*buffer++ = *pixel++ | 0xff000000;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*buffer++ = *pixel++ | 0xff000000;
+		},
+		{
+			*buffer++ = *pixel++ | 0xff000000;
+			*buffer++ = *pixel++ | 0xff000000;
+		},
+		w);
 }
 
 IFETCH_PROC(X8B8G8R8, 32)
@@ -589,12 +612,21 @@ static void _ifetch_proc_R8G8B8X8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT32 *pixel = (const IUINT32*)bits + x;
-	const IUINT32 *endup = pixel + w;
-	while (pixel < endup) {
-		*buffer++ = (0xff000000) |
-			((*pixel >> 8) & 0xffffff);
-		pixel++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*buffer++ = (0xff000000) |
+				((*pixel >> 8) & 0xffffff);
+			pixel++;
+		},
+		{
+			*buffer++ = (0xff000000) |
+				((*pixel >> 8) & 0xffffff);
+			pixel++;
+			*buffer++ = (0xff000000) |
+				((*pixel >> 8) & 0xffffff);
+			pixel++;
+		},
+		w);
 }
 
 IFETCH_PROC(B8G8R8X8, 32)
@@ -604,11 +636,18 @@ static void _ifetch_proc_R8G8B8(const void *bits, int x,
 	int w, IUINT32 *buffer, const iColorIndex *idx)
 {
 	const IUINT8 *pixel = (const IUINT8*)bits + x * 3;
-	const IUINT8 *endup = pixel + w * 3;
-	while (pixel < endup) {
-		*buffer++ = IFETCH24(pixel) | 0xff000000;
-		pixel += 3;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*buffer++ = IFETCH24(pixel) | 0xff000000;
+			pixel += 3;
+		},
+		{
+			*buffer++ = IFETCH24(pixel) | 0xff000000;
+			pixel += 3;
+			*buffer++ = IFETCH24(pixel) | 0xff000000;
+			pixel += 3;
+		},
+		w);
 }
 
 
@@ -682,24 +721,42 @@ static void _istore_proc_A8B8G8R8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
-	int i;
-	for (i = w; i > 0; i--) {
-		*pixel++ = (values[0] & 0xff00ff00) |
-			((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
-		values++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*pixel++ = (values[0] & 0xff00ff00) |
+				((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
+			values++;
+		},
+		{
+			*pixel++ = (values[0] & 0xff00ff00) |
+				((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
+			values++;
+			*pixel++ = (values[0] & 0xff00ff00) |
+				((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
+			values++;
+		},
+		w);
 }
 
 static void _istore_proc_R8G8B8A8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
-	int i;
-	for (i = w; i > 0; i--) {
-		*pixel++ = ((values[0] & 0xffffff) << 8) |
-			((values[0] & 0xff000000) >> 24);
-		values++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*pixel++ = ((values[0] & 0xffffff) << 8) |
+				((values[0] & 0xff000000) >> 24);
+			values++;
+		},
+		{
+			*pixel++ = ((values[0] & 0xffffff) << 8) |
+				((values[0] & 0xff000000) >> 24);
+			values++;
+			*pixel++ = ((values[0] & 0xffffff) << 8) |
+				((values[0] & 0xff000000) >> 24);
+			values++;
+		},
+		w);
 }
 
 ISTORE_PROC(B8G8R8A8, 32)
@@ -708,11 +765,18 @@ static void _istore_proc_X8R8G8B8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
-	int i;
-	for (i = w; i > 0; i--) {
-		*pixel++ = values[0] & 0xffffff;
-		values++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*pixel++ = values[0] & 0xffffff;
+			values++;
+		},
+		{
+			*pixel++ = values[0] & 0xffffff;
+			values++;
+			*pixel++ = values[0] & 0xffffff;
+			values++;
+		},
+		w);
 }
 
 ISTORE_PROC(X8B8G8R8, 32)
@@ -721,11 +785,18 @@ static void _istore_proc_R8G8B8X8(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT32 *pixel = (IUINT32*)bits + x;
-	int i;
-	for (i = w; i > 0; i--) {
-		*pixel++ = ((values[0] & 0xffffff) << 8);
-		values++;
-	}
+	ILINS_LOOP_DOUBLE( 
+		{
+			*pixel++ = ((values[0] & 0xffffff) << 8);
+			values++;
+		},
+		{
+			*pixel++ = ((values[0] & 0xffffff) << 8);
+			values++;
+			*pixel++ = ((values[0] & 0xffffff) << 8);
+			values++;
+		},
+		w);
 }
 
 ISTORE_PROC(B8G8R8X8, 32)
@@ -759,36 +830,88 @@ static void _istore_proc_B8G8R8(void *bits,
 	}
 }
 
-ISTORE_PROC(R5G6B5, 16)
+static void _istore_proc_R5G6B5(void *bits,
+	const IUINT32 *values, int x, int w, const iColorIndex *idx)
+{
+	IUINT16 *pixel = (IUINT16*)bits + x;
+	IUINT32 c1, c2, r1, g1, b1, r2, g2, b2;
+	ILINS_LOOP_DOUBLE( 
+		{
+			c1 = *values++;
+			ISPLIT_RGB(c1, r1, g1, b1);
+			*pixel++ = (IUINT16) (((IUINT16)(r1 & 0xf8) << 8) |
+								  ((IUINT16)(g1 & 0xfc) << 3) |
+								  ((IUINT16)(b1 & 0xf8) >> 3));
+		},
+		{
+			c1 = *values++;
+			c2 = *values++;
+			ISPLIT_RGB(c1, r1, g1, b1);
+			ISPLIT_RGB(c2, r2, g2, b2);
+			*pixel++ = (IUINT16) (((IUINT16)(r1 & 0xf8) << 8) |
+								  ((IUINT16)(g1 & 0xfc) << 3) |
+								  ((IUINT16)(b1 & 0xf8) >> 3));
+			*pixel++ = (IUINT16) (((IUINT16)(r2 & 0xf8) << 8) |
+								  ((IUINT16)(g2 & 0xfc) << 3) |
+								  ((IUINT16)(b2 & 0xf8) >> 3));
+		},
+		w);
+}
 
 static void _istore_proc_B5G6R5(void *bits,
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
-	IUINT32 c, r, g, b;
-	int i;
-	for (i = w; i > 0; i--) {
-		c = *values++;
-		ISPLIT_RGB(c, r, g, b);
-		*pixel++ = (IUINT16) (((IUINT16)(b & 0xf8) << 8) |
-							  ((IUINT16)(g & 0xfc) << 3) |
-							  ((IUINT16)(r & 0xf8) >> 3));
-	}
+	IUINT32 c1, c2, r1, g1, b1, r2, g2, b2;
+	ILINS_LOOP_DOUBLE( 
+		{
+			c1 = *values++;
+			ISPLIT_RGB(c1, r1, g1, b1);
+			*pixel++ = (IUINT16) (((IUINT16)(b1 & 0xf8) << 8) |
+								  ((IUINT16)(g1 & 0xfc) << 3) |
+								  ((IUINT16)(r1 & 0xf8) >> 3));
+		},
+		{
+			c1 = *values++;
+			c2 = *values++;
+			ISPLIT_RGB(c1, r1, g1, b1);
+			ISPLIT_RGB(c2, r2, g2, b2);
+			*pixel++ = (IUINT16) (((IUINT16)(b1 & 0xf8) << 8) |
+								  ((IUINT16)(g1 & 0xfc) << 3) |
+								  ((IUINT16)(r1 & 0xf8) >> 3));
+			*pixel++ = (IUINT16) (((IUINT16)(b2 & 0xf8) << 8) |
+								  ((IUINT16)(g2 & 0xfc) << 3) |
+								  ((IUINT16)(r2 & 0xf8) >> 3));
+		},
+		w);
 }
 
 static void _istore_proc_X1R5G5B5(void *bits, 
 	const IUINT32 *values, int x, int w, const iColorIndex *idx)
 {
 	IUINT16 *pixel = (IUINT16*)bits + x;
-	IUINT32 c, r, g, b;
-	int i;
-	for (i = w; i > 0; i--) {
-		c = *values++;
-		ISPLIT_RGB(c, r, g, b);
-		*pixel++ = (IUINT16) (((IUINT16)(r & 0xf8) << 7) |
-							  ((IUINT16)(g & 0xf8) << 2) |
-							  ((IUINT16)(b & 0xf8) >> 3));
-	}
+	IUINT32 c1, c2, r1, g1, b1, r2, g2, b2;
+	ILINS_LOOP_DOUBLE( 
+		{
+			c1 = *values++;
+			ISPLIT_RGB(c1, r1, g1, b1);
+			*pixel++ = (IUINT16) (((IUINT16)(r1 & 0xf8) << 7) |
+								  ((IUINT16)(g1 & 0xf8) << 2) |
+								  ((IUINT16)(b1 & 0xf8) >> 3));
+		},
+		{
+			c1 = *values++;
+			c2 = *values++;
+			ISPLIT_RGB(c1, r1, g1, b1);
+			ISPLIT_RGB(c2, r2, g2, b2);
+			*pixel++ = (IUINT16) (((IUINT16)(r1 & 0xf8) << 7) |
+								  ((IUINT16)(g1 & 0xf8) << 2) |
+								  ((IUINT16)(b1 & 0xf8) >> 3));
+			*pixel++ = (IUINT16) (((IUINT16)(r2 & 0xf8) << 7) |
+								  ((IUINT16)(g2 & 0xf8) << 2) |
+								  ((IUINT16)(b2 & 0xf8) >> 3));
+		},
+		w);
 }
 
 ISTORE_PROC(X1B5G5R5, 16)
@@ -875,7 +998,7 @@ static IUINT32 _ifetch_pixel_A8R8G8B8(const void *bits,
 static IUINT32 _ifetch_pixel_A8B8G8R8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
-	IUINT32 pixel = ((IUINT32*)(bits))[offset];
+	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
 	return ((pixel & 0xff00ff00) | ((pixel >> 16) & 0xff) | 
 		((pixel & 0xff) << 16));
 }
@@ -883,14 +1006,14 @@ static IUINT32 _ifetch_pixel_A8B8G8R8(const void *bits,
 static IUINT32 _ifetch_pixel_R8G8B8A8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
-	IUINT32 pixel = ((IUINT32*)(bits))[offset];
+	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
 	return ((pixel & 0xff) << 24) | ((pixel >> 8) & 0xffffff);
 }
 
 static IUINT32 _ifetch_pixel_B8G8R8A8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
-	IUINT32 pixel = ((IUINT32*)(bits))[offset];
+	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
 	return		((pixel & 0x000000ff) << 24) |
 				((pixel & 0x0000ff00) <<  8) |
 				((pixel & 0x00ff0000) >>  8) |
@@ -901,13 +1024,13 @@ static IUINT32 _ifetch_pixel_B8G8R8A8(const void *bits,
 static IUINT32 _ifetch_pixel_X8R8G8B8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
-	return ((IUINT32*)(bits))[offset] | 0xff000000;
+	return ((const IUINT32*)(bits))[offset] | 0xff000000;
 }
 
 static IUINT32 _ifetch_pixel_X8B8G8R8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
-	IUINT32 pixel = ((IUINT32*)(bits))[offset];
+	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
 	return ((pixel & 0x0000ff00) | ((pixel >> 16) & 0xff) | 
 		((pixel & 0xff) << 16)) | 0xff000000;
 }
@@ -1982,9 +2105,7 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 	cz = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
 	if (cover == NULL) { \
 		if (a1 == 255) { \
-			for (; w > 0; dst += nbytes, w--) { \
-				_ipixel_store(bpp, dst, 0, cz); \
-			} \
+			_ipixel_fill(bpp, dst, 0, w, cz); \
 		} \
 		else if (a1 > 0) { \
 			for (; w > 0; dst += nbytes, w--) { \
@@ -2093,9 +2214,7 @@ static void ipixel_hline_draw_proc_##fmt##_0(void *bits, \
 	cz = IRGBA_TO_PIXEL(fmt, r1, g1, b1, a1); \
 	if (cover == NULL) { \
 		if (a1 == 255) { \
-			for (; w > 0; offset++, w--) { \
-				_ipixel_store(bpp, dst, offset, cz); \
-			} \
+			_ipixel_fill(bpp, dst, offset, w, cz); \
 		} \
 		else if (a1 > 0) { \
 			for (; w > 0; offset++, w--) { \
@@ -2551,5 +2670,383 @@ long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 	return ipixel_blend(dfmt, dbits, dpitch, dx, sfmt, sbits, spitch, sx,
 		w, h, color, IPIXEL_BLEND_OP_COPY, flip, dindex, sindex, workmem);
 }
+
+
+
+/**********************************************************************
+ * MACRO: BLITING ROUTINE
+ **********************************************************************/
+/* normal blit in 32/16/8 bits */
+#define IPIXEL_BLIT_PROC_N(nbits, nbytes, INTTYPE) \
+static void ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx,  \
+	const void *sbits, long spitch, int sx, int w, int h, int flip) \
+{ \
+	int y, x; \
+	if (flip & IPIXEL_FLIP_VFLIP) { \
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
+		spitch = -spitch; \
+	} \
+	if ((flip & IPIXEL_FLIP_HFLIP) == 0) { \
+		long size = w * nbytes; \
+		for (y = 0; y < h; y++) { \
+			memcpy((INTTYPE*)dbits + dx, (const INTTYPE*)sbits + sx, size); \
+			dbits = (IUINT8*)dbits + dpitch; \
+			sbits = (const IUINT8*)sbits + spitch; \
+		} \
+	}	else { \
+		for (y = 0; y < h; y++) { \
+			const INTTYPE *src = (const INTTYPE*)sbits + sx + w - 1; \
+			INTTYPE *dst = (INTTYPE*)dbits + dx; \
+			for (x = w; x > 0; x--) *dst++ = *src--; \
+			dbits = (IUINT8*)dbits + dpitch; \
+			sbits = (const IUINT8*)sbits + spitch; \
+		} \
+	} \
+} 
+
+/* normal blit in 24/4/1 bits */
+#define IPIXEL_BLIT_PROC_BITS(nbits) \
+static void ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx, \
+	const void *sbits, long spitch, int sx, int w, int h, int flip) \
+{ \
+	int y, x1, x2, sx0, sxd, endx; \
+	if (flip & IPIXEL_FLIP_VFLIP) { \
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
+		spitch = -spitch; \
+	} \
+	if (flip & IPIXEL_FLIP_HFLIP) { \
+		sx0 = sx + w - 1; \
+		sxd = -1; \
+	}	else { \
+		sx0 = sx; \
+		sxd = 1; \
+	} \
+	endx = dx + w; \
+	for (y = 0; y < h; y++) { \
+		IUINT32 cc; \
+		for (x1 = dx, x2 = sx0; x1 < endx; x1++, x2 += sxd) { \
+			cc = _ipixel_fetch(nbits, sbits, x2); \
+			_ipixel_store(nbits, dbits, x1, cc); \
+		} \
+		dbits = (IUINT8*)dbits + dpitch; \
+		sbits = (const IUINT8*)sbits + spitch; \
+	} \
+}
+
+
+/* mask blit in 32/16/8 bits */
+#define IPIXEL_BLIT_MASK_PROC_N(nbits, nbytes, INTTYPE) \
+static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
+	int dx, const void *sbits, long spitch, int sx, int w, int h, \
+	IUINT32 mask, int flip) \
+{ \
+	INTTYPE cmask = (INTTYPE)mask; \
+	int y; \
+	if (flip & IPIXEL_FLIP_VFLIP) { \
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
+		spitch = -spitch; \
+	} \
+	if ((flip & IPIXEL_FLIP_HFLIP) == 0) { \
+		for (y = 0; y < h; y++) { \
+			const INTTYPE *src = (const INTTYPE*)sbits + sx; \
+			INTTYPE *dst = (INTTYPE*)dbits + dx; \
+			INTTYPE *dstend = dst + w; \
+			for (; dst < dstend; src++, dst++) { \
+				if (src[0] != cmask) dst[0] = src[0]; \
+			} \
+			dbits = (IUINT8*)dbits + dpitch; \
+			sbits = (const IUINT8*)sbits + spitch; \
+		} \
+	}	else { \
+		for (y = 0; y < h; y++) { \
+			const INTTYPE *src = (const INTTYPE*)sbits + sx + w - 1; \
+			INTTYPE *dst = (INTTYPE*)dbits + dx; \
+			INTTYPE *dstend = dst + w; \
+			for (; dst < dstend; src--, dst++) { \
+				if (src[0] != cmask) dst[0] = src[0]; \
+			} \
+			dbits = (IUINT8*)dbits + dpitch; \
+			sbits = (const IUINT8*)sbits + spitch; \
+		} \
+	} \
+}
+
+/* mask blit in 24/4/1 bits */
+#define IPIXEL_BLIT_MASK_PROC_BITS(nbits) \
+static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
+	int dx, const void *sbits, long spitch, int sx, int w, int h, \
+	IUINT32 mask, int flip) \
+{ \
+	int y, x1, x2, sx0, sxd, endx; \
+	if (flip & IPIXEL_FLIP_VFLIP) { \
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
+		spitch = -spitch; \
+	} \
+	if (flip & IPIXEL_FLIP_HFLIP) { \
+		sx0 = sx + w - 1; \
+		sxd = -1; \
+	}	else { \
+		sx0 = sx; \
+		sxd = 1; \
+	} \
+	endx = dx + w; \
+	for (y = 0; y < h; y++) { \
+		IUINT32 cc; \
+		for (x1 = dx, x2 = sx0; x1 < endx; x1++, x2 += sxd) { \
+			cc = _ipixel_fetch(nbits, sbits, x2); \
+			if (cc != mask) _ipixel_store(nbits, dbits, x1, cc); \
+		} \
+		dbits = (IUINT8*)dbits + dpitch; \
+		sbits = (const IUINT8*)sbits + spitch; \
+	} \
+}
+
+
+/* merge blit for 32/16/8 bits */
+#define IPIXEL_BLIT_MERGE_PROC_N(nbits, nbytes, INTTYPE) \
+static void ipixel_blit_merge_proc_##nbits(void *dbits, long dpitch, \
+	int dx, const void *sbits, long spitch, int sx, const void *mbits, \
+	long mpitch, int mx, int w, int h, IUINT32 mask, int flip) \
+{ \
+	INTTYPE cmask = (INTTYPE)mask; \
+	int y; \
+	if (flip & IPIXEL_FLIP_VFLIP) { \
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
+		mbits = (const IUINT8*)mbits + mpitch * (h - 1); \
+		spitch = -spitch; \
+		mpitch = -mpitch; \
+	} \
+	if ((flip & IPIXEL_FLIP_HFLIP) == 0) { \
+		for (y = 0; y < h; y++) { \
+			const INTTYPE *s1 = (const INTTYPE*)sbits + sx; \
+			const INTTYPE *s2 = (const INTTYPE*)mbits + mx; \
+			INTTYPE *dst = (INTTYPE*)dbits + dx; \
+			INTTYPE *dstend = dst + w; \
+			for (; dst < dstend; s1++, s2++, dst++) { \
+				if (s2[0] != cmask) dst[0] = s2[0]; \
+				else dst[0] = s1[0]; \
+			} \
+			dbits = (IUINT8*)dbits + dpitch; \
+			sbits = (const IUINT8*)sbits + spitch; \
+			mbits = (const IUINT8*)mbits + mpitch; \
+		} \
+	}	else { \
+		for (y = 0; y < h; y++) { \
+			const INTTYPE *s1 = (const INTTYPE*)sbits + sx + w - 1; \
+			const INTTYPE *s2 = (const INTTYPE*)mbits + mx + w - 1; \
+			INTTYPE *dst = (INTTYPE*)dbits + dx; \
+			INTTYPE *dstend = dst + w; \
+			for (; dst < dstend; s1--, s2--, dst++) { \
+				if (s2[0] != cmask) dst[0] = s2[0]; \
+				else dst[0] = s1[0]; \
+			} \
+			dbits = (IUINT8*)dbits + dpitch; \
+			sbits = (const IUINT8*)sbits + spitch; \
+			mbits = (const IUINT8*)mbits + mpitch; \
+		} \
+	} \
+}
+
+
+/* merge blit for 24/4/1 bits */
+#define IPIXEL_BLIT_MERGE_PROC_BITS(nbits) \
+static void ipixel_blit_merge_proc_##nbits(void *dbits, long dpitch, \
+	int dx, const void *sbits, long spitch, int sx, const void *mbits, \
+	long mpitch, int mx, int w, int h, IUINT32 mask, int flip) \
+{ \
+	int y, x1, x2, x3, sx0, sxd, mx0, mxd, endx; \
+	if (flip & IPIXEL_FLIP_VFLIP) { \
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
+		mbits = (const IUINT8*)mbits + mpitch * (h - 1); \
+		spitch = -spitch; \
+		mpitch = -mpitch; \
+	} \
+	if (flip & IPIXEL_FLIP_HFLIP) { \
+		sx0 = sx + w - 1; \
+		mx0 = mx + w - 1; \
+		sxd = -1; \
+		mxd = -1; \
+	}	else { \
+		sx0 = sx; \
+		mx0 = mx; \
+		sxd = 1; \
+		mxd = 1; \
+	} \
+	endx = dx + w; \
+	for (y = 0; y < h; y++) { \
+		IUINT32 cc; \
+		for (x1 = sx0, x2 = mx0, x3 = dx; x3 < endx; x3++) { \
+			cc = _ipixel_fetch(nbits, mbits, x2); \
+			if (cc == mask) cc = _ipixel_fetch(nbits, sbits, x1); \
+			_ipixel_store(nbits, dbits, x3, cc); \
+			x1 += sxd; \
+			x2 += mxd; \
+		} \
+		dbits = (IUINT8*)dbits + dpitch; \
+		sbits = (const IUINT8*)sbits + spitch; \
+		mbits = (const IUINT8*)mbits + mpitch; \
+	} \
+}
+
+
+/* normal bliter */
+IPIXEL_BLIT_PROC_N(32, 4, IUINT32);
+IPIXEL_BLIT_PROC_N(16, 2, IUINT16);
+IPIXEL_BLIT_PROC_N(8, 1, IUINT8);
+
+IPIXEL_BLIT_PROC_BITS(24);
+IPIXEL_BLIT_PROC_BITS(4);
+IPIXEL_BLIT_PROC_BITS(1);
+
+/* mask bliter */
+IPIXEL_BLIT_MASK_PROC_N(32, 4, IUINT32);
+IPIXEL_BLIT_MASK_PROC_N(16, 2, IUINT16);
+IPIXEL_BLIT_MASK_PROC_N(8, 1, IUINT8);
+
+IPIXEL_BLIT_MASK_PROC_BITS(24);
+IPIXEL_BLIT_MASK_PROC_BITS(4);
+IPIXEL_BLIT_MASK_PROC_BITS(1);
+
+/* merge bliter */
+IPIXEL_BLIT_MERGE_PROC_N(32, 4, IUINT32);
+IPIXEL_BLIT_MERGE_PROC_N(16, 2, IUINT16);
+IPIXEL_BLIT_MERGE_PROC_N(8, 1, IUINT8);
+
+IPIXEL_BLIT_MERGE_PROC_BITS(24);
+IPIXEL_BLIT_MERGE_PROC_BITS(4);
+IPIXEL_BLIT_MERGE_PROC_BITS(1);
+
+#undef IPIXEL_BLIT_PROC_N
+#undef IPIXEL_BLIT_PROC_BITS
+#undef IPIXEL_BLIT_MASK_PROC_N
+#undef IPIXEL_BLIT_MASK_PROC_BITS
+#undef IPIXEL_BLIT_MERGE_PROC_N
+#undef IPIXEL_BLIT_MERGE_PROC_BITS
+
+
+/* blit driver desc */
+struct iPixelBlitProc
+{
+	iBlitNMProc normal, normal_default;
+	iBlitMKProc mask, mask_default;
+	iBlitMGProc merge, merge_default;
+};
+
+#define ITABLE_ITEM(bpp) { \
+	ipixel_blit_proc_##bpp, ipixel_blit_proc_##bpp, \
+	ipixel_blit_mask_proc_##bpp, ipixel_blit_mask_proc_##bpp, \
+	ipixel_blit_merge_proc_##bpp, ipixel_blit_merge_proc_##bpp }
+
+
+/* blit procedure look up table */
+static struct iPixelBlitProc ipixel_blit_proc_list[6] =
+{
+	ITABLE_ITEM(32),
+	ITABLE_ITEM(24),
+	ITABLE_ITEM(16),
+	ITABLE_ITEM(8),
+	ITABLE_ITEM(4),
+	ITABLE_ITEM(1),
+};
+
+static const int ipixel_lookup_bpp[33] = {
+	-1, 5, -1, -1, 4, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, 
+	2, 2, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1,
+	-1, -1, 0,
+};
+
+
+/* get normal blit procedure */
+iBlitNMProc ipixel_get_blit_normal(int bpp, int isdefault)
+{
+	int index;
+	if (bpp < 0 || bpp > 32) return NULL;
+	index = ipixel_lookup_bpp[bpp];
+	if (index < 0) return NULL;
+	if (isdefault) return ipixel_blit_proc_list[index].normal_default;
+	return ipixel_blit_proc_list[index].normal;
+}
+
+/* get mask blit procedure */
+iBlitMKProc ipixel_get_blit_mask(int bpp, int isdefault)
+{
+	int index;
+	if (bpp < 0 || bpp > 32) return NULL;
+	index = ipixel_lookup_bpp[bpp];
+	if (index < 0) return NULL;
+	if (isdefault) return ipixel_blit_proc_list[index].mask_default;
+	return ipixel_blit_proc_list[index].mask;
+}
+
+/* get merge blit procedure */
+iBlitMGProc ipixel_get_blit_merge(int bpp, int isdefault)
+{
+	int index;
+	if (bpp < 0 || bpp > 32) return NULL;
+	index = ipixel_lookup_bpp[bpp];
+	if (index < 0) return NULL;
+	if (isdefault) return ipixel_blit_proc_list[index].merge_default;
+	return ipixel_blit_proc_list[index].merge;
+}
+
+
+/* set normal blit procedure */
+void ipixel_set_blit_proc(int bpp, int type, void *proc)
+{
+	int index;
+	if (bpp < 0 || bpp > 32) return;
+	index = ipixel_lookup_bpp[bpp];
+	if (index < 0) return;
+	switch (type)
+	{
+	case IPIXEL_BLIT_NORMAL:
+		ipixel_blit_proc_list[index].normal = (iBlitNMProc)proc;
+		break;
+	case IPIXEL_BLIT_MASK:
+		ipixel_blit_proc_list[index].mask = (iBlitMKProc)proc;
+		break;
+	case IPIXEL_BLIT_MERGE:
+		ipixel_blit_proc_list[index].merge = (iBlitMGProc)proc;
+		break;
+	}
+}
+
+
+/* normal blit */
+void ipixel_blit_normal(int bpp, void *dbits, long dpitch, int dx, 
+	const void *sbits, long spitch, int sx, int w, int h, int flip)
+{
+	iBlitNMProc bliter;
+	bliter = ipixel_get_blit_normal(bpp, 0);
+	if (bliter) {
+		bliter(dbits, dpitch, dx, sbits, spitch, sx, w, h, flip);
+	}
+}
+
+/* mask blit */
+void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
+	int flip)
+{
+	iBlitMKProc bliter;
+	bliter = ipixel_get_blit_mask(bpp, 0);
+	if (bliter) {
+		bliter(dbits, dpitch, dx, sbits, spitch, sx, w, h, mask, flip);
+	}
+}
+
+/* merge blit */
+void ipixel_blit_merge(int bpp, void *dbits, long dpitch, int dx,
+	const void *sbits, long spitch, int sx, const void *mbits, long mpitch, 
+	int mx, int w, int h, IUINT32 mask, int flip)
+{
+	iBlitMGProc bliter;
+	bliter = ipixel_get_blit_merge(bpp, 0);
+	if (bliter) {
+		bliter(dbits, dpitch, dx, sbits, spitch, sx, 
+			mbits, mpitch, mx, w, h, mask, flip);
+	}
+}
+
 
 
