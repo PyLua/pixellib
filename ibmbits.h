@@ -465,22 +465,15 @@ void ipixel_set_hline_proc(int fmt, int isadditive, iHLineDrawProc proc);
 
 #define IPIXEL_BLIT_NORMAL		0
 #define IPIXEL_BLIT_MASK		1
-#define IPIXEL_BLIT_MERGE		2
-
 
 /* normal blit procedure */
 typedef void (*iBlitNMProc)(void *dbits, long dpitch, int dx, 
 	const void *sbits, long spitch, int sx, int w, int h, int flip);
 
 /* mask blit procedure */
-typedef void (*iBlitMKProc)(void *dbits, long dpitch, int dx,
+typedef void (*iBlitMKProc)(void *dbits, long dpitch, int dx, 
 	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
 	int flip);
-
-/* merge blit procedure */
-typedef void (*iBlitMGProc)(void *dbits, long dpitch, int dx,
-	const void *sbits, long spitch, int sx, const void *mbits, long mpitch, 
-	int mx, int w, int h, IUINT32 mask, int flip);
 
 
 /* get normal blit procedure */
@@ -488,9 +481,6 @@ iBlitNMProc ipixel_get_blit_normal(int bpp, int isdefault);
 
 /* get mask blit procedure */
 iBlitMKProc ipixel_get_blit_mask(int bpp, int isdefault);
-
-/* get merge blit procedure */
-iBlitMGProc ipixel_get_blit_merge(int bpp, int isdefault);
 
 /* set normal blit procedure */
 void ipixel_set_blit_proc(int bpp, int type, void *proc);
@@ -504,11 +494,6 @@ void ipixel_blit_normal(int bpp, void *dbits, long dpitch, int dx,
 void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
 	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
 	int flip);
-
-/* merge blit */
-void ipixel_blit_merge(int bpp, void *dbits, long dpitch, int dx,
-	const void *sbits, long spitch, int sx, const void *mbits, long mpitch, 
-	int mx, int w, int h, IUINT32 mask, int flip);
 
 
 /* reverse card */
