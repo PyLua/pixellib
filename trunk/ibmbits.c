@@ -2802,93 +2802,6 @@ static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
 }
 
 
-/* merge blit for 32/16/8 bits */
-#define IPIXEL_BLIT_MERGE_PROC_N(nbits, nbytes, INTTYPE) \
-static void ipixel_blit_merge_proc_##nbits(void *dbits, long dpitch, \
-	int dx, const void *sbits, long spitch, int sx, const void *mbits, \
-	long mpitch, int mx, int w, int h, IUINT32 mask, int flip) \
-{ \
-	INTTYPE cmask = (INTTYPE)mask; \
-	int y; \
-	if (flip & IPIXEL_FLIP_VFLIP) { \
-		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
-		mbits = (const IUINT8*)mbits + mpitch * (h - 1); \
-		spitch = -spitch; \
-		mpitch = -mpitch; \
-	} \
-	if ((flip & IPIXEL_FLIP_HFLIP) == 0) { \
-		for (y = 0; y < h; y++) { \
-			const INTTYPE *s1 = (const INTTYPE*)sbits + sx; \
-			const INTTYPE *s2 = (const INTTYPE*)mbits + mx; \
-			INTTYPE *dst = (INTTYPE*)dbits + dx; \
-			INTTYPE *dstend = dst + w; \
-			for (; dst < dstend; s1++, s2++, dst++) { \
-				if (s2[0] != cmask) dst[0] = s2[0]; \
-				else dst[0] = s1[0]; \
-			} \
-			dbits = (IUINT8*)dbits + dpitch; \
-			sbits = (const IUINT8*)sbits + spitch; \
-			mbits = (const IUINT8*)mbits + mpitch; \
-		} \
-	}	else { \
-		for (y = 0; y < h; y++) { \
-			const INTTYPE *s1 = (const INTTYPE*)sbits + sx + w - 1; \
-			const INTTYPE *s2 = (const INTTYPE*)mbits + mx + w - 1; \
-			INTTYPE *dst = (INTTYPE*)dbits + dx; \
-			INTTYPE *dstend = dst + w; \
-			for (; dst < dstend; s1--, s2--, dst++) { \
-				if (s2[0] != cmask) dst[0] = s2[0]; \
-				else dst[0] = s1[0]; \
-			} \
-			dbits = (IUINT8*)dbits + dpitch; \
-			sbits = (const IUINT8*)sbits + spitch; \
-			mbits = (const IUINT8*)mbits + mpitch; \
-		} \
-	} \
-}
-
-
-/* merge blit for 24/4/1 bits */
-#define IPIXEL_BLIT_MERGE_PROC_BITS(nbits) \
-static void ipixel_blit_merge_proc_##nbits(void *dbits, long dpitch, \
-	int dx, const void *sbits, long spitch, int sx, const void *mbits, \
-	long mpitch, int mx, int w, int h, IUINT32 mask, int flip) \
-{ \
-	int y, x1, x2, x3, sx0, sxd, mx0, mxd, endx; \
-	if (flip & IPIXEL_FLIP_VFLIP) { \
-		sbits = (const IUINT8*)sbits + spitch * (h - 1); \
-		mbits = (const IUINT8*)mbits + mpitch * (h - 1); \
-		spitch = -spitch; \
-		mpitch = -mpitch; \
-	} \
-	if (flip & IPIXEL_FLIP_HFLIP) { \
-		sx0 = sx + w - 1; \
-		mx0 = mx + w - 1; \
-		sxd = -1; \
-		mxd = -1; \
-	}	else { \
-		sx0 = sx; \
-		mx0 = mx; \
-		sxd = 1; \
-		mxd = 1; \
-	} \
-	endx = dx + w; \
-	for (y = 0; y < h; y++) { \
-		IUINT32 cc; \
-		for (x1 = sx0, x2 = mx0, x3 = dx; x3 < endx; x3++) { \
-			cc = _ipixel_fetch(nbits, mbits, x2); \
-			if (cc == mask) cc = _ipixel_fetch(nbits, sbits, x1); \
-			_ipixel_store(nbits, dbits, x3, cc); \
-			x1 += sxd; \
-			x2 += mxd; \
-		} \
-		dbits = (IUINT8*)dbits + dpitch; \
-		sbits = (const IUINT8*)sbits + spitch; \
-		mbits = (const IUINT8*)mbits + mpitch; \
-	} \
-}
-
-
 /* normal bliter */
 IPIXEL_BLIT_PROC_N(32, 4, IUINT32);
 IPIXEL_BLIT_PROC_N(16, 2, IUINT16);
@@ -2907,21 +2820,12 @@ IPIXEL_BLIT_MASK_PROC_BITS(24);
 IPIXEL_BLIT_MASK_PROC_BITS(4);
 IPIXEL_BLIT_MASK_PROC_BITS(1);
 
-/* merge bliter */
-IPIXEL_BLIT_MERGE_PROC_N(32, 4, IUINT32);
-IPIXEL_BLIT_MERGE_PROC_N(16, 2, IUINT16);
-IPIXEL_BLIT_MERGE_PROC_N(8, 1, IUINT8);
-
-IPIXEL_BLIT_MERGE_PROC_BITS(24);
-IPIXEL_BLIT_MERGE_PROC_BITS(4);
-IPIXEL_BLIT_MERGE_PROC_BITS(1);
 
 #undef IPIXEL_BLIT_PROC_N
 #undef IPIXEL_BLIT_PROC_BITS
 #undef IPIXEL_BLIT_MASK_PROC_N
 #undef IPIXEL_BLIT_MASK_PROC_BITS
-#undef IPIXEL_BLIT_MERGE_PROC_N
-#undef IPIXEL_BLIT_MERGE_PROC_BITS
+
 
 
 /* blit driver desc */
@@ -2929,13 +2833,11 @@ struct iPixelBlitProc
 {
 	iBlitNMProc normal, normal_default;
 	iBlitMKProc mask, mask_default;
-	iBlitMGProc merge, merge_default;
 };
 
 #define ITABLE_ITEM(bpp) { \
 	ipixel_blit_proc_##bpp, ipixel_blit_proc_##bpp, \
-	ipixel_blit_mask_proc_##bpp, ipixel_blit_mask_proc_##bpp, \
-	ipixel_blit_merge_proc_##bpp, ipixel_blit_merge_proc_##bpp }
+	ipixel_blit_mask_proc_##bpp, ipixel_blit_mask_proc_##bpp }
 
 
 /* blit procedure look up table */
@@ -2978,18 +2880,6 @@ iBlitMKProc ipixel_get_blit_mask(int bpp, int isdefault)
 	return ipixel_blit_proc_list[index].mask;
 }
 
-/* get merge blit procedure */
-iBlitMGProc ipixel_get_blit_merge(int bpp, int isdefault)
-{
-	int index;
-	if (bpp < 0 || bpp > 32) return NULL;
-	index = ipixel_lookup_bpp[bpp];
-	if (index < 0) return NULL;
-	if (isdefault) return ipixel_blit_proc_list[index].merge_default;
-	return ipixel_blit_proc_list[index].merge;
-}
-
-
 /* set normal blit procedure */
 void ipixel_set_blit_proc(int bpp, int type, void *proc)
 {
@@ -3004,9 +2894,6 @@ void ipixel_set_blit_proc(int bpp, int type, void *proc)
 		break;
 	case IPIXEL_BLIT_MASK:
 		ipixel_blit_proc_list[index].mask = (iBlitMKProc)proc;
-		break;
-	case IPIXEL_BLIT_MERGE:
-		ipixel_blit_proc_list[index].merge = (iBlitMGProc)proc;
 		break;
 	}
 }
@@ -3034,19 +2921,5 @@ void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
 		bliter(dbits, dpitch, dx, sbits, spitch, sx, w, h, mask, flip);
 	}
 }
-
-/* merge blit */
-void ipixel_blit_merge(int bpp, void *dbits, long dpitch, int dx,
-	const void *sbits, long spitch, int sx, const void *mbits, long mpitch, 
-	int mx, int w, int h, IUINT32 mask, int flip)
-{
-	iBlitMGProc bliter;
-	bliter = ipixel_get_blit_merge(bpp, 0);
-	if (bliter) {
-		bliter(dbits, dpitch, dx, sbits, spitch, sx, 
-			mbits, mpitch, mx, w, h, mask, flip);
-	}
-}
-
 
 
