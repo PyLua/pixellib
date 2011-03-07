@@ -374,6 +374,7 @@ iFetchPixelProc ipixel_get_fetchpixel(int pixfmt, int access_mode);
 /* set procedure */
 void ipixel_set_proc(int pixfmt, int type, void *proc);
 
+
 /* find the best fit color in palette */
 int ibestfit_color(const IRGB *pal, int r, int g, int b, int palsize);
 
@@ -462,6 +463,54 @@ iHLineDrawProc ipixel_get_hline_proc(int fmt, int isadd, int usedefault);
 void ipixel_set_hline_proc(int fmt, int isadditive, iHLineDrawProc proc);
 
 
+#define IPIXEL_BLIT_NORMAL		0
+#define IPIXEL_BLIT_MASK		1
+#define IPIXEL_BLIT_MERGE		2
+
+
+/* normal blit procedure */
+typedef void (*iBlitNMProc)(void *dbits, long dpitch, int dx, 
+	const void *sbits, long spitch, int sx, int w, int h, int flip);
+
+/* mask blit procedure */
+typedef void (*iBlitMKProc)(void *dbits, long dpitch, int dx,
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
+	int flip);
+
+/* merge blit procedure */
+typedef void (*iBlitMGProc)(void *dbits, long dpitch, int dx,
+	const void *sbits, long spitch, int sx, const void *mbits, long mpitch, 
+	int mx, int w, int h, IUINT32 mask, int flip);
+
+
+/* get normal blit procedure */
+iBlitNMProc ipixel_get_blit_normal(int bpp, int isdefault);
+
+/* get mask blit procedure */
+iBlitMKProc ipixel_get_blit_mask(int bpp, int isdefault);
+
+/* get merge blit procedure */
+iBlitMGProc ipixel_get_blit_merge(int bpp, int isdefault);
+
+/* set normal blit procedure */
+void ipixel_set_blit_proc(int bpp, int type, void *proc);
+
+
+/* normal blit */
+void ipixel_blit_normal(int bpp, void *dbits, long dpitch, int dx, 
+	const void *sbits, long spitch, int sx, int w, int h, int flip);
+
+/* mask blit */
+void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
+	int flip);
+
+/* merge blit */
+void ipixel_blit_merge(int bpp, void *dbits, long dpitch, int dx,
+	const void *sbits, long spitch, int sx, const void *mbits, long mpitch, 
+	int mx, int w, int h, IUINT32 mask, int flip);
+
+
 /* reverse card */
 void ipixel_card_reverse(IUINT32 *card, int size);
 
@@ -481,19 +530,19 @@ void ipixel_card_set_proc(int id, void *proc);
 /**********************************************************************
  * MACRO: Pixel Fetching & Storing
  **********************************************************************/
-#define _ipixel_fetch_8(ptr, offset)  (((IUINT8 *)(ptr))[offset])
-#define _ipixel_fetch_16(ptr, offset) (((IUINT16*)(ptr))[offset])
-#define _ipixel_fetch_32(ptr, offset) (((IUINT32*)(ptr))[offset])
+#define _ipixel_fetch_8(ptr, offset)  (((const IUINT8 *)(ptr))[offset])
+#define _ipixel_fetch_16(ptr, offset) (((const IUINT16*)(ptr))[offset])
+#define _ipixel_fetch_32(ptr, offset) (((const IUINT32*)(ptr))[offset])
 
 #define _ipixel_fetch_24_lsb(ptr, offset) \
-    ( (((IUINT32)(((IUINT8*)(ptr)) + (offset) * 3)[0]) <<  0 ) | \
-      (((IUINT32)(((IUINT8*)(ptr)) + (offset) * 3)[1]) <<  8 ) | \
-      (((IUINT32)(((IUINT8*)(ptr)) + (offset) * 3)[2]) << 16 ))
+    ( (((IUINT32)(((const IUINT8*)(ptr)) + (offset) * 3)[0]) <<  0 ) | \
+      (((IUINT32)(((const IUINT8*)(ptr)) + (offset) * 3)[1]) <<  8 ) | \
+      (((IUINT32)(((const IUINT8*)(ptr)) + (offset) * 3)[2]) << 16 ))
 
 #define _ipixel_fetch_24_msb(ptr, offset) \
-    ( (((IUINT32)(((IUINT8*)(ptr)) + (offset) * 3)[0]) << 16 ) | \
-      (((IUINT32)(((IUINT8*)(ptr)) + (offset) * 3)[1]) <<  8 ) | \
-      (((IUINT32)(((IUINT8*)(ptr)) + (offset) * 3)[2]) <<  0 ))
+    ( (((IUINT32)(((const IUINT8*)(ptr)) + (offset) * 3)[0]) << 16 ) | \
+      (((IUINT32)(((const IUINT8*)(ptr)) + (offset) * 3)[1]) <<  8 ) | \
+      (((IUINT32)(((const IUINT8*)(ptr)) + (offset) * 3)[2]) <<  0 ))
 
 #define _ipixel_fetch_4_lsb(ptr, offset) \
     (((offset) & 1)? (_ipixel_fetch_8(ptr, (offset) >> 1) >> 4) : \
@@ -510,7 +559,7 @@ void ipixel_card_set_proc(int id, void *proc);
     ((_ipixel_fetch_8(ptr, (offset) >> 3) >> (7 - ((offset) & 7))) & 1)
 
 
-#define _ipixel_store_8(ptr, off, c) (((IUINT8 *)(ptr))[off] = (IUINT8)(c))
+#define _ipixel_store_8(ptr, off, c)  (((IUINT8 *)(ptr))[off] = (IUINT8)(c))
 #define _ipixel_store_16(ptr, off, c) (((IUINT16*)(ptr))[off] = (IUINT16)(c))
 #define _ipixel_store_32(ptr, off, c) (((IUINT32*)(ptr))[off] = (IUINT32)(c))
 
@@ -572,14 +621,14 @@ void ipixel_card_set_proc(int id, void *proc);
 
 
 #define IFETCH24_LSB(a) ( \
-	(((IUINT32)(((unsigned char*)(a))[0]))      ) | \
-	(((IUINT32)(((unsigned char*)(a))[1])) <<  8) | \
-	(((IUINT32)(((unsigned char*)(a))[2])) << 16) )
+	(((IUINT32)(((const unsigned char*)(a))[0]))      ) | \
+	(((IUINT32)(((const unsigned char*)(a))[1])) <<  8) | \
+	(((IUINT32)(((const unsigned char*)(a))[2])) << 16) )
 
 #define IFETCH24_MSB(a) ( \
-	(((IUINT32)(((unsigned char*)(a))[0])) << 16) | \
-	(((IUINT32)(((unsigned char*)(a))[1])) <<  8) | \
-	(((IUINT32)(((unsigned char*)(a))[2]))      ) )
+	(((IUINT32)(((const unsigned char*)(a))[0])) << 16) | \
+	(((IUINT32)(((const unsigned char*)(a))[1])) <<  8) | \
+	(((IUINT32)(((const unsigned char*)(a))[2]))      ) )
 
 #define ISTORE24_LSB(a, c) do { \
 		((unsigned char*)(a))[0] = (IUINT8)(((c)      ) & 0xff); \
@@ -1446,6 +1495,89 @@ void ipixel_card_set_proc(int id, void *proc);
 
 
 /**********************************************************************
+ * MACRO: PIXEL FILLING FAST MACRO
+ **********************************************************************/
+#define _ipixel_fill_32(__bits, __startx, __size, __cc) do { \
+		IUINT32 *__ptr = (IUINT32*)(__bits) + (__startx); \
+		ILINS_LOOP_DOUBLE( \
+			{ *__ptr++ = (IUINT32)(__cc); }, \
+			{ *__ptr++ = (IUINT32)(__cc); *__ptr++ = (IUINT32)(__cc); }, \
+			__size); \
+	}	while (0)
+
+#define _ipixel_fill_24(__bits, __startx, __size, __cc) do { \
+		IUINT8 *__ptr = (IUINT8*)(__bits) + (__startx) * 3; \
+		IUINT8 *__dst = __ptr; \
+		int __cnt; \
+		for (__cnt = 12; __size > 0 && __cnt > 0; __size--, __cnt--) { \
+			_ipixel_store(24, __ptr, 0, __cc); \
+			__ptr += 3; \
+		} \
+		for (; __size >= 4; __size -= 4) { \
+			((IUINT32*)__ptr)[0] = ((const IUINT32*)__dst)[0]; \
+			((IUINT32*)__ptr)[1] = ((const IUINT32*)__dst)[1]; \
+			((IUINT32*)__ptr)[2] = ((const IUINT32*)__dst)[2]; \
+			__ptr += 12; \
+		} \
+		for (; __size > 0; __size--) { \
+			_ipixel_store(24, __ptr, 0, __cc); \
+			__ptr += 3; \
+		} \
+	}	while (0)
+
+#define _ipixel_fill_16(__bits, __startx, __size, __cc) do { \
+		IUINT8 *__ptr = (IUINT8*)(__bits) + (__startx) * 2; \
+		IUINT32 __c1 = (__cc) & 0xffff; \
+		IUINT32 __c2 = (__c1 << 16) | __c1; \
+		size_t __length = __size; \
+		if ((((size_t)__ptr) & 2) && __length > 0) { \
+			*(IUINT16*)__ptr = (IUINT16)__c1; \
+			__ptr += 2; __length--; \
+		} \
+		ILINS_LOOP_DOUBLE( \
+			{	*(IUINT16*)__ptr = (IUINT16)__c1; __ptr += 2; }, \
+			{	*(IUINT32*)__ptr = (IUINT32)__c2; __ptr += 4; }, \
+			__length); \
+	}	while (0)
+
+#define _ipixel_fill_8(__bits, __startx, __size, __cc) do { \
+		IUINT8 *__ptr = (IUINT8*)(__bits) + (__startx); \
+		if (__size <= 64) { \
+			IUINT32 __c1 = (__cc) & 0xff; \
+			IUINT32 __c2 = (__c1 << 8) | __c1; \
+			IUINT32 __c4 = (__c2 << 16) | __c2; \
+			ILINS_LOOP_QUATRO( \
+				{	*__ptr++ = (IUINT8)__c1; }, \
+				{	*(IUINT16*)__ptr = (IUINT16)__c2; __ptr += 2; }, \
+				{	*(IUINT32*)__ptr = (IUINT32)__c4; __ptr += 4; }, \
+				__size); \
+		}	else { \
+			memset(__ptr, (IUINT8)(__cc), __size); \
+		} \
+	}	while (0)
+
+#define _ipixel_fill_4(__bits, __startx, __size, __cc) do { \
+		IINT32 __pos = (__startx); \
+		IINT32 __cnt; \
+		for (__cnt = (__size); __cnt > 0; __pos++, __cnt--) { \
+			_ipixel_store_4(__bits, __pos, __cc); \
+		} \
+	}	while (0)
+
+#define _ipixel_fill_1(__bits, __startx, __size, __cc) do { \
+		IINT32 __pos = (__startx); \
+		IINT32 __cnt; \
+		for (__cnt = (__size); __cnt > 0; __pos++, __cnt--) { \
+			_ipixel_store_1(__bits, __pos, __cc); \
+		} \
+	}	while (0)
+
+
+#define _ipixel_fill(bpp, bits, startx, size, color) \
+		_ipixel_fill_##bpp(bits, startx, size, color)
+
+
+/**********************************************************************
  * MACRO: PIXEL BLENDING
  **********************************************************************/
 /* blend onto a static surface (no alpha channel) */
@@ -1503,6 +1635,7 @@ void ipixel_card_set_proc(int id, void *proc);
 		(db) = ICLIP_256(XB); \
 		(da) = ICLIP_256(XA); \
 	}	while (0)
+
 
 
 #ifdef __cplusplus
