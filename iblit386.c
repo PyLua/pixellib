@@ -523,157 +523,146 @@ int iblit_386(char *dst, long pitch1, const char *src, long pitch2,
 int iblit_mmx(char *dst, long pitch1, const char *src, long pitch2, 
 	int w, int h, int pixelbyte, long linesize)
 {
-	volatile ilong c1, c2, m, n, n1, n2;
+	volatile ilong c1, c2, m, n1, n2;
 	volatile ilong hh = h;
 
-	if (linesize < 128) {
-		// morden small memory copy optimizing uses jmp table vectors,
-		// which can not be write in C inline code. so use memcpy directly
-		for (; h > 0; h--) {
-			memcpy(dst, src, linesize);
-			dst += pitch1;
-			src += pitch2;
-		}
-		return 0;
-	}
+	if (pixelbyte == 1) linesize = w;
 
 	c1 = pitch1 - linesize;
 	c2 = pitch2 - linesize;
-	n = (4 - (((size_t)dst) & 3)) & 3;
-	if (linesize < 4) n = 0;
-	else linesize -= n;
 	m = linesize >> 6;
 	n1 = (linesize & 63) >> 2;
-	n2 = linesize & 3;
+	n2 = (linesize & 63) & 3;
 
-#if defined(__INLINEGNU__) && defined(__i386__)
-	__asm__ __volatile__ (
-	  ASM_BEGIN
-	  "      mov      %1, %%esi\n"
-	  "      mov      %2, %%edi\n"
-	  "      mov      %3, %%eax\n"
-	  "      mov      %4, %%edx\n"
-	  "      cld\n"
-	  "1:    \n"
-	  "      mov      %%edx, %%ecx\n"
-	  "      rep movsb\n"
-	  "      test     %%eax, %%eax\n"
-	  "      jz       3f\n"
-	  "      mov      %%eax, %%ecx\n"
-	  "2:    \n"
-	  "      movq     (%%esi), %%mm0\n"
-	  "      movq     0x8(%%esi), %%mm1\n"
-	  "      movq     0x10(%%esi), %%mm2\n"
-	  "      movq     0x18(%%esi), %%mm3\n"
-	  "      movq     0x20(%%esi), %%mm4\n"
-	  "      movq     0x28(%%esi), %%mm5\n"
-	  "      movq     0x30(%%esi), %%mm6\n"
-	  "      movq     0x38(%%esi), %%mm7\n"
-	  "      movq     %%mm0, (%%edi)\n"
-	  "      movq     %%mm1, 0x8(%%edi)\n"
-	  "      movq     %%mm2, 0x10(%%edi)\n"
-	  "      movq     %%mm3, 0x18(%%edi)\n"
-	  "      movq     %%mm4, 0x20(%%edi)\n"
-	  "      movq     %%mm5, 0x28(%%edi)\n"
-	  "      movq     %%mm6, 0x30(%%edi)\n"
-	  "      movq     %%mm7, 0x38(%%edi)\n"
-	  "      add      $0x40, %%esi\n"
-	  "      add      $0x40, %%edi\n"
-	  "      dec      %%ecx\n"
-	  "      jnz      2b\n"
-	  "3:    \n"
-	  "      mov      %5, %%ecx\n"
-	  "      rep movsl\n"
-	  "      mov      %6, %%ecx\n"
-	  "      rep movsb\n"
-	  "      add      %7, %%edi\n"
-	  "      add      %8, %%esi\n"
-	  "      decl     %0\n"
-	  "      jnz      1b\n"
-	  "      emms\n"
-	  ASM_ENDUP
-	  :"=m"(hh)
-	  :"m"(src), "m"(dst), "m"(m), "m"(n), "m"(n1), "m"(n2), "m"(c1), "m"(c2)
-	  :"memory", "esi", "edi", "eax", "ebx", "ecx", "edx"
-	);
-#elif defined(__INLINEGNU__)
-	volatile iulong x1, x2, x3, x4, x5, x6;
-	volatile const char *ss = src;
-	volatile char *dd = dst;
-	__asm__ __volatile__ (
-	  ASM_BEGIN
-	  "      movq %%rax, %0\n"
-	  "      movq %%rbx, %1\n"
-	  "      movq %%rcx, %2\n"
-	  "      movq %%rdx, %3\n"
-	  "      movq %%rsi, %4\n"
-	  "      movq %%rdi, %5\n"
-	  "      mov      %7, %%rsi\n"
-	  "      mov      %8, %%rdi\n"
-	  "      mov      %9, %%rax\n"
-	  "      mov      %10, %%rdx\n"
-	  "      cld\n"
-	  "1:    \n"
-	  "      mov      %%rdx, %%rcx\n"
-	  "      rep movsb\n"
-	  "      test     %%rax, %%rax\n"
-	  "      jz       3f\n"
-	  "      mov      %%rax, %%rcx\n"
-	  "2:    \n"
-	  "      movq     (%%rsi), %%mm0\n"
-	  "      movq     0x8(%%rsi), %%mm1\n"
-	  "      movq     0x10(%%rsi), %%mm2\n"
-	  "      movq     0x18(%%rsi), %%mm3\n"
-	  "      movq     0x20(%%rsi), %%mm4\n"
-	  "      movq     0x28(%%rsi), %%mm5\n"
-	  "      movq     0x30(%%rsi), %%mm6\n"
-	  "      movq     0x38(%%rsi), %%mm7\n"
-	  "      movq     %%mm0, (%%rdi)\n"
-	  "      movq     %%mm1, 0x8(%%rdi)\n"
-	  "      movq     %%mm2, 0x10(%%rdi)\n"
-	  "      movq     %%mm3, 0x18(%%rdi)\n"
-	  "      movq     %%mm4, 0x20(%%rdi)\n"
-	  "      movq     %%mm5, 0x28(%%rdi)\n"
-	  "      movq     %%mm6, 0x30(%%rdi)\n"
-	  "      movq     %%mm7, 0x38(%%rdi)\n"
-	  "      add      $0x40, %%rsi\n"
-	  "      add      $0x40, %%rdi\n"
-	  "      dec      %%rcx\n"
-	  "      jnz      2b\n"
-	  "3:    \n"
-	  "      mov      %11, %%rcx\n"
-	  "      rep movsl\n"
-	  "      mov      %12, %%rcx\n"
-	  "      rep movsb\n"
-	  "      add      %13, %%rdi\n"
-	  "      add      %14, %%rsi\n"
-	  "      decl     %6\n"
-	  "      jnz      1b\n"
-	  "      movq %0, %%rax\n"
-	  "      movq %1, %%rbx\n"
-	  "      movq %2, %%rcx\n"
-	  "      movq %3, %%rdx\n"
-	  "      movq %4, %%rsi\n"
-	  "      movq %5, %%rdi\n"
-	  "      emms\n"
-	  ASM_ENDUP
-	  :"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
-	  :"m"(ss), "m"(dd), "m"(m), "m"(n), "m"(n1), "m"(n2), "m"(c1), "m"(c2)
-	  :"memory", "esi", "edi", "eax", "ebx", "ecx", "edx"
-	);
+#if defined(__INLINEGNU__)
+	{
+	#ifndef __amd64__
+		__asm__ __volatile__ ( "\n"
+			ASM_BEGIN
+		"	movl %1, %%esi\n"
+		"	movl %2, %%edi\n"
+		"	movl %3, %%eax\n"
+		"	movl %4, %%ebx\n"
+		"	movl %5, %%edx\n"
+		"	cld\n"
+		"1:\n"
+		"	movl %%eax, %%ecx\n"
+		"	testl %%eax, %%eax\n"
+		"	jz 3f\n"
+		"2:\n"
+		"	movq 0(%%esi), %%mm0\n"
+		"	movq 8(%%esi), %%mm1\n"
+		"	movq 16(%%esi), %%mm2\n"
+		"	movq 24(%%esi), %%mm3\n"
+		"	movq 32(%%esi), %%mm4\n"
+		"	movq 40(%%esi), %%mm5\n"
+		"	movq 48(%%esi), %%mm6\n"
+		"	movq 56(%%esi), %%mm7\n"
+		"	movq %%mm0, 0(%%edi)\n"
+		"	movq %%mm1, 8(%%edi)\n"
+		"	movq %%mm2, 16(%%edi)\n"
+		"	movq %%mm3, 24(%%edi)\n"
+		"	movq %%mm4, 32(%%edi)\n"
+		"	movq %%mm5, 40(%%edi)\n"
+		"	movq %%mm6, 48(%%edi)\n"
+		"	movq %%mm7, 56(%%edi)\n"
+		"	addl $64, %%esi\n"
+		"	addl $64, %%edi\n"
+		"	decl %%ecx\n"
+		"	jnz 2b\n"
+		"3:\n"
+		"	movl %%ebx, %%ecx\n"
+		"	rep movsl\n"
+		"	movl %%edx, %%ecx\n"
+		"	rep movsb\n"
+		"	addl %6, %%edi\n"
+		"	addl %7, %%esi\n"
+		"	decl %0\n"
+		"	jnz 1b\n"
+		"	emms\n"
+			ASM_ENDUP
+		:"=m"(hh)
+		:"m"(src),"m"(dst),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
+		:"memory", ASM_REGS);
+	#else
+		volatile iulong x1, x2, x3, x4, x5, x6;
+		volatile const char *ss = src;
+		volatile char *dd = dst;
+		__asm__ __volatile__ ( "\n"
+			ASM_BEGIN
+		"	movq %%rax, %0\n"
+		"	movq %%rbx, %1\n"
+		"	movq %%rcx, %2\n"
+		"	movq %%rdx, %3\n"
+		"	movq %%rsi, %4\n"
+		"	movq %%rdi, %5\n"
+		"	mov %7, %%rsi\n"
+		"	mov %8, %%rdi\n"
+		"	mov %9, %%rax\n"
+		"	mov %10, %%rbx\n"
+		"	mov %11, %%rdx\n"
+		"	cld\n"
+		"1:\n"
+		"	mov %%rax, %%rcx\n"
+		"	test %%rax, %%rax\n"
+		"	jz 3f\n"
+		"2:\n"
+		"	movq 0(%%rsi), %%mm0\n"
+		"	movq 8(%%rsi), %%mm1\n"
+		"	movq 16(%%rsi), %%mm2\n"
+		"	movq 24(%%rsi), %%mm3\n"
+		"	movq 32(%%rsi), %%mm4\n"
+		"	movq 40(%%rsi), %%mm5\n"
+		"	movq 48(%%rsi), %%mm6\n"
+		"	movq 56(%%rsi), %%mm7\n"
+		"	movq %%mm0, 0(%%rdi)\n"
+		"	movq %%mm1, 8(%%rdi)\n"
+		"	movq %%mm2, 16(%%rdi)\n"
+		"	movq %%mm3, 24(%%rdi)\n"
+		"	movq %%mm4, 32(%%rdi)\n"
+		"	movq %%mm5, 40(%%rdi)\n"
+		"	movq %%mm6, 48(%%rdi)\n"
+		"	movq %%mm7, 56(%%rdi)\n"
+		"	add $64, %%rsi\n"
+		"	add $64, %%rdi\n"
+		"	dec %%rcx\n"
+		"	jnz 2b\n"
+		"3:\n"
+		"	mov %%rbx, %%rcx\n"
+		"	rep movsl\n"
+		"	mov %%rdx, %%rcx\n"
+		"	rep movsb\n"
+		"	add %12, %%rdi\n"
+		"	add %13, %%rsi\n"
+		"	decq %6\n"
+		"	jnz 1b\n"
+		"	emms\n"
+		"	movq %0, %%rax\n"
+		"	movq %1, %%rbx\n"
+		"	movq %2, %%rcx\n"
+		"	movq %3, %%rdx\n"
+		"	movq %4, %%rsi\n"
+		"	movq %5, %%rdi\n"
+			ASM_ENDUP
+		:"=m"(x1), "=m"(x2), "=m"(x3), "=m"(x4), "=m"(x5), "=m"(x6), "=m"(hh)
+		:"m"(ss),"m"(dd),"m"(m),"m"(n1),"m"(n2),"m"(c1),"m"(c2)
+		:"memory", ASM_REGS);
+	#endif
+	}
+
 #elif defined(__INLINEMSC__)
 	_asm {
+	#ifndef __amd64__
 		mov esi, src
 		mov edi, dst
 		mov eax, m
-		mov edx, n
+		mov ebx, n1
+		mov edx, n2
 		cld
 	loop_line:
-		mov ecx, edx
-		rep movsb
+		mov ecx, eax
 		test eax, eax
 		jz jmp_next
-		mov ecx, eax
 	loop_pixel:
 		movq mm0, [esi + 0]
 		movq mm1, [esi + 8]
@@ -696,29 +685,66 @@ int iblit_mmx(char *dst, long pitch1, const char *src, long pitch2,
 		dec ecx
 		jnz loop_pixel
 	jmp_next:
-		mov ecx, n1
+		mov ecx, ebx
 		rep movsd
-		mov ecx, n2
+		mov ecx, edx
 		rep movsb
 		add edi, c1
 		add esi, c2
-		dec dword ptr hh
+	#else
+		mov rsi, src
+		mov rdi, dst
+		mov rax, m
+		mov rbx, n1
+		mov rdx, n2
+		cld
+	loop_line:
+		mov rcx, rax
+		test rax, rax
+		jz jmp_next
+	loop_pixel:
+		movq mm0, [rsi + 0]
+		movq mm1, [rsi + 8]
+		movq mm2, [rsi + 16]
+		movq mm3, [rsi + 24]
+		movq mm4, [rsi + 32]
+		movq mm5, [rsi + 40]
+		movq mm6, [rsi + 48]
+		movq mm7, [rsi + 56]
+		movq [rdi + 0], mm0
+		movq [rdi + 8], mm1
+		movq [rdi + 16], mm2
+		movq [rdi + 24], mm3
+		movq [rdi + 32], mm4
+		movq [rdi + 40], mm5
+		movq [rdi + 48], mm6
+		movq [rdi + 56], mm7
+		add rsi, 64
+		add rdi, 64
+		dec rcx
+		jnz loop_pixel
+	jmp_next:
+		mov rcx, rbx
+		rep movsd
+		mov rcx, rdx
+		rep movsb
+		add rdi, c1
+		add rsi, c2
+	#endif
+		dec hh
 		jnz loop_line
 		emms
 	}
 #else
-	for (; h > 0; h--) {
-		memcpy(dst, src, linesize);
-		dst += pitch1;
-		src += pitch2;
-	}
+	return -1;
 #endif
+
 	return 0;
 }
 
 
 //---------------------------------------------------------------------
-// iblit_sse - sse normal blitter
+// iblit_sse - mmx normal blitter
 // this routine is design to support the platform with sse feature,
 // which has more than 256KB L2 cache
 //---------------------------------------------------------------------
