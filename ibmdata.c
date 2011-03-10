@@ -862,9 +862,8 @@ static void ipixel_raster_edges_clear(IBITMAP *image, ipixel_edge_t *l,
 		ipixel_edge_t *r, cfixed t, cfixed b, const IRECT *clip);
 
 // 光栅化扫描线
-static int ipixel_raster_edges_spans(IBITMAP *image, ipixel_edge_t *l,
-		ipixel_edge_t *r, cfixed t, cfixed b, const IRECT *clip,
-		ipixel_span_t *spans);
+static int ipixel_raster_edges_spans(ipixel_edge_t *l, ipixel_edge_t *r, 
+		cfixed t, cfixed b, const IRECT *clip, ipixel_span_t *spans);
 
 
 //---------------------------------------------------------------------
@@ -970,8 +969,8 @@ void ipixel_raster_clear(IBITMAP *image, const ipixel_trapezoid_t *trap,
 //---------------------------------------------------------------------
 // 光栅化线段
 //---------------------------------------------------------------------
-int ipixel_raster_spans(IBITMAP *image, const ipixel_trapezoid_t *trap,
-		int x_off, int y_off, const IRECT *clip, ipixel_span_t *spans)
+int ipixel_raster_spans(ipixel_span_t *spans, const ipixel_trapezoid_t *trap,
+		int x_off, int y_off, const IRECT *clip)
 {
 	cfixed x_off_fixed;
 	cfixed y_off_fixed;
@@ -980,18 +979,14 @@ int ipixel_raster_spans(IBITMAP *image, const ipixel_trapezoid_t *trap,
 	IRECT rect;
 	int count = 0;
 
-	assert(image && image->bpp == 8);
-
-	if (image->bpp != 8) return 0;
-
 	if (!ipixel_trapezoid_valid(trap)) return 0;
 
 	if (clip == NULL) {
 		clip = &rect;
 		rect.left = 0;
 		rect.top = 0;
-		rect.right = (int)image->w;
-		rect.bottom = (int)image->h;
+		rect.right = 32767;
+		rect.bottom = 32767;
 	}
 
 	x_off_fixed = cfixed_from_int(x_off);
@@ -1010,8 +1005,7 @@ int ipixel_raster_spans(IBITMAP *image, const ipixel_trapezoid_t *trap,
 	if (b >= t) {
 		ipixel_line_fixed_edge_init(&l, 1, t, &trap->left, x_off, y_off);
 		ipixel_line_fixed_edge_init(&r, 1, t, &trap->right, x_off, y_off);
-		count = ipixel_raster_edges_spans(image, &l, &r, t, b, clip,
-			spans);
+		count = ipixel_raster_edges_spans(&l, &r, t, b, clip, spans);
 	}
 
 	return count;
@@ -1448,9 +1442,8 @@ static void ipixel_raster_edges_clear(IBITMAP *image, ipixel_edge_t *l,
 
 
 // 光栅化扫描线
-static int ipixel_raster_edges_spans(IBITMAP *image, ipixel_edge_t *l,
-		ipixel_edge_t *r, cfixed t, cfixed b, const IRECT *clip,
-		ipixel_span_t *spans)
+static int ipixel_raster_edges_spans(ipixel_edge_t *l, ipixel_edge_t *r, 
+		cfixed t, cfixed b, const IRECT *clip, ipixel_span_t *spans)
 {
 	ipixel_span_t *saved = spans;
 	cfixed y = t;
@@ -1537,8 +1530,11 @@ void ipixel_raster_traps(IBITMAP *image, const ipixel_trapezoid_t *traps,
 //=====================================================================
 // 几何基础
 //=====================================================================
-void ipixel_trapezoid_bound(const ipixel_trapezoid_t *t, int n, IRECT *rect)
+
+// 梯形的绑定区域，返回合法梯形的个数
+int ipixel_trapezoid_bound(const ipixel_trapezoid_t *t, int n, IRECT *rect)
 {
+	int count = 0;
 	rect->left = 0x7fff;
 	rect->top = 0x7fff;
 	rect->right = -0x8000;
@@ -1559,7 +1555,97 @@ void ipixel_trapezoid_bound(const ipixel_trapezoid_t *t, int n, IRECT *rect)
 		x2 = cfixed_ceil(ipixel_line_fixed_x(&t->right, t->bottom, 1));
 		x = cfixed_to_int((x1 > x2)? x1 : x2);
 		if (x > rect->right) rect->right = x;
+		count++;
 	}
+	return count;
+}
+
+
+// 取得traps的扫描线
+int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n, 
+	ipixel_span_t *spans, int x_off, int y_off, const IRECT *clip)
+{
+	ipixel_span_t *lines, *outspans;
+	IRECT bound;
+	int height;
+	int cl, cr;
+	int xl, xr;
+	int count;
+	int i, j;
+	
+	if (ipixel_trapezoid_bound(t, n, &bound) == 0) 
+		return 0;
+
+	ipixel_rect_offset(&bound, x_off, y_off);
+
+	if (clip) {
+		ipixel_rect_intersection(&bound, clip);
+	}
+
+	if (bound.bottom <= bound.top || bound.right <= bound.left)
+		return 0;
+
+	height = bound.bottom - bound.top;
+	cl = bound.left;
+	cr = bound.right;
+
+	outspans = spans;
+	lines = spans + height;
+
+	for (i = 0; i < height; i++) {
+		lines[i].x = 0;
+		lines[i].y = bound.top + i;
+		lines[i].w = 0;
+	}
+
+	for (i = 0; i < n; i++) {
+		count = ipixel_raster_spans(outspans, &t[i], x_off, y_off, clip);
+		for (j = 0; j < count; j++) {
+			ipixel_span_t *s = outspans + j;
+			ipixel_span_t *m = lines + s->y - bound.top;
+			int xl = s->x;
+			int xr = s->x + s->w;
+			int ml = m->x;
+			int mr = m->x + m->w;
+
+			assert(s->y >= bound.top && s->y < bound.bottom);
+	
+			if (xl < cl) xl = cl;
+			if (xr > cr) xr = cr;
+			if (xl < ml) ml = xl;
+			if (xr > mr) mr = xr;
+			m->x = ml;
+			m->w = mr - ml;
+		}
+
+		// top row and bottom row
+		for (j = 0; j < 2; j++) {
+			int y = (j == 0)? bound.top : bound.bottom - 1;
+			ipixel_span_t *m = lines + y - bound.top;
+			int ml = m->x;
+			int mr = m->x + m->w;
+			if (ipixel_trapezoid_span_bound(&t[i], y - y_off, &xl, &xr))
+				continue;
+			xl += x_off;
+			xr += x_off;
+			if (xl < cl) xl = cl;
+			if (xr > cr) xr = cr;
+			if (xl < ml) ml = xl;
+			if (xr > mr) mr = xr;
+			m->x = ml;
+			m->w = mr - ml;
+		}
+	}	
+
+	count = 0;
+	for (i = 0; i < height; i++) {
+		if (lines[i].w > 0) {
+			spans[count] = lines[i];
+			count++;
+		}
+	}
+
+	return count;
 }
 
 
@@ -1731,7 +1817,7 @@ int ipixel_traps_from_polygon_ex(ipixel_trapezoid_t *trap,
 
 int ipixel_span_fetch(const IBITMAP *image, int offset, int line,
 	int width, IUINT32 *card, const ipixel_transform_t *t,
-	iBitmapFetchProc proc, const IRECT *clip)
+	iBitmapFetchProc proc, const IUINT8 *mask, const IRECT *clip)
 {
 	ipixel_vector_t vec, step;
 	IRECT rect;
@@ -1771,7 +1857,7 @@ int ipixel_span_fetch(const IBITMAP *image, int offset, int line,
 		rect.bottom = (int)image->h;
 	}
 
-	proc(image, card, width, &vec.vector[0], &step.vector[0], clip);
+	proc(image, card, width, &vec.vector[0], &step.vector[0], mask, clip);
 	return 0;
 }
 
@@ -2083,7 +2169,8 @@ int ibitmap_raster_low(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 		}
 
 		// 取得本行图像
-		ipixel_span_fetch(src, xl, line, xw, card, &matrix, fetch, rect);
+		ipixel_span_fetch(src, xl, line, xw, card, &matrix, fetch, 
+			NULL, rect);
 
 		// 颜色加成
 		if (color != 0xffffffff) 

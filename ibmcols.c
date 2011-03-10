@@ -681,11 +681,13 @@ static void ibitmap_fetch_proc_table_init(void);
 
 // 通用读取扫描线
 static void ibitmap_fetch_general(const IBITMAP *bmp, IUINT32 *card, 
-	int w, const cfixed *source, const cfixed *step, const IRECT *clip);
+	int w, const cfixed *source, const cfixed *step, const IUINT8 *mask,
+	const IRECT *clip);
 
 // 通用读取浮点扫描线
 static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card, 
-	int width, const float *source, const float *step, const IRECT *clip);
+	int width, const float *source, const float *step, const IUINT8 *mask,
+	const IRECT *clip);
 
 
 //---------------------------------------------------------------------
@@ -820,7 +822,8 @@ int ibitmap_scanline_get_mode(const IBITMAP *bmp, const cfixed *src,
 
 // 通用取扫描线
 static void ibitmap_fetch_general(const IBITMAP *bmp, IUINT32 *card, 
-	int width, const cfixed *source, const cfixed *step, const IRECT *clip)
+	int width, const cfixed *source, const cfixed *step, 
+	const IUINT8 *mask, const IRECT *clip)
 {
 	cfixed u, v, w, du, dv, dw, x, y;
 	iFetchPixelProc proc;
@@ -840,35 +843,91 @@ static void ibitmap_fetch_general(const IBITMAP *bmp, IUINT32 *card,
 
 	if (filter == IPIXEL_FILTER_BILINEAR) {
 		if (w == cfixed_const_1 && dw == 0) {
-			for (; width > 0; u += du, v += dv, card++, width--) {
-				*card = ibitmap_fetch_pixel_bilinear(bmp, u, v, clip, proc);
+			if (mask == NULL) {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					*card = ibitmap_fetch_pixel_bilinear(bmp, 
+						u, v, clip, proc);
+				}
+			}	else {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					if (*mask++) {
+						*card = ibitmap_fetch_pixel_bilinear(bmp, 
+							u, v, clip, proc);
+					}
+				}
 			}
 		}	else {
-			for (; width > 0; u += du, v += dv, w += dw, card++, width--) {
-				if (w != 0) {
-					x = cfixed_div(u, w);
-					y = cfixed_div(v, w);
-				}	else { 
-					x = 0, y = 0;
+			if (mask == NULL) {
+				for (; width > 0; u += du, v += dv, w += dw, width--) {
+					if (w != 0) {
+						x = cfixed_div(u, w);
+						y = cfixed_div(v, w);
+					}	else { 
+						x = 0, y = 0;
+					}
+					*card = ibitmap_fetch_pixel_bilinear(bmp, 
+						x, y, clip, proc);
+					card++;
 				}
-				*card = ibitmap_fetch_pixel_bilinear(bmp, x, y, clip, proc);
+			}	else {
+				for (; width > 0; u += du, v += dv, w += dw, width--) {
+					if (*mask++) {
+						if (w != 0) {
+							x = cfixed_div(u, w);
+							y = cfixed_div(v, w);
+						}	else { 
+							x = 0, y = 0;
+						}
+						*card = ibitmap_fetch_pixel_bilinear(bmp, 
+							x, y, clip, proc);
+					}
+					card++;
+				}
 			}
 		}
 	}
 	else if (filter == IPIXEL_FILTER_NEAREST) {
 		if (w == cfixed_const_1 && dw == 0) {
-			for (; width > 0; u += du, v += dv, card++, width--) {
-				*card = ibitmap_fetch_pixel_nearest(bmp, u, v, clip, proc);
+			if (mask == NULL) {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					*card = ibitmap_fetch_pixel_nearest(bmp, u, v,
+						clip, proc);
+				}
+			}	else {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					if (*mask++) {
+						*card = ibitmap_fetch_pixel_nearest(bmp, u, v,
+							clip, proc);
+					}
+				}
 			}
 		}	else {
-			for (; width > 0; u += du, v += dv, w += dw, card++, width--) {
-				if (w != 0) {
-					x = cfixed_div(u, w);
-					y = cfixed_div(v, w);
-				}	else { 
-					x = 0, y = 0;
+			if (mask == NULL) {
+				for (; width > 0; u += du, v += dv, w += dw, width--) {
+					if (w != 0) {
+						x = cfixed_div(u, w);
+						y = cfixed_div(v, w);
+					}	else { 
+						x = 0, y = 0;
+					}
+					*card = ibitmap_fetch_pixel_nearest(bmp, x, y, 
+						clip, proc);
+					card++;
 				}
-				*card = ibitmap_fetch_pixel_nearest(bmp, x, y, clip, proc);
+			}	else {
+				for (; width > 0; u += du, v += dv, w += dw, width--) {
+					if (*mask++) {
+						if (w != 0) {
+							x = cfixed_div(u, w);
+							y = cfixed_div(v, w);
+						}	else { 
+							x = 0, y = 0;
+						}
+						*card = ibitmap_fetch_pixel_nearest(bmp, x, y, 
+							clip, proc);
+					}
+					card++;
+				}
 			}
 		}
 	}
@@ -876,7 +935,8 @@ static void ibitmap_fetch_general(const IBITMAP *bmp, IUINT32 *card,
 
 // 通用取扫描线
 static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card, 
-	int width, const float *source, const float *step, const IRECT *clip)
+	int width, const float *source, const float *step, const IUINT8 *mask,
+	const IRECT *clip)
 {
 	float u, v, w, du, dv, dw, iw;
 	iFetchPixelProc proc;
@@ -898,11 +958,22 @@ static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card,
 	if (cfloat_ieee_enable()) {
 		if (filter == IPIXEL_FILTER_BILINEAR) {
 			if (w == 1.0f && dw == 0.0f) {
-				for (; width > 0; u += du, v += dv, card++, width--) {
-					x = cfixed_from_float_ieee(u);
-					y = cfixed_from_float_ieee(v);
-					*card = ibitmap_fetch_pixel_bilinear(bmp, 
-						x, y, clip, proc);
+				if (mask == NULL) {
+					for (; width > 0; u += du, v += dv, card++, width--) {
+						x = cfixed_from_float_ieee(u);
+						y = cfixed_from_float_ieee(v);
+						*card = ibitmap_fetch_pixel_bilinear(bmp, 
+							x, y, clip, proc);
+					}
+				}	else {
+					for (; width > 0; u += du, v += dv, card++, width--) {
+						if (*mask++) {
+							x = cfixed_from_float_ieee(u);
+							y = cfixed_from_float_ieee(v);
+							*card = ibitmap_fetch_pixel_bilinear(bmp, 
+								x, y, clip, proc);
+						}
+					}
 				}
 			}	else {
 				iw = (w == 0.0f)? 0.0f : (65536.0f / w);
@@ -919,11 +990,22 @@ static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card,
 		}
 		else if (filter == IPIXEL_FILTER_NEAREST) {
 			if (w == 1.0f && dw == 0.0f) {
-				for (; width > 0; u += du, v += dv, card++, width--) {
-					x = cfixed_from_float_ieee(u);
-					y = cfixed_from_float_ieee(v);
-					*card = ibitmap_fetch_pixel_nearest(bmp, x, y,
-						clip, proc);
+				if (mask == NULL) {
+					for (; width > 0; u += du, v += dv, card++, width--) {
+						x = cfixed_from_float_ieee(u);
+						y = cfixed_from_float_ieee(v);
+						*card = ibitmap_fetch_pixel_nearest(bmp, x, y,
+							clip, proc);
+					}
+				}	else {
+					for (; width > 0; u += du, v += dv, card++, width--) {
+						if (*mask++) {
+							x = cfixed_from_float_ieee(u);
+							y = cfixed_from_float_ieee(v);
+							*card = ibitmap_fetch_pixel_nearest(bmp, x, y,
+								clip, proc);
+						}
+					}
 				}
 			}	else {
 				iw = (w == 0.0f)? 0.0f : (65536.0f / w);
@@ -943,10 +1025,22 @@ static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card,
 
 	if (filter == IPIXEL_FILTER_BILINEAR) {
 		if (w == 1.0f && dw == 0.0f) {
-			for (; width > 0; u += du, v += dv, card++, width--) {
-				x = cfixed_from_float(u);
-				y = cfixed_from_float(v);
-				*card = ibitmap_fetch_pixel_bilinear(bmp, x, y, clip, proc);
+			if (mask == NULL) {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					x = cfixed_from_float(u);
+					y = cfixed_from_float(v);
+					*card = ibitmap_fetch_pixel_bilinear(bmp, x, y, 
+						clip, proc);
+				}
+			}	else {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					if (*mask++) {
+						x = cfixed_from_float(u);
+						y = cfixed_from_float(v);
+						*card = ibitmap_fetch_pixel_bilinear(bmp, x, y, 
+							clip, proc);
+					}
+				}
 			}
 		}	else {
 			iw = (w == 0.0f)? 0.0f : (65536.0f / w);
@@ -961,10 +1055,22 @@ static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card,
 	}
 	else if (filter == IPIXEL_FILTER_NEAREST) {
 		if (w == 1.0f && dw == 0.0f) {
-			for (; width > 0; u += du, v += dv, card++, width--) {
-				x = cfixed_from_float(u);
-				y = cfixed_from_float(v);
-				*card = ibitmap_fetch_pixel_nearest(bmp, x, y, clip, proc);
+			if (mask == NULL) {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					x = cfixed_from_float(u);
+					y = cfixed_from_float(v);
+					*card = ibitmap_fetch_pixel_nearest(bmp, x, y, 
+						clip, proc);
+				}
+			}	else {
+				for (; width > 0; u += du, v += dv, card++, width--) {
+					if (*mask++) {
+						x = cfixed_from_float(u);
+						y = cfixed_from_float(v);
+						*card = ibitmap_fetch_pixel_nearest(bmp, x, y,
+							clip, proc);
+					}
+				}
 			}
 		}	else {
 			iw = (w == 0.0f)? 0.0f : (65536.0f / w);
@@ -982,16 +1088,18 @@ static void ibitmap_fetch_general_float(const IBITMAP *bmp, IUINT32 *card,
 
 // 通用取得浮点扫描线
 void ibitmap_scanline_float(const IBITMAP *bmp, IUINT32 *card, int w,
-	const float *srcvec, const float *stepvec, const IRECT *clip)
+	const float *srcvec, const float *stepvec, const IUINT8 *mask,
+	const IRECT *clip)
 {
 	iBitmapFetchFloat fscanline;
 	fscanline = ibitmap_scanline_get_float(ibitmap_pixfmt_guess(bmp), 0);
-	fscanline(bmp, card, w, srcvec, stepvec, clip);
+	fscanline(bmp, card, w, srcvec, stepvec, mask, clip);
 }
 
 // 通用取得描线：使用浮点数内核的定点数接口
 void ibitmap_scanline_fixed(const IBITMAP *bmp, IUINT32 *card, int w,
-	const cfixed *srcvec, const cfixed *stepvec, const IRECT *clip)
+	const cfixed *srcvec, const cfixed *stepvec, const IUINT8 *mask,
+	const IRECT *clip)
 {
 	float src[3], step[3];
 	src[0] = cfixed_to_float(srcvec[0]);
@@ -1000,7 +1108,7 @@ void ibitmap_scanline_fixed(const IBITMAP *bmp, IUINT32 *card, int w,
 	step[0] = cfixed_to_float(stepvec[0]);
 	step[1] = cfixed_to_float(stepvec[1]);
 	step[2] = cfixed_to_float(stepvec[2]);
-	ibitmap_scanline_float(bmp, card, w, src, step, clip);
+	ibitmap_scanline_float(bmp, card, w, src, step, mask, clip);
 }
 
 
@@ -1273,7 +1381,8 @@ static inline IUINT32 ibitmap_fetch_pixel_bilinear_##fmt( \
 // 通用取扫描线模板
 #define IBITMAP_FETCH_GENERAL(fmt) \
 static void ibitmap_fetch_general_##fmt(const IBITMAP *bmp, IUINT32 *card, \
-	int width, const cfixed *source, const cfixed *step, const IRECT *clip) \
+	int width, const cfixed *source, const cfixed *step, const IUINT8 *mask,\
+	const IRECT *clip) \
 { \
 	cfixed u, v, w, du, dv, dw, x, y; \
 	IPIXELFILTER filter; \
@@ -1289,7 +1398,7 @@ static void ibitmap_fetch_general_##fmt(const IBITMAP *bmp, IUINT32 *card, \
 	if (filter == IPIXEL_FILTER_BILINEAR) { \
 		if (w == cfixed_const_1 && dw == 0) { \
 			for (; width > 0; u += du, v += dv, card++, width--) { \
-				*card = ibitmap_fetch_pixel_bilinear_##fmt( \
+				*card = ibitmap_fetch_pixel_bilinear_##fmt(	\
 							bmp, u, v, clip); \
 			} \
 		}	else { \
@@ -1318,8 +1427,7 @@ static void ibitmap_fetch_general_##fmt(const IBITMAP *bmp, IUINT32 *card, \
 				}	else {  \
 					x = 0, y = 0; \
 				} \
-				*card = ibitmap_fetch_pixel_nearest_##fmt( \
-							bmp, x, y, clip); \
+				*card = ibitmap_fetch_pixel_nearest_##fmt(bmp, x, y, clip); \
 			} \
 		} \
 	} \
@@ -1382,7 +1490,8 @@ IBITMAP_FETCH_GENERAL(G8);
 
 // 平移的fetch
 static void ibitmap_fetch_translate_int(const IBITMAP *bmp, IUINT32 *card,
-	int width, const cfixed *source, const cfixed *step, const IRECT *clip) 
+	int width, const cfixed *source, const cfixed *step, 
+	const IUINT8 *cover, const IRECT *clip) 
 {
 	const iColorIndex *index = (const iColorIndex*)bmp->extra;
 	cfixed u, v, w, du, dv, dw;
@@ -1491,7 +1600,7 @@ static void ibitmap_fetch_translate_int(const IBITMAP *bmp, IUINT32 *card,
 			iBitmapFetchProc proc;
 			proc = ibitmap_scanline_get_proc(ibitmap_pixfmt_guess(bmp),
 				IBITMAP_FETCH_GENERAL_NEAREST, 0);
-			proc(bmp, card, w, source, step, clip);
+			proc(bmp, card, w, source, step, cover, clip);
 		}
 		break;
 	}
@@ -1499,7 +1608,8 @@ static void ibitmap_fetch_translate_int(const IBITMAP *bmp, IUINT32 *card,
 
 
 void ibitmap_fetch_scale_A8R8G8B8_nearest(const IBITMAP *bmp, IUINT32 *card, 
-	int width, const cfixed *source, const cfixed *step, const IRECT *clip)
+	int width, const cfixed *source, const cfixed *step, 
+	const IUINT8 *cover, const IRECT *clip)
 {
 	int pixfmt = ibitmap_pixfmt_guess(bmp);
 	int filter = ibitmap_imode_const(bmp, filter);
@@ -1513,7 +1623,7 @@ void ibitmap_fetch_scale_A8R8G8B8_nearest(const IBITMAP *bmp, IUINT32 *card,
 	if (filter != IPIXEL_FILTER_NEAREST || overflow > 1) {
 		iBitmapFetchProc proc;
 		proc = ibitmap_scanline_get_proc(pixfmt, filter? 0 : 1, 0);
-		proc(bmp, card, width, source, step, clip);
+		proc(bmp, card, width, source, step, cover, clip);
 		return;
 	}
 
@@ -1607,7 +1717,8 @@ void ibitmap_fetch_scale_A8R8G8B8_nearest(const IBITMAP *bmp, IUINT32 *card,
 }
 
 void ibitmap_fetch_scale_A8R8G8B8_bilinear(const IBITMAP *bmp, IUINT32 *card, 
-	int width, const cfixed *source, const cfixed *step, const IRECT *clip)
+	int width, const cfixed *source, const cfixed *step, 
+	const IUINT8 *cover, const IRECT *clip)
 {
 	int pixfmt = ibitmap_pixfmt_guess(bmp);
 	int filter = ibitmap_imode_const(bmp, filter);
@@ -1629,7 +1740,7 @@ void ibitmap_fetch_scale_A8R8G8B8_bilinear(const IBITMAP *bmp, IUINT32 *card,
 	if (filter != IPIXEL_FILTER_BILINEAR || overflow > 1) {
 		iBitmapFetchProc proc;
 		proc = ibitmap_scanline_get_proc(pixfmt, filter? 0 : 1, 0);
-		proc(bmp, card, width, source, step, clip);
+		proc(bmp, card, width, source, step, cover, clip);
 		return;
 	}
 	

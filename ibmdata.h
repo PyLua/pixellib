@@ -216,8 +216,8 @@ void ipixel_raster_clear(IBITMAP *image, const ipixel_trapezoid_t *trap,
 		int x_off, int y_off, const IRECT *clip);
 
 // 光栅化扫描线
-int ipixel_raster_spans(IBITMAP *image, const ipixel_trapezoid_t *trap,
-		int x_off, int y_off, const IRECT *clip, ipixel_span_t *spans);
+int ipixel_raster_spans(ipixel_span_t *spans, const ipixel_trapezoid_t *trap,
+		int x_off, int y_off, const IRECT *clip);
 
 // 光栅化三角形
 void ipixel_raster_triangle(IBITMAP *image, const ipixel_point_fixed_t *p1,
@@ -265,8 +265,8 @@ static inline int ipixel_trapezoid_span_bound(const ipixel_trapezoid_t *t,
 	return 0;
 }
 
-// 梯形的绑定区域
-void ipixel_trapezoid_bound(const ipixel_trapezoid_t *t, int n, IRECT *rect);
+// 梯形的绑定区域，返回合法梯形的个数
+int ipixel_trapezoid_bound(const ipixel_trapezoid_t *t, int n, IRECT *rect);
 
 // 很多梯形在当前扫描线的X轴的覆盖区域
 static inline int ipixel_trapezoid_line_bound(const ipixel_trapezoid_t *t,
@@ -284,6 +284,12 @@ static inline int ipixel_trapezoid_line_bound(const ipixel_trapezoid_t *t,
 	if (retval == 0) *lx = xmin, *rx = xmax;
 	return retval;
 }
+
+
+// 取得traps的扫描线，需要传递spans的bound的高的两倍大小的spans进去
+int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n, 
+	ipixel_span_t *spans, int x_off, int y_off, const IRECT *clip);
+
 
 
 //---------------------------------------------------------------------
@@ -312,7 +318,7 @@ int ipixel_traps_from_polygon_ex(ipixel_trapezoid_t *trap,
 //---------------------------------------------------------------------
 int ipixel_span_fetch(const IBITMAP *image, int offset, int line,
 	int width, IUINT32 *card, const ipixel_transform_t *t,
-	iBitmapFetchProc proc, const IRECT *clip);
+	iBitmapFetchProc proc, const IUINT8 *mask, const IRECT *clip);
 
 iBitmapFetchProc ipixel_span_get_proc(const IBITMAP *image, 
 	const ipixel_transform_t *t);
