@@ -207,11 +207,13 @@ void ibitmap_scanline_blend(IBITMAP *bmp, int x, int y, int w, const IUINT32
 
 // 取得扫描线像素的函数定义
 typedef void (*iBitmapFetchProc)(const IBITMAP *bmp, IUINT32 *card, int w,
-	const cfixed *srcvec, const cfixed *stepvec, const IRECT *clip);
+	const cfixed *pos, const cfixed *step, const IUINT8 *mask, 
+	const IRECT *clip);
 
 // 浮点数取得扫描线的函数定义
 typedef void (*iBitmapFetchFloat)(const IBITMAP *bmp, IUINT32 *card, int w,
-	const float *srcvec, const float *stepvec, const IRECT *clip);
+	const float *pos, const float *step, const IUINT8 *mask, 
+	const IRECT *clip);
 
 
 // 取得扫描线的模式
@@ -254,11 +256,13 @@ int ibitmap_scanline_get_mode(const IBITMAP *bmp, const cfixed *src,
 
 // 通用取得浮点扫描线
 void ibitmap_scanline_float(const IBITMAP *bmp, IUINT32 *card, int w,
-	const float *srcvec, const float *stepvec, const IRECT *clip);
+	const float *srcvec, const float *stepvec, const IUINT8 *mask,
+	const IRECT *clip);
 
 // 通用取得描线：使用浮点数内核的定点数接口
 void ibitmap_scanline_fixed(const IBITMAP *bmp, IUINT32 *card, int w,
-	const cfixed *srcvec, const cfixed *stepvec, const IRECT *clip);
+	const cfixed *srcvec, const cfixed *stepvec, const IUINT8 *mask,
+	const IRECT *clip);
 
 
 //---------------------------------------------------------------------
