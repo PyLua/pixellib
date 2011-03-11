@@ -1454,8 +1454,8 @@ static int ipixel_raster_edges_spans(ipixel_edge_t *l, ipixel_edge_t *r,
 		int lxi, rxi;
 
 		// ²Ã¼ôX
-		lx = l->x - cfixed_const_1;
-		rx = r->x + cfixed_const_1;
+		lx = l->x - cfixed_const_1 * 2;
+		rx = r->x + cfixed_const_1 * 4;
 
 		if (rx > lx) {
 			lxi = cfixed_to_int(lx);
@@ -1628,6 +1628,7 @@ int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n,
 				continue;
 			xl += x_off;
 			xr += x_off;
+			xr += 4;
 			if (xl < cl) xl = cl;
 			if (xr > cr) xr = cr;
 			if (xl < ml) ml = xl;
