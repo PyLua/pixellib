@@ -2,7 +2,12 @@
 //
 // ipicture.h - general picture file operation
 //
-// NOTE: require ibitmap.h, ibitmapm.h, idcolor.h
+// FEATURES:
+// * I/O stream support
+// * save and load tga/bmp/gif
+//
+// NOTE: 
+// require ibitmap.h, ibmbits.h, ibmcols.h
 // for more information, please see the readme file
 //
 //=====================================================================
@@ -80,6 +85,9 @@ int is_close_file(IMDIO *stream);
 void _is_perrno_set(long v);
 long _is_perrno_get(void);
 
+void *is_read_marked_block(IMDIO *stream, const unsigned char *mark,
+	int marksize, size_t *nbytes_readed);
+
 
 //=====================================================================
 //
@@ -127,7 +135,7 @@ typedef struct IBITMAP *(*IPICLOADER)(IMDIO *stream, IRGB *pal);
 // using First Byte of the Picture to choose loader for different formats
 // NULL for disable the loader
 // eg: FirstByte of BMP/GIF/PNG/JPG is 'B'/'G'/0x89/0xff
-IPICLOADER ipic_loader(unsigned char firstbyte, IPICLOADER loader);
+	IPICLOADER ipic_loader(unsigned char firstbyte, IPICLOADER loader);
 
 // recognize data stream and load picture
 struct IBITMAP *iload_picture(IMDIO *stream, IRGB *pal);

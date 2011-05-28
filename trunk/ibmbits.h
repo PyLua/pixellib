@@ -899,7 +899,7 @@ void ipixel_card_set_proc(int id, void *proc);
         }   while (0)
 
 #define _ipixel_RGBA_to_P8R8G8B8(r, g, b, a) ( \
-        ((255 - (a)) << 24) | \
+        (((a)) << 24) | \
         ((((r) * _ipixel_norm(a)) >> 8) << 16) | \
         ((((g) * _ipixel_norm(a)) >> 8) <<  8) | \
         ((((b) * _ipixel_norm(a)) >> 8) <<  0))

@@ -714,6 +714,7 @@ int ibitmap_put_line(IBITMAP *dst, int x1, int y1, int x2, int y2,
 // 缓存管理
 //---------------------------------------------------------------------
 
+// 初始化缓存
 void cvector_init(struct CVECTOR *vector)
 {
 	vector->data = NULL;
@@ -721,6 +722,7 @@ void cvector_init(struct CVECTOR *vector)
 	vector->block = 0;
 }
 
+// 销毁缓存
 void cvector_destroy(struct CVECTOR *vector)
 {
 	if (vector->data) free(vector->data);
@@ -729,6 +731,7 @@ void cvector_destroy(struct CVECTOR *vector)
 	vector->block = 0;
 }
 
+// 改变缓存大小
 int cvector_resize(struct CVECTOR *vector, size_t size)
 {
 	unsigned char*lptr;
@@ -780,6 +783,17 @@ int cvector_resize(struct CVECTOR *vector, size_t size)
 	return 0;
 }
 
+// 添加数据
+int cvector_push(struct CVECTOR *vector, const void *data, size_t size)
+{
+	size_t offset = vector->size;
+	if (cvector_resize(vector, vector->size + size) != 0) 
+		return -1;
+	if (data) {
+		memcpy(vector->data + offset, data, size);
+	}
+	return 0;
+}
 
 
 //---------------------------------------------------------------------

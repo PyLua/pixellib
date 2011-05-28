@@ -41,6 +41,15 @@ typedef long long IINT64;
 #endif
 #endif
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#include <windows.h>
+#endif
+
+
 /**********************************************************************
  * GLOBAL MACRO
  **********************************************************************/
@@ -108,12 +117,72 @@ void imisc_bitmap_demo(IBITMAP *bmp, int type);
 void imisc_bitmap_systext(IBITMAP *dst, int x, int y, const char *string, 
 	IUINT32 color, IUINT32 bk, const IRECT *clip, int additive);
 
+
 #ifdef _WIN32
+//=====================================================================
+// WIN32 GDI/GDI+ 接口
+//=====================================================================
+
+// 初始化 BITMAPINFO
+int CInitDIBInfo(BITMAPINFO *info, int w, int h, int pixfmt, 
+	const LPRGBQUAD pal);
+
+// DIB - 传送到 Device
 int CSetDIBitsToDevice(void *hDC, int x, int y, const IBITMAP *bitmap,
 	int sx, int sy, int sw, int sh);
 
+// DIB - 缩放到 Device
 int CStretchDIBits(void *hDC, int dx, int dy, int dw, int dh, 
 	const IBITMAP *bitmap, int sx, int sy, int sw, int sh);
+
+// CreateDIBSection 
+HBITMAP CCreateDIBSection(HDC hdc, int w, int h, int pixfmt,
+	const LPRGBQUAD pal, LPVOID *bits);
+
+// 预先乘法
+void CPremultiplyAlpha(void *bits, long pitch, int w, int h);
+
+// user32.dll 导出：UpdateLayeredWindow
+BOOL CUpdateLayeredWindow(HWND hWnd, HDC hdcDst, POINT *pptDst,
+	SIZE *psize, HDC hdcSrc, POINT *pptSrc, COLORREF crKey, 
+	BLENDFUNCTION *pblend, DWORD dwFlags);
+
+// user32.dll 导出：SetLayeredWindowAttr
+BOOL CSetLayeredWindowAttr(HWND hWnd, COLORREF crKey,
+	BYTE bAlpha, DWORD dwFlags);
+
+// msimg32.dll AlphaBlend
+BOOL CAlphaBlend(HDC hdcDst, int nXOriginDest, int nYOriginDest,
+	int nWidthDest, int nHeightDest, HDC hdcSrc, int nXOriginSrc, 
+	int nYOriginSrc, int nWidthSrc, int nHeightSrc, 
+	BLENDFUNCTION blendFunction);
+
+// msimg32.dll 导出：TransparentBlt
+BOOL CTransparentBlt(HDC hdcDst, int nXOriginDest, int nYOriginDest,
+	int nWidthDest, int nHeightDest, HDC hdcSrc, int nXOriginSrc, 
+	int nYOriginSrc, int nWidthSrc, int nHeightSrc, UINT crTransparent);
+
+// msimg32.dll 导出：GradientFill
+BOOL CGradientFill(HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex,
+	PVOID pMesh, ULONG dwNumMesh, ULONG dwMode);
+
+
+// GDI+ 开始1，结束0
+int CGdiPlusInit(int startup);
+
+// GDI+ 读取内存中的图片
+void *CGdiPlusLoadMemory(const void *data, long size, int *cx, int *cy, 
+	long *pitch, int *pfmt, int *bpp, int *errcode);
+
+// GDI+ 读取内存图片到 IBITMAP
+IBITMAP *CGdiPlusLoadBitmap(const void *data, long size, int *errcode);
+
+// GDI+ 从文件读取 IBITMAP
+IBITMAP *CGdiPlusLoadFile(const char *fname, int *errcode);
+
+// 初始化GDI+ 的解码器
+void CGdiPlusDecoderInit(int GdiPlusStartup);
+
 
 #endif
 
