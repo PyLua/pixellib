@@ -66,6 +66,9 @@ void cvector_destroy(struct CVECTOR *vector);
 // 改变缓存大小
 int cvector_resize(struct CVECTOR *vector, size_t size);
 
+// 添加数据到末尾
+int cvector_push(struct CVECTOR *vector, const void *data, size_t size);
+
 
 //---------------------------------------------------------------------
 // 原始作图

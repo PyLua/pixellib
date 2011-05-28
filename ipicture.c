@@ -2,7 +2,12 @@
 //
 // ipicture.c - general picture file operation
 //
-// NOTE: require ibitmap.h, struct IBITMAPm.h, idcolor.h
+// FEATURES:
+// * I/O stream support
+// * save and load tga/bmp/gif
+//
+// NOTE: 
+// require ibitmap.h, ibmbits.h, ibmcols.h
 // for more information, please see the readme file
 //
 //=====================================================================
@@ -501,6 +506,87 @@ int is_close_file(IMDIO *stream)
 	fclose((FILE*)(stream->data));
 	return 0;
 }
+
+
+void *is_read_marked_block(IMDIO *stream, const unsigned char *mark,
+	int marksize, size_t *nbytes_readed)
+{
+	static const unsigned char dmark[2] = { 0, 0 };
+	unsigned char *data;
+	unsigned char *buffer;
+	size_t block = 0;
+	size_t nsize = 0;
+	int nbuffered = 0;
+	int index = 0;
+
+	if (stream == NULL) 
+		return NULL;
+
+	buffer = (unsigned char*)malloc(marksize + 10);
+
+	if (buffer == NULL) 
+		return NULL;
+
+	data = (unsigned char*)malloc(256);
+	block = 256;
+
+	if (data == NULL) {
+		free(buffer);
+		return NULL;
+	}
+
+	if (mark == NULL) mark = dmark;
+
+	while (1) {
+		int ch;
+		ch = is_getc(stream);
+		if (ch < 0) break;
+		buffer[index] = (unsigned char)ch;
+		data[nsize++] = (unsigned char)ch;
+
+		if (nsize >= block) {
+			unsigned char *tmp = (unsigned char*)malloc(block * 2);
+			if (tmp != NULL) {
+				memcpy(tmp, data, nsize);
+				free(data);
+				data = tmp;
+				block = block * 2;
+			}	else {
+				nsize = 0;
+			}
+		}
+
+		if (++nbuffered >= marksize && mark && marksize > 0) {
+			int i, j, k;
+			for (i = index, j = marksize - 1, k = 0; j >= 0; j--, k++) {
+				if (buffer[i] != mark[j]) break;
+				if (--i < 0) i = marksize - 1;
+			}
+			if (k == marksize) break;
+		}
+		if (++index >= marksize) index = 0;
+	}
+
+	free(buffer);
+
+	buffer = NULL;
+	if (nsize > 0) {
+		buffer = (unsigned char*)malloc(nsize);
+	}
+
+	if (buffer == NULL || nsize == 0) {
+		free(data);
+		if (nbytes_readed) *nbytes_readed = 0;
+		return NULL;
+	}
+
+	memcpy(buffer, data, nsize);
+	if (nbytes_readed) *nbytes_readed = nsize;
+	free(data);
+
+	return buffer;
+}
+
 
 
 //=====================================================================

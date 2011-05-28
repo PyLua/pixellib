@@ -9,9 +9,12 @@
 #include "ipicture.h"
 #include "ikitwin.h"
 #include "ibmsse2.h"
+
 #ifdef _WIN32
 #include "mswindx.h"
-#include <windows.h>
+
+#include <olectl.h>
+#include <objidl.h>
 #endif
 
 typedef struct { 
@@ -436,7 +439,89 @@ void iblend_putpixel(IBITMAP *bmp, int x, int y, IUINT32 c)
 //=====================================================================
 #include <math.h>
 
-#ifdef _WIN32
+
+void imisc_bitmap_demo(IBITMAP *bmp, int type)
+{
+	int w = (int)bmp->w;
+	int h = (int)bmp->h;
+	int x, y, i, j, k;
+	int pixfmt;
+	pixfmt = ibitmap_pixfmt_guess(bmp);
+	if (type == 0) {
+		int size = 12, dd = 0;
+#if 1
+		iStoreProc store;
+		IUINT32 *card;
+		card = (IUINT32*)malloc(sizeof(IUINT32) * (bmp->w + size));
+		if (card == NULL) return;
+		for (i = 0, dd = 0, k = 0; i < (int)bmp->w + size; i++) {
+			card[i] = (k == 0)? 0xffcccccc : 0xffffffff;
+			if (++dd >= size) dd = 0, k ^= 1;
+		}
+		store = ipixel_get_store(ibitmap_pixfmt_guess(bmp), 0);
+		for (j = 0, dd = 0, k = 0; j < h; j++) {
+			store(bmp->line[j], card + k * size, 0, w, 
+				(iColorIndex*)bmp->extra);
+			if (++dd >= size) dd = 0, k ^= 1;
+		}
+		free(card);
+#else
+		for (y = 0, k = 0; y < h; y += size) {
+			k = dd;
+			dd ^= 1;
+			for (x = 0; x < w; x += size, k++) {
+				IUINT32 col = (k & 1)? 0xffcccccc : 0xffffffff;
+				ibitmap_rectfill(bmp, x, y, size, size, col);
+			}
+		}
+#endif
+	}
+	else if (type == 1) {
+		int size = 32, dd = 0;
+		for (y = 0, k = 0; y < h; y += size) {
+			k = dd;
+			dd ^= 1;
+			for (x = 0; x < w; x += size, k++) {
+				IUINT32 col = (k & 1)? 0xff0000ff : 0xff00003f;
+				ibitmap_rectfill(bmp, x, y, size, size, col);
+			}
+		}
+	}
+	else if (type == 2) {
+		ibitmap_rectfill(bmp, 0, 0, w, h, 0xffff00ff);
+		for (j = -w - h; j < w + h; j += 32) {
+			for (y = 0; y < h; y++) {
+				iblend_putpixel(bmp, j + y, y, 0xffaaaaaa);
+				iblend_putpixel(bmp, j - y, y, 0xffaaaaaa);
+			}
+		}
+		for (i = 0; i < w; i += 96) {
+			h = (int)(sin(3.14 * i / 640.0) * bmp->h * 0.3 + bmp->h * 0.7);
+			for (y = 0; y < h; y++) {
+				for (x = 0; x < 40; x++) {
+					j = (40 - x) * 255 / 40;
+					iblend_putpixel(bmp, i + x, bmp->h - 1 - y, 
+						(j << 16) | (j << 8) | j | 0xff000000);
+				}
+			}
+		}
+		bmp->mask = ipixel_assemble(pixfmt, 0xff, 0, 0xff, 0xff);
+	}
+}
+
+
+void imisc_bitmap_systext(IBITMAP *dst, int x, int y, const char *str, 
+	IUINT32 color, IUINT32 bk, const IRECT *clip, int additive)
+{
+	//ifont_glyph_builtin(dst, x, y, str, color, bk, clip, additive);
+}
+
+
+
+//=====================================================================
+// WIN32 GDI/GDI+ 接口
+//=====================================================================
+#if defined(_WIN32) || defined(WIN32)
 int CSetDIBitsToDevice(void *hDC, int x, int y, const IBITMAP *bitmap,
 	int sx, int sy, int sw, int sh)
 {
@@ -650,96 +735,812 @@ int CStretchDIBits(void *hDC, int dx, int dy, int dw, int dh,
 
 	SetStretchBltMode((HDC)hDC, COLORONCOLOR);
 
-	hr = StretchDIBits((HDC)hDC, dx, dy, dw, dh, sx, sy, sw, sh,
+	hr = (int)StretchDIBits((HDC)hDC, dx, dy, dw, dh, sx, sy, sw, sh,
 				bitmap->pixel, info, DIB_RGB_COLORS, SRCCOPY);
 
-	if (hr == GDI_ERROR) return -200;
+	if (hr == (int)GDI_ERROR) return -200;
 
 	return 0;
 }
 
-#endif
 
-void imisc_bitmap_demo(IBITMAP *bmp, int type)
+// 初始化 BITMAPINFO
+int CInitDIBInfo(BITMAPINFO *info, int w, int h, int pixfmt, 
+	const LPRGBQUAD pal)
 {
-	int w = (int)bmp->w;
-	int h = (int)bmp->h;
-	int x, y, i, j, k;
-	int pixfmt;
-	pixfmt = ibitmap_pixfmt_guess(bmp);
-	if (type == 0) {
-		int size = 12, dd = 0;
-#if 1
-		iStoreProc store;
-		IUINT32 *card;
-		card = (IUINT32*)malloc(sizeof(IUINT32) * (bmp->w + size));
-		if (card == NULL) return;
-		for (i = 0, dd = 0, k = 0; i < (int)bmp->w + size; i++) {
-			card[i] = (k == 0)? 0xffcccccc : 0xffffffff;
-			if (++dd >= size) dd = 0, k ^= 1;
-		}
-		store = ipixel_get_store(ibitmap_pixfmt_guess(bmp), 0);
-		for (j = 0, dd = 0, k = 0; j < h; j++) {
-			store(bmp->line[j], card + k * size, 0, w, 
-				(iColorIndex*)bmp->extra);
-			if (++dd >= size) dd = 0, k ^= 1;
-		}
-		free(card);
-#else
-		for (y = 0, k = 0; y < h; y += size) {
-			k = dd;
-			dd ^= 1;
-			for (x = 0; x < w; x += size, k++) {
-				IUINT32 col = (k & 1)? 0xffcccccc : 0xffffffff;
-				ibitmap_rectfill(bmp, x, y, size, size, col);
-			}
-		}
-#endif
+	int palsize = 0;
+	int bitfield = 0;
+	DWORD pixelbytes = 0;
+	DWORD pitch;
+	int bpp;
+
+	bpp = ipixelfmt[pixfmt].bpp;
+
+	if (bpp < 15) palsize = (1 << bpp) * sizeof(PALETTEENTRY);
+
+	if (bpp == 16 || bpp == 15 || bpp == 32 || bpp == 24) {
+		bitfield = 3 * sizeof(RGBQUAD);
 	}
-	else if (type == 1) {
-		int size = 32, dd = 0;
-		for (y = 0, k = 0; y < h; y += size) {
-			k = dd;
-			dd ^= 1;
-			for (x = 0; x < w; x += size, k++) {
-				IUINT32 col = (k & 1)? 0xff0000ff : 0xff00003f;
-				ibitmap_rectfill(bmp, x, y, size, size, col);
-			}
-		}
+
+	pixelbytes = (bpp + 7) >> 3;
+	pitch = (pixelbytes * w + 3) & ~3;
+
+	info->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	info->bmiHeader.biWidth = w;
+	info->bmiHeader.biHeight = h;
+	info->bmiHeader.biPlanes = 1;
+	info->bmiHeader.biBitCount = bpp;
+	info->bmiHeader.biCompression = BI_RGB;
+	info->bmiHeader.biSizeImage = (h < 0)? (-h) * pitch : h * pitch;
+	info->bmiHeader.biXPelsPerMeter = 0;
+	info->bmiHeader.biYPelsPerMeter = 0;
+	info->bmiHeader.biClrUsed = 0;
+	info->bmiHeader.biClrImportant = 0;
+
+	if (bpp == 24 && pixfmt == IPIX_FMT_R8G8B8) {
+		info->bmiHeader.biCompression = BI_RGB;
+	}	else {
+		DWORD *data = (DWORD*)info;
+		data[10] = ipixelfmt[pixfmt].rmask;
+		data[11] = ipixelfmt[pixfmt].gmask;
+		data[12] = ipixelfmt[pixfmt].bmask;
+		data[13] = ipixelfmt[pixfmt].amask;
+		info->bmiHeader.biCompression = BI_BITFIELDS;
 	}
-	else if (type == 2) {
-		ibitmap_rectfill(bmp, 0, 0, w, h, 0xffff00ff);
-		for (j = -w - h; j < w + h; j += 32) {
-			for (y = 0; y < h; y++) {
-				iblend_putpixel(bmp, j + y, y, 0xffaaaaaa);
-				iblend_putpixel(bmp, j - y, y, 0xffaaaaaa);
-			}
+
+	if (palsize > 0) {
+		int offset = sizeof(BITMAPINFOHEADER) + bitfield;
+		LPRGBQUAD palette = (LPRGBQUAD)((char*)info + offset);
+		int i;
+		for (i = 0; i < palsize; i++) {
+			palette[i].rgbBlue = pal[i].rgbBlue;
+			palette[i].rgbGreen = pal[i].rgbGreen;
+			palette[i].rgbRed = pal[i].rgbRed;
+			palette[i].rgbReserved = 0;
 		}
-		for (i = 0; i < w; i += 96) {
-			h = (int)(sin(3.14 * i / 640.0) * bmp->h * 0.3 + bmp->h * 0.7);
-			for (y = 0; y < h; y++) {
-				for (x = 0; x < 40; x++) {
-					j = (40 - x) * 255 / 40;
-					iblend_putpixel(bmp, i + x, bmp->h - 1 - y, 
-						(j << 16) | (j << 8) | j | 0xff000000);
-				}
-			}
+		return offset;
+	}
+
+	return 0;
+}
+
+// CreateDIBSection 
+HBITMAP CCreateDIBSection(HDC hdc, int w, int h, int pixfmt,
+	const LPRGBQUAD pal, LPVOID *bits)
+{
+	unsigned char buffer[4 * 4 + sizeof(BITMAPINFOHEADER) + 1024];
+	BITMAPINFO *info = (BITMAPINFO*)buffer;
+	HBITMAP hBitmap;
+	int mode = (ipixelfmt[pixfmt].bpp < 15)? DIB_PAL_COLORS: DIB_RGB_COLORS;
+	CInitDIBInfo(info, w, h, pixfmt, pal);
+	hBitmap = CreateDIBSection(hdc, (LPBITMAPINFO)info, mode, bits, NULL, 0);
+	return hBitmap;
+}
+
+
+// 预先乘法
+void CPremultiplyAlpha(void *bits, long pitch, int w, int h)
+{
+	for (; h > 0; h--) {
+		BYTE *src = (BYTE*)bits;
+		int x, r1, g1, b1, r2, g2, b2;
+		for (x = (w >> 1); x > 0; x--, src += 8) {
+			r1 = ((int)src[0]) * src[3];
+			g1 = ((int)src[1]) * src[3];
+			b1 = ((int)src[2]) * src[3];
+			r2 = ((int)src[4]) * src[7];
+			g2 = ((int)src[5]) * src[7];
+			b2 = ((int)src[6]) * src[7];
+			src[0] = (r1 + (r1 >> 8) + 0x80) >> 8;
+			src[1] = (g1 + (g1 >> 8) + 0x80) >> 8;
+			src[2] = (b1 + (b1 >> 8) + 0x80) >> 8;
+			src[4] = (r2 + (r2 >> 8) + 0x80) >> 8;
+			src[5] = (g2 + (g2 >> 8) + 0x80) >> 8;
+			src[6] = (b2 + (b2 >> 8) + 0x80) >> 8;
 		}
-		bmp->mask = ipixel_assemble(pixfmt, 0xff, 0, 0xff, 0xff);
+		if (w & 1) {
+			r1 = ((int)src[0]) * src[3];
+			g1 = ((int)src[1]) * src[3];
+			b1 = ((int)src[2]) * src[3];
+			src[0] = (r1 + (r1 >> 8) + 0x80) >> 8;
+			src[1] = (g1 + (g1 >> 8) + 0x80) >> 8;
+			src[2] = (b1 + (b1 >> 8) + 0x80) >> 8;
+		}
+		bits = (char*)bits + pitch;
 	}
 }
 
 
-void imisc_bitmap_systext(IBITMAP *dst, int x, int y, const char *str, 
-	IUINT32 color, IUINT32 bk, const IRECT *clip, int additive)
+
+// user32.dll 导出：UpdateLayeredWindow
+BOOL CUpdateLayeredWindow(HWND hWnd, HDC hdcDst, POINT *pptDst,
+	SIZE *psize, HDC hdcSrc, POINT *pptSrc, COLORREF crKey, 
+	BLENDFUNCTION *pblend, DWORD dwFlags)
 {
-	//ifont_glyph_builtin(dst, x, y, str, color, bk, clip, additive);
+	typedef BOOL (WINAPI *UpdateLayeredWindow_t)(HWND, HDC, POINT*,
+		SIZE*, HDC, POINT*, COLORREF, BLENDFUNCTION*, DWORD);
+	static UpdateLayeredWindow_t UpdateLayeredWindow_o = NULL;
+	static HINSTANCE hDLL = NULL;
+	if (UpdateLayeredWindow_o == NULL) {
+		hDLL = LoadLibraryA("user32.dll");
+		if (hDLL == NULL) return FALSE;
+		UpdateLayeredWindow_o = (UpdateLayeredWindow_t)
+			GetProcAddress(hDLL, "UpdateLayeredWindow");
+		if (UpdateLayeredWindow_o == NULL) return FALSE;
+	}
+	return UpdateLayeredWindow_o(hWnd, hdcDst, pptDst,
+		psize, hdcSrc, pptSrc, crKey, pblend, dwFlags);
+}
+
+
+// user32.dll 导出：SetLayeredWindowAttr
+BOOL CSetLayeredWindowAttr(HWND hWnd, COLORREF crKey,
+	BYTE bAlpha, DWORD dwFlags)
+{
+	typedef BOOL (WINAPI *SetLayeredWindowAttributes_t)(HWND, COLORREF,
+		BYTE, DWORD);
+	static SetLayeredWindowAttributes_t SetLayeredWindowAttributes_o = NULL;
+	static HINSTANCE hDLL = NULL;
+	if (SetLayeredWindowAttributes_o == NULL) {
+		hDLL = LoadLibraryA("user32.dll");
+		if (hDLL == NULL) return FALSE;
+		SetLayeredWindowAttributes_o = (SetLayeredWindowAttributes_t)
+			GetProcAddress(hDLL, "SetLayeredWindowAttributes");
+		if (SetLayeredWindowAttributes_o == NULL) return FALSE;
+	}
+	return SetLayeredWindowAttributes_o(hWnd, crKey, bAlpha, dwFlags);
+}
+
+
+// msimg32.dll 导出：AlphaBlend
+BOOL CAlphaBlend(HDC hdcDst, int nXOriginDest, int nYOriginDest,
+	int nWidthDest, int nHeightDest, HDC hdcSrc, int nXOriginSrc, 
+	int nYOriginSrc, int nWidthSrc, int nHeightSrc, 
+	BLENDFUNCTION blendFunction)
+{
+	typedef BOOL (WINAPI *AlphaBlend_t)(HDC, int, int, int, int, HDC,
+		int, int, int, int, BLENDFUNCTION);
+	static AlphaBlend_t AlphaBlend_o = NULL;
+	static HINSTANCE hDLL = NULL;
+	if (AlphaBlend_o == NULL) {
+		hDLL = LoadLibraryA("msimg32.dll");
+		if (hDLL == NULL) return FALSE;
+		AlphaBlend_o = (AlphaBlend_t)GetProcAddress(hDLL, "AlphaBlend");
+		if (AlphaBlend_o == NULL) return FALSE;
+	}
+	return AlphaBlend_o(hdcDst, nXOriginDest, nYOriginDest, nWidthDest,
+		nHeightDest, hdcSrc, nXOriginSrc, nYOriginSrc, nWidthSrc, 
+		nHeightSrc, blendFunction);
+}
+
+
+// msimg32.dll 导出：TransparentBlt
+BOOL CTransparentBlt(HDC hdcDst, int nXOriginDest, int nYOriginDest,
+	int nWidthDest, int nHeightDest, HDC hdcSrc, int nXOriginSrc, 
+	int nYOriginSrc, int nWidthSrc, int nHeightSrc, UINT crTransparent)
+{
+	typedef BOOL (WINAPI *TransparentBlt_t)(HDC, int, int, int, int, HDC,
+		int, int, int, int, UINT);
+	static TransparentBlt_t TransparentBlt_o = NULL;
+	static HINSTANCE hDLL = NULL;
+	if (TransparentBlt_o == NULL) {
+		hDLL = LoadLibraryA("msimg32.dll");
+		if (hDLL == NULL) return FALSE;
+		TransparentBlt_o = (TransparentBlt_t)
+			GetProcAddress(hDLL, "TransparentBlt");
+		if (TransparentBlt_o == NULL) return FALSE;
+	}
+	return TransparentBlt_o(hdcDst, nXOriginDest, nYOriginDest, nWidthDest,
+		nHeightDest, hdcSrc, nXOriginSrc, nYOriginSrc, nWidthSrc, 
+		nHeightSrc, crTransparent);
+}
+
+
+// msimg32.dll 导出：GradientFill
+BOOL CGradientFill(HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex,
+	PVOID pMesh, ULONG dwNumMesh, ULONG dwMode)
+{
+	typedef BOOL (WINAPI *GradientFill_t)(HDC, PTRIVERTEX, ULONG, PVOID, 
+		ULONG, ULONG);
+	static GradientFill_t GradientFill_o = NULL;
+	static HINSTANCE hDLL = NULL;
+	if (GradientFill_o == NULL) {
+		hDLL = LoadLibraryA("msimg32.dll");
+		if (hDLL == NULL) return FALSE;
+		GradientFill_o = (GradientFill_t)
+			GetProcAddress(hDLL, "GradientFill");
+		if (GradientFill_o == NULL) return FALSE;
+	}
+	return GradientFill_o(hdc, pVertex, dwNumVertex, pMesh, dwNumMesh,
+		dwMode);
+}
+
+
+// GDI+ 开始1，结束0
+int CGdiPlusInit(int startup)
+{
+	static HINSTANCE hDLL = NULL;
+	static ULONG token = 0;
+	static int inited = 0;
+	int retval;
+
+	if (hDLL == NULL) {
+		hDLL = LoadLibraryA("gdiplus.dll");
+		if (hDLL == NULL) return -1;
+	}
+
+	if (startup) {
+		struct {
+			unsigned int version;
+			void *callback;
+			BOOL SuppressBackgroundThread;
+			BOOL SuppressExternalCodecs;
+		}	GStartupInput;
+		struct {
+			void *hook;
+			void *unhook;
+		}	GStartupOutput;
+
+		typedef int (WINAPI *GdiPlusStartup_t)(ULONG*, LPVOID, LPVOID);
+		static GdiPlusStartup_t GdiPlusStartup_o = NULL;
+
+		if (inited) return 0;
+
+		if (GdiPlusStartup_o == NULL) {
+			GdiPlusStartup_o = (GdiPlusStartup_t)GetProcAddress(
+				hDLL, "GdiplusStartup");
+			if (GdiPlusStartup_o == NULL) {
+				return -2;
+			}
+		}
+
+		GStartupInput.version = 1;
+		GStartupInput.callback = NULL;
+		GStartupInput.SuppressBackgroundThread = 0;
+		GStartupInput.SuppressExternalCodecs = 0;
+
+		retval = GdiPlusStartup_o(&token, &GStartupInput, &GStartupOutput);
+
+		if (retval != 0) {
+			return -3;
+		}
+
+		inited = 1;
+	}
+	else {
+		typedef int (WINAPI *GdiPlusShutdown_t)(ULONG*);
+		static GdiPlusShutdown_t GdiPlusShutdown_o = NULL;
+
+		if (inited == 0) return 0;
+
+		if (GdiPlusShutdown_o == NULL) {
+			GdiPlusShutdown_o = (GdiPlusShutdown_t)GetProcAddress(
+				hDLL, "GdiplusShutdown");
+			if (GdiPlusShutdown_o == NULL) {
+				return -4;
+			}
+		}
+
+		GdiPlusShutdown_o(&token);
+
+		inited = 0;
+	}
+
+	return 0;
+}
+
+
+// GDI+ 读取内存中的图片
+void *CGdiPlusLoadMemory(const void *data, long size, int *cx, int *cy, 
+	long *pitch, int *pfmt, int *bpp, int *errcode)
+{
+	typedef HRESULT (WINAPI *CreateStream_t)(HGLOBAL, BOOL, LPSTREAM*);
+	typedef int (WINAPI *GdipCreateBitmap_t)(LPSTREAM, LPVOID*); 
+	typedef int (WINAPI *GdipGetPixelFormat_t)(LPVOID, int*);
+	typedef int (WINAPI *GdipDisposeImage_t)(LPVOID);
+	typedef int (WINAPI *GdipGetImageWidth_t)(LPVOID, UINT*);
+	typedef int (WINAPI *GdipGetImageHeight_t)(LPVOID, UINT*);
+	typedef int (WINAPI *GdipLockBits_t)(LPVOID, LPVOID, UINT, int, LPVOID);
+	typedef int (WINAPI *GdipUnlockBits_t)(LPVOID, LPVOID);
+
+	static CreateStream_t CreateStream_o = NULL;
+	static GdipCreateBitmap_t GdipCreateBitmap_o = NULL;
+	static GdipGetPixelFormat_t GdipGetPixelFormat_o = NULL;
+	static GdipDisposeImage_t GdipDisposeImage_o = NULL;
+	static GdipGetImageWidth_t GdipGetImageWidth_o = NULL;
+	static GdipGetImageHeight_t GdipGetImageHeight_o = NULL;
+	static GdipLockBits_t GdipLockBits_o = NULL;
+	static GdipUnlockBits_t GdipUnlockBits_o = NULL;
+
+	static HINSTANCE hGdiPlusDLL = NULL;
+	LPSTREAM ppstm = NULL;
+	HGLOBAL hg = NULL;
+	LPVOID pg = NULL;
+	LPVOID bitmap = NULL;
+	void *bits = NULL;
+	int retval = 0;
+	int gpixfmt = 0;
+	int fmt = 0;
+	int nbytes = 0;
+	UINT width;
+	UINT height;
+	long stride;
+	int GRECT[4];
+	int i;
+
+	struct { 
+		unsigned int width;
+		unsigned int height;
+		int pitch;
+		int format;
+		void *scan0;
+		int *reserved;
+	}	GBitmapData;
+
+	GBitmapData.width = 0;
+	GBitmapData.height = 0;
+	GBitmapData.pitch = 0;
+	GBitmapData.scan0 = NULL;
+
+	if (CreateStream_o == NULL) {
+		static HINSTANCE hOleDLL = NULL;
+		if (hOleDLL == NULL) {
+			hOleDLL = LoadLibraryA("ole32.dll");
+			if (hOleDLL == NULL) {
+				if (errcode) errcode[0] = -20;
+				return NULL;
+			}
+		}
+		CreateStream_o = (CreateStream_t)GetProcAddress(
+			hOleDLL, "CreateStreamOnHGlobal");
+		if (CreateStream_o == NULL) {
+			if (errcode) errcode[0] = -21;
+			return NULL;
+		}
+	}
+
+	if (hGdiPlusDLL == NULL) {
+		hGdiPlusDLL = LoadLibraryA("gdiplus.dll");
+		if (hGdiPlusDLL == NULL) {
+			if (errcode) errcode[0] = -22;
+			return NULL;
+		}
+	}
+
+	if (GdipCreateBitmap_o == NULL) {
+		GdipCreateBitmap_o = (GdipCreateBitmap_t)GetProcAddress(
+			hGdiPlusDLL, "GdipCreateBitmapFromStream");
+		if (GdipCreateBitmap_o == NULL) {
+			if (errcode) errcode[0] = -23;
+			return NULL;
+		}
+	}
+
+	if (GdipGetPixelFormat_o == NULL) {
+		GdipGetPixelFormat_o = (GdipGetPixelFormat_t)GetProcAddress(
+			hGdiPlusDLL, "GdipGetImagePixelFormat");
+		if (GdipGetPixelFormat_o == NULL) {
+			if (errcode) errcode[0] = -24;
+			return NULL;
+		}
+	}
+
+	if (GdipDisposeImage_o == NULL) {
+		GdipDisposeImage_o = (GdipDisposeImage_t)GetProcAddress(
+			hGdiPlusDLL, "GdipDisposeImage");
+		if (GdipDisposeImage_o == NULL) {
+			if (errcode) errcode[0] = -25;
+			return NULL;
+		}
+	}
+
+	if (GdipGetImageWidth_o == NULL) {
+		GdipGetImageWidth_o = (GdipGetImageWidth_t)GetProcAddress(
+			hGdiPlusDLL, "GdipGetImageWidth");
+		if (GdipGetImageWidth_o == NULL) {
+			if (errcode) errcode[0] = -26;
+			return NULL;
+		}
+	}
+
+	if (GdipGetImageHeight_o == NULL) {
+		GdipGetImageHeight_o = (GdipGetImageHeight_t)GetProcAddress(
+			hGdiPlusDLL, "GdipGetImageHeight");
+		if (GdipGetImageHeight_o == NULL) {
+			if (errcode) errcode[0] = -27;
+			return NULL;
+		}
+	}
+
+	if (GdipLockBits_o == NULL) {
+		GdipLockBits_o = (GdipLockBits_t)GetProcAddress(
+			hGdiPlusDLL, "GdipBitmapLockBits");
+		if (GdipLockBits_o == NULL) {
+			if (errcode) errcode[0] = -28;
+			return NULL;
+		}
+	}
+
+	if (GdipUnlockBits_o == NULL) {
+		GdipUnlockBits_o = (GdipUnlockBits_t)GetProcAddress(
+			hGdiPlusDLL, "GdipBitmapUnlockBits");
+		if (GdipUnlockBits_o == NULL) {
+			if (errcode) errcode[0] = -29;
+			return NULL;
+		}
+	}
+
+	if (errcode) errcode[0] = 0;
+
+	hg = GlobalAlloc(GMEM_MOVEABLE, size);
+
+	if (hg == NULL) {
+		if (errcode) errcode[0] = -1;
+		return NULL;
+	}
+
+	pg = GlobalLock(hg);
+
+	if (pg == NULL) {
+		GlobalFree(hg);
+		if (errcode) errcode[0] = -2;
+		return NULL;
+	}
+
+	memcpy(pg, data, size);
+
+	GlobalUnlock(hg);
+
+	if (CreateStream_o(hg, 0, &ppstm) != S_OK) {
+		GlobalFree(hg);
+		if (errcode) errcode[0] = -3;
+		return NULL;
+	}
+
+	retval = GdipCreateBitmap_o(ppstm, &bitmap);
+
+	if (retval != 0) {
+		retval = -4;
+		bitmap = NULL;
+		goto finalizing;
+	}
+
+
+	#define GPixelFormat1bppIndexed     196865
+	#define GPixelFormat4bppIndexed     197634
+	#define GPixelFormat8bppIndexed     198659
+	#define GPixelFormat16bppGrayScale  1052676
+	#define GPixelFormat16bppRGB555     135173
+	#define GPixelFormat16bppRGB565     135174
+	#define GPixelFormat16bppARGB1555   397319
+	#define GPixelFormat24bppRGB        137224
+	#define GPixelFormat32bppRGB        139273
+	#define GPixelFormat32bppARGB       2498570
+	#define GPixelFormat32bppPARGB      925707
+	#define GPixelFormat48bppRGB        1060876
+	#define GPixelFormat64bppARGB       3424269
+	#define GPixelFormat64bppPARGB      29622286
+	#define GPixelFormatMax             15
+	
+	if (GdipGetPixelFormat_o(bitmap, &gpixfmt) != 0) {
+		retval = -5;
+		goto finalizing;
+	}
+	
+	if (gpixfmt == GPixelFormat8bppIndexed)
+		gpixfmt = GPixelFormat8bppIndexed,
+		fmt = 8, 
+		nbytes = 1;
+	else if (gpixfmt == GPixelFormat16bppRGB555)
+		gpixfmt = GPixelFormat16bppRGB555,
+		fmt = 555,
+		nbytes = 2;
+	else if (gpixfmt == GPixelFormat16bppRGB565)
+		gpixfmt = GPixelFormat16bppRGB565,
+		fmt = 565,
+		nbytes = 2;
+	else if (gpixfmt == GPixelFormat16bppARGB1555)
+		gpixfmt = GPixelFormat16bppARGB1555,
+		fmt = 1555,
+		nbytes = 2;
+	else if (gpixfmt == GPixelFormat24bppRGB)
+		gpixfmt = GPixelFormat24bppRGB,
+		fmt = 888,
+		nbytes = 3;
+	else if (gpixfmt == GPixelFormat32bppRGB)
+		gpixfmt = GPixelFormat32bppRGB,
+		fmt = 888,
+		nbytes = 4;
+	else if (gpixfmt == GPixelFormat32bppARGB)
+		gpixfmt = GPixelFormat32bppARGB,
+		fmt = 8888,
+		nbytes = 4;
+	else if (gpixfmt == GPixelFormat64bppARGB) 
+		gpixfmt = GPixelFormat32bppARGB,
+		fmt = 8888,
+		nbytes = 4;
+	else if (gpixfmt == GPixelFormat64bppPARGB)
+		gpixfmt = GPixelFormat32bppARGB,
+		fmt = 8888,
+		nbytes = 4;
+	else if (gpixfmt == GPixelFormat32bppPARGB)
+		gpixfmt = GPixelFormat32bppARGB,
+		fmt = 8888,
+		nbytes = 4;
+	else 
+		gpixfmt = GPixelFormat24bppRGB,
+		fmt = 888,
+		nbytes = 3;
+
+	if (bpp) bpp[0] = nbytes * 8;
+	if (pfmt) pfmt[0] = fmt;
+
+	if (GdipGetImageWidth_o(bitmap, &width) != 0) {
+		retval = -6;
+		goto finalizing;
+	}
+
+	if (cx) cx[0] = (int)width;
+
+	if (GdipGetImageHeight_o(bitmap, &height) != 0) {
+		retval = -7;
+		goto finalizing;
+	}
+
+	if (cy) cy[0] = (int)height;
+
+	stride = (nbytes * width + 3) & ~3;
+	if (pitch) pitch[0] = stride;
+
+	GRECT[0] = 0;
+	GRECT[1] = 0;
+	GRECT[2] = (int)width;
+	GRECT[3] = (int)height;
+
+	if (GdipLockBits_o(bitmap, GRECT, 1, gpixfmt, &GBitmapData) != 0) {
+		GBitmapData.scan0 = NULL;
+		retval = -8;
+		goto finalizing;
+	}
+
+	if (GBitmapData.format != gpixfmt) {
+		retval = -9;
+		goto finalizing;
+	}
+
+	bits = (char*)malloc(stride * height);
+
+	if (bits == NULL) {
+		retval = -10;
+		goto finalizing;
+	}
+
+	for (i = 0; i < (int)height; i++) {
+		char *src = (char*)GBitmapData.scan0 + GBitmapData.pitch * i;
+		char *dst = (char*)bits + stride * i;
+		memcpy(dst, src, stride);
+	}
+
+	retval = 0;
+	
+finalizing:
+	if (GBitmapData.scan0 != NULL) {
+		GdipUnlockBits_o(bitmap, &GBitmapData);
+		GBitmapData.scan0 = NULL;
+	}
+
+	if (bitmap) {
+		GdipDisposeImage_o(bitmap);
+		bitmap = NULL;
+	}
+
+	if (ppstm) {
+		#ifndef __cplusplus
+		ppstm->lpVtbl->Release(ppstm);
+		#else
+		ppstm->Release();
+		#endif
+		ppstm = NULL;
+	}
+
+	if (hg) {
+		GlobalFree(hg);
+		hg = NULL;
+	}
+
+	if (errcode) errcode[0] = retval;
+
+	return bits;
+}
+
+
+// GDI+ 读取内存图片到 IBITMAP
+IBITMAP *CGdiPlusLoadBitmap(const void *data, long size, int *errcode)
+{
+	int cx, cy, fmt, bpp, cc, pixfmt;
+	void *bits;
+	long pitch;
+	IBITMAP *bmp;
+	int i;
+
+	bits = CGdiPlusLoadMemory(data, size, &cx, &cy, &pitch, &fmt, &bpp, &cc);
+
+	if (bits == NULL) {
+		if (errcode) errcode[0] = cc;
+		return NULL;
+	}
+
+	pixfmt = -1;
+
+	if (bpp == 8) {
+		pixfmt = IPIX_FMT_C8;
+	}
+	else if (bpp == 16) {
+		if (fmt == 555) pixfmt = IPIX_FMT_X1R5G5B5;
+		else if (fmt == 565) pixfmt = IPIX_FMT_R5G6B5;
+		else if (fmt == 1555) pixfmt = IPIX_FMT_A1R5G5B5;
+	}
+	else if (bpp == 24) {
+		pixfmt = IPIX_FMT_R8G8B8;
+	}
+	else if (bpp == 32) {
+		if (fmt == 888) pixfmt = IPIX_FMT_X8R8G8B8;
+		else if (fmt == 8888) pixfmt = IPIX_FMT_A8R8G8B8;
+	}
+
+	if (pixfmt < 0) {
+		free(bits);
+		if (errcode) errcode[0] = -40;
+		return NULL;
+	}
+
+	bmp = ibitmap_create(cx, cy, ipixelfmt[pixfmt].bpp);
+
+	if (bmp == NULL) {
+		free(bits);
+		if (errcode) errcode[0] = -41;
+		return NULL;
+	}
+
+	ibitmap_imode(bmp, pixfmt) = pixfmt;
+
+	for (i = 0; i < cy; i++) {
+		char *src = (char*)bits + pitch * i;
+		char *dst = (char*)bmp->pixel + (long)bmp->pitch * i;
+		memcpy(dst, src, (bpp / 8) * cx);
+	}
+
+	free(bits);
+
+	return bmp;
+}
+
+
+// 读取文件内容
+static void *iload_file_content(const char *fname, size_t *size)
+{
+	size_t length, remain;
+	char *data, *lptr;
+	FILE *fp;
+
+	fp = fopen(fname, "rb");
+
+	if (fp == NULL) {
+		return NULL;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	length = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	data = (char*)malloc(length);
+
+	if (data == NULL) {
+		fclose(fp);
+		return NULL;
+	}
+
+	for (lptr = data, remain = length; ; ) {
+		size_t readed;
+		if (feof(fp) || remain == 0) break;
+		readed = fread(lptr, 1, remain, fp);
+		remain -= readed;
+		lptr += readed;
+	}
+
+	fclose(fp);
+
+	if (size) size[0] = length;
+
+	return data;
+}
+
+
+// GDI+ 从文件读取 IBITMAP
+IBITMAP *CGdiPlusLoadFile(const char *fname, int *errcode)
+{
+	size_t size;
+	char *data;
+	IBITMAP *bmp;
+
+	data = (char*)iload_file_content(fname, &size);
+
+	if (data == NULL) {
+		if (errcode) errcode[0] = -50;
+		return NULL;
+	}
+
+	bmp = CGdiPlusLoadBitmap(data, size, errcode);
+	free(data);
+
+	return bmp;
+}
+
+static struct IBITMAP *CGdiPlus_Load_Jpg(IMDIO *stream, IRGB *pal)
+{
+	static const unsigned char mark[2] = { 0xff, 0xd9 };
+	char *buffer;
+	size_t size;
+	int error;
+	IBITMAP *bmp;
+	buffer = (char*)is_read_marked_block(stream, mark, 2, &size);
+	if (buffer == NULL || size == 0) return NULL;
+	bmp = CGdiPlusLoadBitmap(buffer, size, &error);
+	free(buffer);
+	return bmp;
+}
+
+static struct IBITMAP *CGdiPlus_Load_Png(IMDIO *stream, IRGB *pal)
+{
+	static const unsigned char mark[12] = { 0, 0, 0, 0, 
+		0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82 };
+	char *buffer;
+	size_t size;
+	int error;
+	IBITMAP *bmp;
+	buffer = (char*)is_read_marked_block(stream, mark, 12, &size);
+	if (buffer == NULL || size == 0) return NULL;
+	bmp = CGdiPlusLoadBitmap(buffer, size, &error);
+	free(buffer);
+	return bmp;
+}
+
+struct IBITMAP *CGdiPlus_Load_Tiff(IMDIO *stream, IRGB *pal)
+{
+	static const unsigned char mark[2] = { 0xff, 0xd9 };
+	char *buffer;
+	size_t size;
+	int error;
+	IBITMAP *bmp;
+	buffer = (char*)is_read_marked_block(stream, mark, 0, &size);
+	if (buffer == NULL || size == 0) return NULL;
+	bmp = CGdiPlusLoadBitmap(buffer, size, &error);
+	free(buffer);
+	return bmp;
+}
+
+// 初始化GDI+ 的解码器
+void CGdiPlusDecoderInit(int GdiPlusStartup)
+{
+	static int inited = 0;
+	if (inited) return;
+	if (GdiPlusStartup) {
+		CGdiPlusInit(1);
+	}
+	ipic_loader(0x89, CGdiPlus_Load_Png);
+	//ipic_loader(0x49, CGdiPlus_Load_Tiff);
+	//ipic_loader(0x4d, CGdiPlus_Load_Tiff);
+	ipic_loader(0xff, CGdiPlus_Load_Jpg);
+	inited = 1;
 }
 
 
 
 
 
-// ibitmap_stretch(
+#endif
+
+
+
 
 
