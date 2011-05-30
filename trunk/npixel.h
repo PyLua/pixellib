@@ -117,6 +117,9 @@ void imisc_bitmap_demo(IBITMAP *bmp, int type);
 void imisc_bitmap_systext(IBITMAP *dst, int x, int y, const char *string, 
 	IUINT32 color, IUINT32 bk, const IRECT *clip, int additive);
 
+// 反响查找
+extern int CPixelFormatInverse[];
+
 
 #ifdef _WIN32
 //=====================================================================
@@ -182,6 +185,21 @@ IBITMAP *CGdiPlusLoadFile(const char *fname, int *errcode);
 
 // 初始化GDI+ 的解码器
 void CGdiPlusDecoderInit(int GdiPlusStartup);
+
+
+
+//---------------------------------------------------------------------
+// 高级 WIN32功能
+//---------------------------------------------------------------------
+
+// 创建 DIB的 IBITMAP，HBITMAP保存在 IBITMAP::extra
+IBITMAP *CGdiCreateDIB(HDC hdc, int w, int h, int pixfmt, const LPRGBQUAD p);
+
+// 删除 DIB的 IBITMAP，IBITMAP::extra 需要指向 DIB的 HBITMAP
+void CGdiReleaseDIB(IBITMAP *bmp);
+
+// 取得 DIB的 pixel format
+int CGdiDIBFormat(const DIBSECTION *sect);
 
 
 #endif

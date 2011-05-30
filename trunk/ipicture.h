@@ -135,7 +135,7 @@ typedef struct IBITMAP *(*IPICLOADER)(IMDIO *stream, IRGB *pal);
 // using First Byte of the Picture to choose loader for different formats
 // NULL for disable the loader
 // eg: FirstByte of BMP/GIF/PNG/JPG is 'B'/'G'/0x89/0xff
-	IPICLOADER ipic_loader(unsigned char firstbyte, IPICLOADER loader);
+IPICLOADER ipic_loader(unsigned char firstbyte, IPICLOADER loader);
 
 // recognize data stream and load picture
 struct IBITMAP *iload_picture(IMDIO *stream, IRGB *pal);
