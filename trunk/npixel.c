@@ -1430,7 +1430,7 @@ IBITMAP *CGdiPlusLoadBitmap(const void *data, long size, int *errcode)
 
 
 // 读取文件内容
-static void *iload_file_content(const char *fname, size_t *size)
+static void *iload_file_content(const char *fname, long *size)
 {
 	size_t length, remain;
 	char *data, *lptr;
@@ -1463,7 +1463,7 @@ static void *iload_file_content(const char *fname, size_t *size)
 
 	fclose(fp);
 
-	if (size) size[0] = length;
+	if (size) size[0] = (long)length;
 
 	return data;
 }
@@ -1472,7 +1472,7 @@ static void *iload_file_content(const char *fname, size_t *size)
 // GDI+ 从文件读取 IBITMAP
 IBITMAP *CGdiPlusLoadFile(const char *fname, int *errcode)
 {
-	size_t size;
+	long size;
 	char *data;
 	IBITMAP *bmp;
 
@@ -1498,7 +1498,7 @@ static struct IBITMAP *CGdiPlus_Load_Jpg(IMDIO *stream, IRGB *pal)
 	IBITMAP *bmp;
 	buffer = (char*)is_read_marked_block(stream, mark, 2, &size);
 	if (buffer == NULL || size == 0) return NULL;
-	bmp = CGdiPlusLoadBitmap(buffer, size, &error);
+	bmp = CGdiPlusLoadBitmap(buffer, (long)size, &error);
 	free(buffer);
 	return bmp;
 }
@@ -1513,7 +1513,7 @@ static struct IBITMAP *CGdiPlus_Load_Png(IMDIO *stream, IRGB *pal)
 	IBITMAP *bmp;
 	buffer = (char*)is_read_marked_block(stream, mark, 12, &size);
 	if (buffer == NULL || size == 0) return NULL;
-	bmp = CGdiPlusLoadBitmap(buffer, size, &error);
+	bmp = CGdiPlusLoadBitmap(buffer, (long)size, &error);
 	free(buffer);
 	return bmp;
 }
@@ -1527,7 +1527,7 @@ struct IBITMAP *CGdiPlus_Load_Tiff(IMDIO *stream, IRGB *pal)
 	IBITMAP *bmp;
 	buffer = (char*)is_read_marked_block(stream, mark, 0, &size);
 	if (buffer == NULL || size == 0) return NULL;
-	bmp = CGdiPlusLoadBitmap(buffer, size, &error);
+	bmp = CGdiPlusLoadBitmap(buffer, (long)size, &error);
 	free(buffer);
 	return bmp;
 }

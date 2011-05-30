@@ -20,6 +20,9 @@
 #include <assert.h>
 
 
+#ifdef _MSC_VER
+#pragma warning(disable:4996)
+#endif
 
 //=====================================================================
 // 滤波器与通道操作

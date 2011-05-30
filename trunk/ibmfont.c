@@ -191,6 +191,11 @@ void ibitmap_draw_text(IBITMAP *dst, int x, int y, const char *string,
 		additive);
 }
 
+
+#ifdef _MSC_VER
+#pragma warning(disable:4996)
+#endif
+
 void ibitmap_printf(IBITMAP *dst, int x, int y, const IRECT *clip,
 	IUINT32 color, IUINT32 back, int additive, const char *fmt, ...)
 {
