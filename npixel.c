@@ -516,6 +516,13 @@ void imisc_bitmap_systext(IBITMAP *dst, int x, int y, const char *str,
 	//ifont_glyph_builtin(dst, x, y, str, color, bk, clip, additive);
 }
 
+// 反响查找
+int CPixelFormatInverse[IPIX_FMT_COUNT] = {
+	4, 5, 6, 7, 0, 1, 2, 3, 4, -1, -1, -1, -1, 17, 18, 19, 20, 13, 14, 
+	15, 16, 25, 26, 27, 28, 21, 22, 23, 24, -1, -1, -1, -1, -1, -1, -1, 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+};
 
 
 //=====================================================================
@@ -811,9 +818,11 @@ HBITMAP CCreateDIBSection(HDC hdc, int w, int h, int pixfmt,
 	unsigned char buffer[4 * 4 + sizeof(BITMAPINFOHEADER) + 1024];
 	BITMAPINFO *info = (BITMAPINFO*)buffer;
 	HBITMAP hBitmap;
+	LPVOID ptr;
 	int mode = (ipixelfmt[pixfmt].bpp < 15)? DIB_PAL_COLORS: DIB_RGB_COLORS;
 	CInitDIBInfo(info, w, h, pixfmt, pal);
-	hBitmap = CreateDIBSection(hdc, (LPBITMAPINFO)info, mode, bits, NULL, 0);
+	hBitmap = CreateDIBSection(hdc, (LPBITMAPINFO)info, mode, &ptr, NULL, 0);
+	if (bits) *bits = ptr;
 	return hBitmap;
 }
 
@@ -1534,6 +1543,102 @@ void CGdiPlusDecoderInit(int GdiPlusStartup)
 	inited = 1;
 }
 
+
+//---------------------------------------------------------------------
+// 高级 WIN32功能
+//---------------------------------------------------------------------
+
+// 创建 DIB的 IBITMAP，HBITMAP保存在 IBITMAP::extra
+IBITMAP *CGdiCreateDIB(HDC hdc, int w, int h, int pixfmt, const LPRGBQUAD p)
+{
+	IBITMAP *bitmap;
+	HBITMAP dib;
+	void *bits;
+	long pitch;
+	dib = CCreateDIBSection(hdc, w, h, pixfmt, p, &bits);
+	if (dib == NULL) return NULL;
+	pitch = ((long)ipixelfmt[pixfmt].pixelbyte * (long)w + 3) & ~3;
+	bitmap = ibitmap_reference_new(bits, pitch, w, h, pixfmt);
+	if (bitmap == NULL) {
+		DeleteObject(dib);
+		return NULL;
+	}
+	bitmap->extra = dib;
+	return bitmap;
+}
+
+// 删除 DIB的 IBITMAP，IBITMAP::extra 需要指向 DIB的 HBITMAP
+void CGdiReleaseDIB(IBITMAP *bmp)
+{
+	assert(bmp);
+	assert(bmp->extra);
+	DeleteObject((HBITMAP)bmp->extra);
+	bmp->extra = NULL;
+	ibitmap_reference_del(bmp);
+}
+
+
+// 取得 DIB的 pixel format
+int CGdiDIBFormat(const DIBSECTION *sect)
+{
+	const BITMAPINFOHEADER *header = &(sect->dsBmih);
+	DWORD rmask = sect->dsBitfields[0];
+	DWORD gmask = sect->dsBitfields[1];
+	DWORD bmask = sect->dsBitfields[2];
+	int compress = header->biCompression;
+	int bpp = header->biBitCount;
+
+	if (compress == BI_RGB) {
+		if (bpp == 24) return IPIX_FMT_R8G8B8;
+		else if (bpp == 32) {
+			return IPIX_FMT_X8R8G8B8;
+		}
+		else {
+			return -1;
+		}
+	}
+
+	if (compress != BI_BITFIELDS) {
+		return -2;
+	}
+
+	if (bpp == 32) {
+		if (rmask == 0xff0000) return IPIX_FMT_X8R8G8B8;
+		if (rmask == 0xff) return IPIX_FMT_X8B8G8R8;
+		if (rmask == 0xff000000) return IPIX_FMT_R8G8B8X8;
+		if (rmask == 0xff00) return IPIX_FMT_B8G8R8X8;
+		return -3;
+	}
+
+	if (bpp == 24) {
+		return (rmask == 0xff0000)? IPIX_FMT_R8G8B8 : IPIX_FMT_B8G8R8;
+	}
+
+	if (bpp == 16) {
+		int i;
+		for (i = IPIX_FMT_R5G6B5; i <= IPIX_FMT_B4G4R4A4; i++) {
+			if (ipixelfmt[i].rmask == rmask && ipixelfmt[i].bmask == bmask) {
+				if (ipixelfmt[i].alpha == 0) return i;
+			}
+		}
+	}
+
+	if (bpp == 15) {
+		if (rmask == ipixelfmt[IPIX_FMT_X1R5G5B5].rmask)
+			return IPIX_FMT_X1R5G5B5;
+		if (rmask == ipixelfmt[IPIX_FMT_X1B5G5R5].rmask)
+			return IPIX_FMT_X1B5G5R5;
+		return -4;
+	}
+
+	if (bpp == 8) {
+		return IPIX_FMT_C8;
+	}
+
+	gmask = gmask;
+
+	return -5;
+}
 
 
 
