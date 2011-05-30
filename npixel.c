@@ -17,6 +17,10 @@
 #include <objidl.h>
 #endif
 
+#ifdef _MSC_VER
+#pragma warning(disable:4996)
+#endif
+
 typedef struct { 
 	char *name;
 	void *func;

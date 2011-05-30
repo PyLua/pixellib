@@ -673,7 +673,7 @@ int ibitmap_put_line_low(IBITMAP *dst, int x1, int y1, int x2, int y2,
 		}
 	}
 
-	count = (paint - (IUINT32*)workmem) / 2;
+	count = (int)(paint - (IUINT32*)workmem) / 2;
 
 	ibitmap_draw_pixel_list_sc(dst, (IUINT32*)workmem, count, color,
 		additive);
@@ -843,7 +843,7 @@ int ipixel_render_traps(IBITMAP *dst, const ipixel_trapezoid_t *traps,
 	if (scratch == NULL) scratch = &ipixel_scratch;
 
 	size = ch * sizeof(ipixel_span_t) * 2;
-	if (size > scratch->size) {
+	if (size > (long)scratch->size) {
 		if (cvector_resize(scratch, size) != 0)
 			return -3;
 	}
@@ -897,7 +897,7 @@ int ipixel_render_polygon(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 
 	if (scratch == NULL) scratch = &ipixel_scratch;
 
-	if (size > scratch->size) {
+	if (size > (long)scratch->size) {
 		if (cvector_resize(scratch, size) != 0) {
 			retval = -30;
 			goto exit_label;
@@ -1001,7 +1001,7 @@ void ipaint_destroy(ipaint_t *paint)
 static inline int ipaint_point_push(ipaint_t *paint, double x, double y)
 {
 	long size = sizeof(ipixel_point_t) * (paint->npts + 1);
-	if (size > paint->points.size) {
+	if (size > (long)paint->points.size) {
 		if (size < 256) size = 256;
 		if (cvector_resize(&paint->points, size) != 0)
 			return -1;
@@ -1016,7 +1016,7 @@ static inline int ipaint_point_push(ipaint_t *paint, double x, double y)
 int ipaint_point_append(ipaint_t *paint, const ipixel_point_t *pts, int n)
 {
 	long size = sizeof(ipixel_point_t) * (n + paint->npts);
-	if (size > paint->points.size) {
+	if (size > (long)paint->points.size) {
 		if (cvector_resize(&paint->points, size) != 0)
 			return -1;
 		paint->pts = (ipixel_point_t*)paint->points.data;
@@ -1059,7 +1059,7 @@ static ipixel_point_fixed_t *ipaint_point_to_fixed(ipaint_t *paint)
 
 	size = sizeof(ipixel_point_fixed_t) * paint->npts;
 
-	if (size > paint->pointf.size) {
+	if (size > (long)paint->pointf.size) {
 		if (size < 256) size = 256;
 		if (cvector_resize(&paint->pointf, size) != 0)
 			return NULL;
@@ -1183,7 +1183,7 @@ int ipaint_draw_line(ipaint_t *paint, double x1, double y1, double x2,
 		ipaint_point_push(paint, x2 + hx, y2 + hy);
 		ipaint_point_push(paint, x2 - hx, y2 - hy);
 	}	else {
-		int count = half + 1;
+		int count = (int)half + 1;
 		ipixel_point_t *pts;
 		double theta, start;
 		long size;
@@ -1196,7 +1196,7 @@ int ipaint_draw_line(ipaint_t *paint, double x1, double y1, double x2,
 			else count = 70;
 		}
 		size = count * sizeof(ipixel_point_t);
-		if (size > paint->scratch.size) {
+		if (size > (long)paint->scratch.size) {
 			if (cvector_resize(&paint->scratch, size) != 0)
 				return -1;
 		}
@@ -1258,7 +1258,7 @@ int ipaint_draw_ellipse(ipaint_t *paint, double x, double y, double rx,
 	ntraps = (count + 1) * 2;
 	size = ntraps * sizeof(ipixel_trapezoid_t);
 
-	if (size > paint->pointf.size) {
+	if (size > (long)paint->pointf.size) {
 		if (cvector_resize(&paint->pointf, size) != 0)
 			return -100;
 	}
