@@ -46,6 +46,8 @@ int ibitmap_channel_set(IBITMAP *dst, int dx, int dy, const IBITMAP *src,
 //---------------------------------------------------------------------
 IBITMAP *ibitmap_effect_drop_shadow(const IBITMAP *src, int dir, int level);
 
+void ibitmap_stackblur(IBITMAP *src, int rx, int ry, const IRECT *bound);
+
 
 //---------------------------------------------------------------------
 // ª∫¥Êπ‹¿Ì

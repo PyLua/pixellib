@@ -459,6 +459,353 @@ IBITMAP *ibitmap_effect_drop_shadow(const IBITMAP *src, int dir, int level)
 	return alpha;
 }
 
+static const IINT32 g_stack_blur8_mul[255] = {
+        512,512,456,512,328,456,335,512,405,328,271,456,388,335,292,512,
+        454,405,364,328,298,271,496,456,420,388,360,335,312,292,273,512,
+        482,454,428,405,383,364,345,328,312,298,284,271,259,496,475,456,
+        437,420,404,388,374,360,347,335,323,312,302,292,282,273,265,512,
+        497,482,468,454,441,428,417,405,394,383,373,364,354,345,337,328,
+        320,312,305,298,291,284,278,271,265,259,507,496,485,475,465,456,
+        446,437,428,420,412,404,396,388,381,374,367,360,354,347,341,335,
+        329,323,318,312,307,302,297,292,287,282,278,273,269,265,261,512,
+        505,497,489,482,475,468,461,454,447,441,435,428,422,417,411,405,
+        399,394,389,383,378,373,368,364,359,354,350,345,341,337,332,328,
+        324,320,316,312,309,305,301,298,294,291,287,284,281,278,274,271,
+        268,265,262,259,257,507,501,496,491,485,480,475,470,465,460,456,
+        451,446,442,437,433,428,424,420,416,412,408,404,400,396,392,388,
+        385,381,377,374,370,367,363,360,357,354,350,347,344,341,338,335,
+        332,329,326,323,320,318,315,312,310,307,304,302,299,297,294,292,
+        289,287,285,282,280,278,275,273,271,269,267,265,263,261,259
+};
+
+static const IINT32 g_stack_blur8_shr[255] = {
+          9, 11, 12, 13, 13, 14, 14, 15, 15, 15, 15, 16, 16, 16, 16, 17, 
+         17, 17, 17, 17, 17, 17, 18, 18, 18, 18, 18, 18, 18, 18, 18, 19, 
+         19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 20, 20, 20,
+         20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 21,
+         21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21,
+         21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 22, 22, 22, 22, 22, 22, 
+         22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+         22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 23, 
+         23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
+         23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
+         23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 
+         23, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
+         24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+         24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+         24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+         24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24
+};
+
+
+void ipixel_stackblur_4(void *src, long pitch, int w, int h, int rx, int ry)
+{
+	unsigned x, y, xp, yp, i;
+	unsigned stack_ptr;
+	unsigned stack_start;
+
+	const unsigned char * src_pix_ptr;
+	unsigned char * dst_pix_ptr;
+	unsigned char * stack_pix_ptr;
+
+	IUINT32 sum_r;
+	IUINT32 sum_g;
+	IUINT32 sum_b;
+	IUINT32 sum_a;
+	IUINT32 sum_in_r;
+	IUINT32 sum_in_g;
+	IUINT32 sum_in_b;
+	IUINT32 sum_in_a;
+	IUINT32 sum_out_r;
+	IUINT32 sum_out_g;
+	IUINT32 sum_out_b;
+	IUINT32 sum_out_a;
+
+	IUINT32 wm  = (IUINT32)w - 1;
+	IUINT32 hm  = (IUINT32)h - 1;
+
+	IUINT32 div;
+	IUINT32 mul_sum;
+	IUINT32 shr_sum;
+
+	IUINT32 stack[512];
+
+	if (rx > 0) {
+		if (rx > 254) rx = 254;
+		div = rx * 2 + 1;
+		mul_sum = g_stack_blur8_mul[rx];
+		shr_sum = g_stack_blur8_shr[rx];
+
+		for (y = 0; y < (IUINT32)h; y++) {
+			sum_r = 
+			sum_g = 
+			sum_b = 
+			sum_a = 
+			sum_in_r = 
+			sum_in_g = 
+			sum_in_b = 
+			sum_in_a = 
+			sum_out_r = 
+			sum_out_g = 
+			sum_out_b = 
+			sum_out_a = 0;
+
+			src_pix_ptr = (unsigned char*)src + y * pitch;
+
+			for (i = 0; i <= (IUINT32)rx; i++) {
+				stack_pix_ptr    = (unsigned char*)&stack[i];
+				stack_pix_ptr[0] = src_pix_ptr[0];
+				stack_pix_ptr[1] = src_pix_ptr[1];
+				stack_pix_ptr[2] = src_pix_ptr[2];
+				stack_pix_ptr[3] = src_pix_ptr[3];
+				sum_r           += src_pix_ptr[0] * (i + 1);
+				sum_g           += src_pix_ptr[1] * (i + 1);
+				sum_b           += src_pix_ptr[2] * (i + 1);
+				sum_a           += src_pix_ptr[3] * (i + 1);
+				sum_out_r       += src_pix_ptr[0];
+				sum_out_g       += src_pix_ptr[1];
+				sum_out_b       += src_pix_ptr[2];
+				sum_out_a       += src_pix_ptr[3];
+			}
+			for (i = 1; i <= (IUINT32)rx; i++) {
+				if (i <= wm) src_pix_ptr += 4;
+				stack_pix_ptr = (unsigned char*)&stack[i + rx];
+				stack_pix_ptr[0] = src_pix_ptr[0];
+				stack_pix_ptr[1] = src_pix_ptr[1];
+				stack_pix_ptr[2] = src_pix_ptr[2];
+				stack_pix_ptr[3] = src_pix_ptr[3];
+				sum_r           += src_pix_ptr[0] * (rx + 1 - i);
+				sum_g           += src_pix_ptr[1] * (rx + 1 - i);
+				sum_b           += src_pix_ptr[2] * (rx + 1 - i);
+				sum_a           += src_pix_ptr[3] * (rx + 1 - i);
+				sum_in_r        += src_pix_ptr[0];
+				sum_in_g        += src_pix_ptr[1];
+				sum_in_b        += src_pix_ptr[2];
+				sum_in_a        += src_pix_ptr[3];
+			}
+
+			stack_ptr = rx;
+			xp = rx;
+			if (xp > wm) xp = wm;
+
+			src_pix_ptr = (unsigned char*)src + y * pitch + xp * 4;
+			dst_pix_ptr = (unsigned char*)src + y * pitch;
+
+			for (x = 0; x < (IUINT32)w; x++) {
+				dst_pix_ptr[0] = (sum_r * mul_sum) >> shr_sum;
+				dst_pix_ptr[1] = (sum_g * mul_sum) >> shr_sum;
+				dst_pix_ptr[2] = (sum_b * mul_sum) >> shr_sum;
+				dst_pix_ptr[3] = (sum_a * mul_sum) >> shr_sum;
+				dst_pix_ptr += 4;
+
+				sum_r -= sum_out_r;
+				sum_g -= sum_out_g;
+				sum_b -= sum_out_b;
+				sum_a -= sum_out_a;
+
+				stack_start = stack_ptr + div - rx;
+				if (stack_start >= div) stack_start -= div;
+				stack_pix_ptr = (unsigned char*)&stack[stack_start];
+
+				sum_out_r -= stack_pix_ptr[0];
+				sum_out_g -= stack_pix_ptr[1];
+				sum_out_b -= stack_pix_ptr[2];
+				sum_out_a -= stack_pix_ptr[3];
+
+				if(xp < wm) {
+					src_pix_ptr += 4;
+					++xp;
+				}
+
+				stack_pix_ptr[0] = src_pix_ptr[0];
+				stack_pix_ptr[1] = src_pix_ptr[1];
+				stack_pix_ptr[2] = src_pix_ptr[2];
+				stack_pix_ptr[3] = src_pix_ptr[3];
+
+				sum_in_r += src_pix_ptr[0];
+				sum_in_g += src_pix_ptr[1];
+				sum_in_b += src_pix_ptr[2];
+				sum_in_a += src_pix_ptr[3];
+				sum_r    += sum_in_r;
+				sum_g    += sum_in_g;
+				sum_b    += sum_in_b;
+				sum_a    += sum_in_a;
+
+				++stack_ptr;
+				if (stack_ptr >= div) stack_ptr = 0;
+				stack_pix_ptr = (unsigned char*)&stack[stack_ptr];
+
+				sum_out_r += stack_pix_ptr[0];
+				sum_out_g += stack_pix_ptr[1];
+				sum_out_b += stack_pix_ptr[2];
+				sum_out_a += stack_pix_ptr[3];
+				sum_in_r  -= stack_pix_ptr[0];
+				sum_in_g  -= stack_pix_ptr[1];
+				sum_in_b  -= stack_pix_ptr[2];
+				sum_in_a  -= stack_pix_ptr[3];
+			}
+		}
+	}
+
+	if (ry > 0) {
+		if (ry > 254) ry = 254;
+		div = ry * 2 + 1;
+		mul_sum = g_stack_blur8_mul[ry];
+		shr_sum = g_stack_blur8_shr[ry];
+
+		for (x = 0; x < (IUINT32)w; x++) {
+			sum_r = 
+			sum_g = 
+			sum_b = 
+			sum_a = 
+			sum_in_r = 
+			sum_in_g = 
+			sum_in_b = 
+			sum_in_a = 
+			sum_out_r = 
+			sum_out_g = 
+			sum_out_b = 
+			sum_out_a = 0;
+
+			src_pix_ptr = (unsigned char*)src + x * 4;
+
+			for (i = 0; i <= (IUINT32)ry; i++) {
+				stack_pix_ptr    = (unsigned char*)&stack[i];
+				stack_pix_ptr[0] = src_pix_ptr[0];
+				stack_pix_ptr[1] = src_pix_ptr[1];
+				stack_pix_ptr[2] = src_pix_ptr[2];
+				stack_pix_ptr[3] = src_pix_ptr[3];
+				sum_r           += src_pix_ptr[0] * (i + 1);
+				sum_g           += src_pix_ptr[1] * (i + 1);
+				sum_b           += src_pix_ptr[2] * (i + 1);
+				sum_a           += src_pix_ptr[3] * (i + 1);
+				sum_out_r       += src_pix_ptr[0];
+				sum_out_g       += src_pix_ptr[1];
+				sum_out_b       += src_pix_ptr[2];
+				sum_out_a       += src_pix_ptr[3];
+			}
+			for (i = 1; i <= (IUINT32)ry; i++) {
+				if (i <= hm) src_pix_ptr += pitch; 
+				stack_pix_ptr = (unsigned char*)&stack[i + ry];
+				stack_pix_ptr[0] = src_pix_ptr[0];
+				stack_pix_ptr[1] = src_pix_ptr[1];
+				stack_pix_ptr[2] = src_pix_ptr[2];
+				stack_pix_ptr[3] = src_pix_ptr[3];
+				sum_r           += src_pix_ptr[0] * (ry + 1 - i);
+				sum_g           += src_pix_ptr[1] * (ry + 1 - i);
+				sum_b           += src_pix_ptr[2] * (ry + 1 - i);
+				sum_a           += src_pix_ptr[3] * (ry + 1 - i);
+				sum_in_r        += src_pix_ptr[0];
+				sum_in_g        += src_pix_ptr[1];
+				sum_in_b        += src_pix_ptr[2];
+				sum_in_a        += src_pix_ptr[3];
+			}
+
+			stack_ptr = ry;
+			yp = ry;
+			if(yp > hm) yp = hm;
+
+			src_pix_ptr = (unsigned char*)src + yp * pitch + x * 4;
+			dst_pix_ptr = (unsigned char*)src + x * 4;
+
+			for (y = 0; y < (IUINT32)h; y++) {
+				dst_pix_ptr[0] = (sum_r * mul_sum) >> shr_sum;
+				dst_pix_ptr[1] = (sum_g * mul_sum) >> shr_sum;
+				dst_pix_ptr[2] = (sum_b * mul_sum) >> shr_sum;
+				dst_pix_ptr[3] = (sum_a * mul_sum) >> shr_sum;
+				dst_pix_ptr += pitch;
+
+				sum_r -= sum_out_r;
+				sum_g -= sum_out_g;
+				sum_b -= sum_out_b;
+				sum_a -= sum_out_a;
+
+				stack_start = stack_ptr + div - ry;
+				if (stack_start >= div) stack_start -= div;
+
+				stack_pix_ptr = (unsigned char*)&stack[stack_start];
+				sum_out_r -= stack_pix_ptr[0];
+				sum_out_g -= stack_pix_ptr[1];
+				sum_out_b -= stack_pix_ptr[2];
+				sum_out_a -= stack_pix_ptr[3];
+
+				if (yp < hm) {
+					src_pix_ptr += pitch;
+					++yp;
+				}
+
+				stack_pix_ptr[0] = src_pix_ptr[0];
+				stack_pix_ptr[1] = src_pix_ptr[1];
+				stack_pix_ptr[2] = src_pix_ptr[2];
+				stack_pix_ptr[3] = src_pix_ptr[3];
+
+				sum_in_r += src_pix_ptr[0];
+				sum_in_g += src_pix_ptr[1];
+				sum_in_b += src_pix_ptr[2];
+				sum_in_a += src_pix_ptr[3];
+				sum_r    += sum_in_r;
+				sum_g    += sum_in_g;
+				sum_b    += sum_in_b;
+				sum_a    += sum_in_a;
+
+				++stack_ptr;
+				if (stack_ptr >= div) stack_ptr = 0;
+				stack_pix_ptr = (unsigned char*)&stack[stack_ptr];
+
+				sum_out_r += stack_pix_ptr[0];
+				sum_out_g += stack_pix_ptr[1];
+				sum_out_b += stack_pix_ptr[2];
+				sum_out_a += stack_pix_ptr[3];
+				sum_in_r  -= stack_pix_ptr[0];
+				sum_in_g  -= stack_pix_ptr[1];
+				sum_in_b  -= stack_pix_ptr[2];
+				sum_in_a  -= stack_pix_ptr[3];
+			}
+		}
+	}
+}
+
+
+void ibitmap_stackblur(IBITMAP *src, int rx, int ry, const IRECT *bound)
+{
+	int x, y, w, h;
+	IRECT rect;
+
+	if (bound == NULL) {
+		bound = &rect;
+		rect.left = 0;
+		rect.top = 0;
+		rect.right = (int)src->w;
+		rect.bottom = (int)src->h;
+	}
+
+	x = bound->left;
+	y = bound->top;
+	w = bound->right - bound->left;
+	h = bound->bottom - bound->top;
+
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
+	if (x + w >= (int)src->w) w = src->w - x;
+	if (y + h >= (int)src->h) h = src->h - y;
+	if (w <= 0 || h <= 0) return;
+
+	if (src->bpp != 32) {
+		IBITMAP *newbmp = ibitmap_create(w, h, 32);
+		if (newbmp == NULL) return;
+		ibitmap_pixfmt_set(newbmp, IPIX_FMT_A8R8G8B8);
+		ibitmap_convert(newbmp, 0, 0, src, x, y, w, h, NULL, 0);
+		ipixel_stackblur_4(newbmp->pixel, (long)newbmp->pitch,
+			w, h, rx, ry);
+		ibitmap_convert(src, x, y, newbmp, 0, 0, w, h, NULL, 0);
+		ibitmap_release(newbmp);
+		return;
+	}
+
+	ipixel_stackblur_4((char*)src->line[y] + x * 4, (long)src->pitch,
+		w, h, rx, ry);
+}
+
 
 //---------------------------------------------------------------------
 // Ô­Ê¼×÷Í¼
