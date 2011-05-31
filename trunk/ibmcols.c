@@ -3660,6 +3660,72 @@ int ibitmap_scale(IBITMAP *dst, const IRECT *bound_dst, const IBITMAP *src,
 }
 
 
+// 安全 BLIT，支持不同像素格式
+int ibitmap_trans(IBITMAP *dst, int x, int y, const IBITMAP *src,
+	const IRECT *bound_src, const IRECT *clip, int mode)
+{
+	int clipdst[4], clipsrc[4], bound[4];
+	int pixfmt;
+
+	if (dst == NULL || src == NULL) 
+		return -100;
+
+	if (bound_src == NULL) {
+		bound[0] = 0;
+		bound[1] = 0;
+		bound[2] = (int)src->w;
+		bound[3] = (int)src->h;
+	}	else {
+		bound[0] = bound_src->left;
+		bound[1] = bound_src->top;
+		bound[2] = bound_src->right;
+		bound[3] = bound_src->bottom;
+	}
+
+	if ((mode & IBLIT_NOCLIP) == 0) {
+		if (clip) {
+			clipdst[0] = clip->left;
+			clipdst[1] = clip->top;
+			clipdst[2] = clip->right;
+			clipdst[3] = clip->bottom;
+		}	else {
+			clipdst[0] = 0;
+			clipdst[1] = 0;
+			clipdst[2] = (int)dst->w;
+			clipdst[3] = (int)dst->h;
+		}
+		clipsrc[0] = 0;
+		clipsrc[1] = 0;
+		clipsrc[2] = (int)src->w;
+		clipsrc[3] = (int)src->h;
+		if (ibitmap_clip(clipdst, clipsrc, &x, &y, bound, mode))
+			return -1;
+	}
+
+	pixfmt = ibitmap_pixfmt_guess(dst);
+
+	if (pixfmt != ibitmap_pixfmt_guess(src)) {
+		IRECT bounddst;
+		IRECT boundsrc;
+		int w = bound[2] - bound[0];
+		int h = bound[3] - bound[1];
+		ipixel_rect_set(&bounddst, x, y, x + w, y + h);
+		ipixel_rect_set(&boundsrc, bound[0], bound[1], bound[2], bound[3]);
+		mode &= ~IBLIT_CLIP;
+		mode |= IBLIT_NOCLIP;
+		if ((mode & IBLIT_MASK) == 0) {
+			ibitmap_convert(dst, x, y, src, bound[0], bound[1], w, h,
+				clip, 0);
+			return 0;
+		}
+		return ibitmap_scale(dst, &bounddst, src, &boundsrc, clip, mode);
+	}
+
+	mode &= ~IBLIT_CLIP;
+	return ibitmap_blit(dst, x, y, src, bound[0], bound[1],
+				bound[2] - bound[0], bound[3] - bound[1], mode);
+}
+
 
 // 重新采样
 IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound, 
