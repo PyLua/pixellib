@@ -341,7 +341,7 @@ int ibitmap_scale(IBITMAP *dst, const IRECT *bound_dst, const IBITMAP *src,
 	const IRECT *bound_src, const IRECT *clip, int mode);
 
 // 安全 BLIT，支持不同像素格式
-int ibitmap_trans(IBITMAP *dst, int x, int y, const IBITMAP *src,
+int ibitmap_blit2(IBITMAP *dst, int x, int y, const IBITMAP *src,
 	const IRECT *bound_src, const IRECT *clip, int mode);
 
 // 重新采样
