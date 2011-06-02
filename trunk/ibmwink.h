@@ -41,12 +41,38 @@ int ibitmap_channel_set(IBITMAP *dst, int dx, int dy, const IBITMAP *src,
 	int sx, int sy, int sw, int sh, int channel);
 
 
+// 图像更新函数：
+// 返回：返回0代表成功，1代表不写回，小于零为错误
+typedef int (*iBitmapUpdate)(int x, int y, int w, IUINT32 *card, void *user);
+
+
+// 图像更新：按照从上到下顺序，每条扫描线调用一次updater
+int ibitmap_update(IBITMAP *dst, const IRECT *bound, 
+	iBitmapUpdate updater, int readonly, void *user);
+
+
 //---------------------------------------------------------------------
 // 基础特效
 //---------------------------------------------------------------------
-IBITMAP *ibitmap_effect_drop_shadow(const IBITMAP *src, int dir, int level);
 
+// 图像模糊
 void ibitmap_stackblur(IBITMAP *src, int rx, int ry, const IRECT *bound);
+
+// 无AA绘制直线
+int ibitmap_put_line(IBITMAP *dst, int x1, int y1, int x2, int y2,
+	IUINT32 color, int additive, const IRECT *clip);
+
+// 无AA绘制圆形
+void ibitmap_put_circle(IBITMAP *dst, int x0, int y0, int r, int fill,
+	const IRECT *clip, IUINT32 color, int additive);
+
+// 生成阴影
+IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry);
+
+// 生成圆角
+IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r);
+
+
 
 
 //---------------------------------------------------------------------
@@ -166,6 +192,9 @@ int ipaint_raster_draw_3d(ipaint_t *paint, double x, double y, double z,
 
 int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src, 
 	const IRECT *bound, IUINT32 color, int flags);
+
+
+
 
 
 #ifdef __cplusplus
