@@ -434,6 +434,84 @@ int ibitmap_channel_set(IBITMAP *dst, int dx, int dy, const IBITMAP *src,
 }
 
 
+//---------------------------------------------------------------------
+// 图像更新：按照从上到下顺序，每条扫描线调用一次updater
+//---------------------------------------------------------------------
+int ibitmap_update(IBITMAP *dst, const IRECT *bound, 
+	iBitmapUpdate updater, int readonly, void *user)
+{
+	unsigned char _buffer[IBITMAP_STACK_BUFFER];
+	unsigned char *buffer = _buffer;
+	int cl, ct, cr, cb, cw, ch;
+	int fmt, j;
+	long size;
+
+	if (bound == NULL) {
+		cl = ct = 0;
+		cr = (int)dst->w;
+		cb = (int)dst->h;
+	}	else {
+		cl = bound->left;
+		ct = bound->top;
+		cr = bound->right;
+		cb = bound->bottom;
+		if (cl < 0) cl = 0;
+		if (ct < 0) ct = 0;
+		if (cr > (int)dst->w) cr = (int)dst->w;
+		if (cb > (int)dst->h) cb = (int)dst->h;
+	}
+
+	cw = cr - cl;
+	ch = cb - ct;
+	size = cw * 4;
+
+	if (cw <= 0 || ch <= 0)
+		return -1;
+
+	fmt = ibitmap_pixfmt_guess(dst);
+
+	if (size > IBITMAP_STACK_BUFFER && fmt != IPIX_FMT_A8R8G8B8) {
+		buffer = (unsigned char*)malloc(size);
+	}
+
+	if (buffer) {
+		iFetchProc fetch;
+		iStoreProc store;
+		iColorIndex *index;
+		fetch = ipixel_get_fetch(fmt, 0);
+		store = ipixel_get_store(fmt, 0);
+	
+		index = (iColorIndex*)(dst->extra);
+		if (index == NULL) index = _ipixel_src_index;
+
+		for (j = 0; j < ch; j++) {
+			int y = j + ct;
+			if (fmt == IPIX_FMT_A8R8G8B8) {
+				IUINT32 *card = (IUINT32*)dst->line[y] + cl;
+				int retval;
+				retval = updater(cl, y, cw, card, user);
+				if (retval < 0) return retval;
+			}	else {
+				IUINT32 *card = (IUINT32*)buffer;
+				int retval;
+				fetch(dst->line[y], cl, cw, card, index);
+				retval = updater(cl, y, cw, card, user);
+				if (retval < 0) return retval;
+				if (readonly == 0) {
+					store(dst->line[y], card, cl, cw, index);
+				}
+			}
+		}
+	}
+
+	if (buffer != _buffer) {
+		free(buffer);
+	}
+
+	return 0;
+}
+
+
 
 //=====================================================================
 // 基础特效
@@ -458,6 +536,7 @@ IBITMAP *ibitmap_effect_drop_shadow(const IBITMAP *src, int dir, int level)
 
 	return alpha;
 }
+
 
 static const IINT32 g_stack_blur8_mul[255] = {
         512,512,456,512,328,456,335,512,405,328,271,456,388,335,292,512,
@@ -592,10 +671,10 @@ void ipixel_stackblur_4(void *src, long pitch, int w, int h, int rx, int ry)
 			dst_pix_ptr = (unsigned char*)src + y * pitch;
 
 			for (x = 0; x < (IUINT32)w; x++) {
-				dst_pix_ptr[0] = (sum_r * mul_sum) >> shr_sum;
-				dst_pix_ptr[1] = (sum_g * mul_sum) >> shr_sum;
-				dst_pix_ptr[2] = (sum_b * mul_sum) >> shr_sum;
-				dst_pix_ptr[3] = (sum_a * mul_sum) >> shr_sum;
+				dst_pix_ptr[0] = (IUINT8)((sum_r * mul_sum) >> shr_sum);
+				dst_pix_ptr[1] = (IUINT8)((sum_g * mul_sum) >> shr_sum);
+				dst_pix_ptr[2] = (IUINT8)((sum_b * mul_sum) >> shr_sum);
+				dst_pix_ptr[3] = (IUINT8)((sum_a * mul_sum) >> shr_sum);
 				dst_pix_ptr += 4;
 
 				sum_r -= sum_out_r;
@@ -709,10 +788,10 @@ void ipixel_stackblur_4(void *src, long pitch, int w, int h, int rx, int ry)
 			dst_pix_ptr = (unsigned char*)src + x * 4;
 
 			for (y = 0; y < (IUINT32)h; y++) {
-				dst_pix_ptr[0] = (sum_r * mul_sum) >> shr_sum;
-				dst_pix_ptr[1] = (sum_g * mul_sum) >> shr_sum;
-				dst_pix_ptr[2] = (sum_b * mul_sum) >> shr_sum;
-				dst_pix_ptr[3] = (sum_a * mul_sum) >> shr_sum;
+				dst_pix_ptr[0] = (IUINT8)((sum_r * mul_sum) >> shr_sum);
+				dst_pix_ptr[1] = (IUINT8)((sum_g * mul_sum) >> shr_sum);
+				dst_pix_ptr[2] = (IUINT8)((sum_b * mul_sum) >> shr_sum);
+				dst_pix_ptr[3] = (IUINT8)((sum_a * mul_sum) >> shr_sum);
 				dst_pix_ptr += pitch;
 
 				sum_r -= sum_out_r;
@@ -765,7 +844,7 @@ void ipixel_stackblur_4(void *src, long pitch, int w, int h, int rx, int ry)
 	}
 }
 
-
+// 图像模糊
 void ibitmap_stackblur(IBITMAP *src, int rx, int ry, const IRECT *bound)
 {
 	int x, y, w, h;
@@ -804,6 +883,96 @@ void ibitmap_stackblur(IBITMAP *src, int rx, int ry, const IRECT *bound)
 
 	ipixel_stackblur_4((char*)src->line[y] + x * 4, (long)src->pitch,
 		w, h, rx, ry);
+}
+
+// 生成阴影
+IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry)
+{
+	IBITMAP *alpha, *beta;
+	alpha = ibitmap_create((int)src->w, (int)src->h, 8);
+	if (alpha == NULL) return NULL;
+	ibitmap_pixfmt_set(alpha, IPIX_FMT_A8);
+	ibitmap_channel_get(alpha, 0, 0, src, 0, 0, (int)src->w, (int)src->h, 3);
+	beta = ibitmap_create((int)src->w + rx * 2, (int)src->h + ry * 2, 8);
+	if (beta == NULL) {
+		ibitmap_release(alpha);
+		return NULL;
+	}
+	ibitmap_pixfmt_set(beta, IPIX_FMT_A8);
+	memset(beta->pixel, 0, beta->h * beta->pitch);
+	ibitmap_blit(beta, rx, ry, alpha, 0, 0, (int)alpha->w, (int)alpha->h, 0);
+	ibitmap_release(alpha);
+	ibitmap_stackblur(beta, rx, ry, NULL);
+	return beta;
+}
+
+
+// 生成圆角
+IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
+{
+	IBITMAP *alpha, *beta;
+	int w = (int)src->w;
+	int h = (int)src->h;
+	int w4 = w * 4;
+	int h4 = h * 4;
+	int x1 = r;
+	int y1 = r;
+	int x2 = w4 - r - 1;
+	int y2 = h4 - r - 1;
+	int i, j;
+
+	alpha = ibitmap_resample(src, NULL, w4, h4, 0);
+	if (alpha == NULL) return NULL;
+	beta = ibitmap_create(w4, h4, 32);
+	if (beta == NULL) {
+		ibitmap_release(alpha);
+		return NULL;
+	}
+
+	ibitmap_pixfmt_set(beta, IPIX_FMT_A8R8G8B8);
+	ibitmap_convert(beta, 0, 0, alpha, 0, 0, w4, h4, NULL, 0);
+	ibitmap_release(alpha);
+
+	alpha = ibitmap_create(w4, h4, 32);
+	if (alpha == NULL) {
+		ibitmap_release(beta);
+		return NULL;
+	}
+
+	ibitmap_pixfmt_set(alpha, IPIX_FMT_A8R8G8B8);
+	memset(alpha->pixel, 0, alpha->pitch * alpha->h);
+
+	ibitmap_put_circle(alpha, x1, y1, r, 1, NULL, 0xffffffff, 0);
+	ibitmap_put_circle(alpha, x1, y2, r, 1, NULL, 0xffffffff, 0);
+	ibitmap_put_circle(alpha, x2, y1, r, 1, NULL, 0xffffffff, 0);
+	ibitmap_put_circle(alpha, x2, y2, r, 1, NULL, 0xffffffff, 0);
+
+	ibitmap_fill(alpha, 0, y1, w4, h4 - 2 * r, 0xffffffff, 0);
+	ibitmap_fill(alpha, x1, 0, w4 - 2 * r, h4, 0xffffffff, 0);
+
+	for (j = 0; j < h4; j++) {
+		IUINT8 *srcpix = (IUINT8*)alpha->line[j];
+		IUINT8 *dstpix = (IUINT8*)beta->line[j];
+		for (i = w4; i > 0; i--, srcpix += 4, dstpix += 4) {
+		#if IWORDS_BIG_ENDIAN
+			if (srcpix[0] == 0) dstpix[0] = 0;
+		#else
+			if (srcpix[3] == 0) dstpix[3] = 0;
+		#endif
+		}
+	}
+
+	ibitmap_release(alpha);
+
+	alpha = ibitmap_resample(beta, NULL, w, h, 0);
+
+	if (alpha) {
+		ibitmap_pixfmt_set(alpha, IPIX_FMT_A8R8G8B8);
+	}
+
+	ibitmap_release(beta);
+
+	return alpha;
 }
 
 
@@ -920,6 +1089,10 @@ static inline int _iclipline(int* pts, int left, int top, int right,
 		*paint++ = (IUINT32)x; \
 		*paint++ = (IUINT32)y; \
 	}	while (0)
+
+
+#define ipaint_get_count(paint, base) \
+	(((long)((IINT32*)paint - (IINT32*)base)) >> 1)
 
 
 int ibitmap_put_line_low(IBITMAP *dst, int x1, int y1, int x2, int y2,
@@ -1058,6 +1231,122 @@ int ibitmap_put_line(IBITMAP *dst, int x1, int y1, int x2, int y2,
 	return retval;
 }
 
+
+void ibitmap_put_circle_low(IBITMAP *dst, int x0, int y0, int r, int fill,
+	const IRECT *clip, IUINT32 color, int additive, void *workmem, long size)
+{
+	IINT32 *buffer = (IINT32*)workmem;
+	IINT32 *paint = buffer;
+	int cx = 0, cy = r;	
+	int df = 1 - r, d_e = 3, d_se = -2 * r + 5;	
+	int x = 0, y = 0, xmax, tn;
+	long limit = size / 8;
+	long flush = limit * 3 / 4;
+	int cl, ct, cr, cb;
+
+	if (flush < 32) return;
+	if (clip == NULL) {
+		cl = 0;
+		ct = 0;
+		cr = (int)dst->w;
+		cb = (int)dst->h;
+	}	else {
+		cl = clip->left;
+		ct = clip->top;
+		cr = clip->right;
+		cb = clip->bottom;
+	}
+
+	paint = buffer;
+
+	#define ipaint_push_clip_dot(x, y) do { \
+			int xx = (x), yy = (y); \
+			if (xx >= cl && yy >= ct && xx < cr && yy < cb) { \
+				ipaint_push_pixel(paint, xx, yy); \
+			} \
+		}	while (0)
+	
+	#define ipaint_flush_limit(maxcount) do { \
+			int count = ipaint_get_count(paint, buffer); \
+			if (count > maxcount) { \
+				ibitmap_draw_pixel_list_sc(dst, (IUINT32*)buffer, \
+					count, color, additive); \
+				paint = buffer; \
+			} \
+		}	while (0)
+	
+	#define ipaint_hline_clip(x, y, w) do { \
+			int yy = (y); \
+			if (yy >= ct && yy < cb) { \
+				int xl = (x), xr = (x) + (w); \
+				if (xl < cl) xl = cl; \
+				if (xr > cr) xr = cr; \
+				if (xl < xr) { \
+					hline(dst->line[y], x, xr - xl, color, NULL, index); \
+				} \
+			} \
+		}	while (0)
+
+	if (fill == 0) {
+		y = r; x = 0; xmax = (int)(r * 0.70710678f + 0.5f);
+		tn = (1 - r * 2);
+		while (x <= xmax) {
+			if (tn >= 0) {
+				tn += (6 + ((x - y) << 2));	
+				y--;
+			} else tn += ((x << 2) + 2);
+			ipaint_push_clip_dot(x0 + y, y0 + x);
+			ipaint_push_clip_dot(x0 + x, y0 + y);
+			ipaint_push_clip_dot(x0 - x, y0 + y);
+			ipaint_push_clip_dot(x0 - y, y0 + x);
+			ipaint_push_clip_dot(x0 - y, y0 - x);
+			ipaint_push_clip_dot(x0 - x, y0 - y);
+			ipaint_push_clip_dot(x0 + x, y0 - y);
+			ipaint_push_clip_dot(x0 + y, y0 - x);
+			ipaint_flush_limit(flush);
+			x++;
+		}
+		ipaint_flush_limit(0);
+	}	else {
+		int pixfmt = ibitmap_pixfmt_guess(dst);
+		iHLineDrawProc hline = ipixel_get_hline_proc(pixfmt, additive, 0);
+		iColorIndex *index = ibitmap_index_get(dst);
+
+		if (index == NULL) index = _ipixel_dst_index;
+		if (hline == NULL) return;
+
+		do {
+			ipaint_hline_clip(x0 - cy, y0 - cx, (cy << 1) + 1);
+			if (cx) {
+				ipaint_hline_clip(x0 - cy, y0 + cx, (cy << 1) + 1);
+			}
+			if (df < 0) df += d_e, d_e += 2, d_se += 2;
+			else {
+				if (cx != cy) {	
+					ipaint_hline_clip(x0 - cx, y0 - cy, (cx << 1) + 1);
+					if (cy) {
+						ipaint_hline_clip(x0 - cx, y0 + cy, (cx << 1) + 1);
+					}
+				}
+				df += d_se, d_e += 2, d_se += 4;
+				cy--;
+			}
+			cx++;
+		}	while (cx <= cy);
+	}
+
+	#undef ipaint_push_clip_dot
+	#undef ipaint_flush_limit
+	#undef ipaint_hline_clip
+}
+
+void ibitmap_put_circle(IBITMAP *dst, int x0, int y0, int r, int fill,
+	const IRECT *clip, IUINT32 color, int additive)
+{
+	char buffer[IBITMAP_STACK_BUFFER];
+	ibitmap_put_circle_low(dst, x0, y0, r, fill, clip, color, additive, 
+		buffer, IBITMAP_STACK_BUFFER);
+}
 
 
 //---------------------------------------------------------------------
