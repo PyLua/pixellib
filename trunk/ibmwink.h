@@ -73,6 +73,17 @@ IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry);
 IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r);
 
 
+// 色彩变幻：输入 5 x 5矩阵
+void ibitmap_color_transform(IBITMAP *dst, const IRECT *b, const float *t);
+
+// 色彩变幻：加法
+void ibitmap_color_add(IBITMAP *dst, const IRECT *b, IUINT32 color);
+
+// 色彩变幻：减法
+void ibitmap_color_sub(IBITMAP *dst, const IRECT *b, IUINT32 color);
+
+// 色彩变幻：乘法
+void ibitmap_color_mul(IBITMAP *dst, const IRECT *b, IUINT32 color);
 
 
 //---------------------------------------------------------------------

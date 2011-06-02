@@ -94,6 +94,8 @@ static void ibitmap_fetch_32(const IBITMAP *src, IUINT32 *card, int line)
 	fetch = ipixel_get_fetch(ibitmap_pixfmt_guess(src), 0);
 	mask = (IUINT32)src->mask;
 
+	if (index == NULL) index = _ipixel_src_index;
+
 	size = (int)src->w + 2;
 	h = (int)src->h;
 
@@ -410,6 +412,7 @@ int ibitmap_channel_set(IBITMAP *dst, int dx, int dy, const IBITMAP *src,
 		iFetchProc fetch;
 		iStoreProc store;
 		int x, y;
+		if (index == NULL) index = _ipixel_src_index;
 		size = sizeof(IUINT32) * sw;
 		if (size > IBITMAP_STACK_BUFFER) {
 			buffer = (char*)malloc(size);
@@ -974,6 +977,123 @@ IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
 
 	return alpha;
 }
+
+
+static int i_update_trans(int x, int y, int w, IUINT32 *card, void *user)
+{
+	cfixed *mat = (cfixed*)user;
+	IINT32 cc, r, g, b, a;
+	cfixed r2, g2, b2, a2;
+	for (; w > 0; w--, card++) {
+		cc = card[0];
+		IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
+		r2 = r * mat[ 0] + g * mat[ 1] + b * mat[ 2] + a * mat[ 3] + mat[ 4];
+		g2 = r * mat[ 5] + g * mat[ 6] + b * mat[ 7] + a * mat[ 8] + mat[ 9];
+		b2 = r * mat[10] + g * mat[11] + b * mat[12] + a * mat[13] + mat[14];
+		a2 = r * mat[15] + g * mat[16] + b * mat[17] + a * mat[18] + mat[19];
+		r = cfixed_to_int(r2);
+		g = cfixed_to_int(g2);
+		b = cfixed_to_int(b2);
+		a = cfixed_to_int(a2);
+		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
+	}
+	return 0;
+}
+
+static int i_update_add(int x, int y, int w, IUINT32 *card, void *user)
+{
+	IUINT32 cc = *(IUINT32*)user;
+	IINT32 cr, cg, cb, ca;
+	IINT32 c, r, g, b, a;
+	IRGBA_FROM_A8R8G8B8(cc, cr, cg, cb, ca);
+	for (; w > 0; w--, card++) {
+		c = card[0];
+		IRGBA_FROM_A8R8G8B8(c, r, g, b, a);
+		r = ICLIP_256(r + cr);
+		g = ICLIP_256(g + cg);
+		b = ICLIP_256(b + cb);
+		a = ICLIP_256(a + ca);
+		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
+	}
+	return 0;
+}
+
+static int i_update_sub(int x, int y, int w, IUINT32 *card, void *user)
+{
+	IUINT32 cc = *(IUINT32*)user;
+	IINT32 cr, cg, cb, ca;
+	IINT32 c, r, g, b, a;
+	IRGBA_FROM_A8R8G8B8(cc, cr, cg, cb, ca);
+	for (; w > 0; w--, card++) {
+		c = card[0];
+		IRGBA_FROM_A8R8G8B8(c, r, g, b, a);
+		r = ICLIP_256(r - cr);
+		g = ICLIP_256(g - cg);
+		b = ICLIP_256(b - cb);
+		a = ICLIP_256(a - ca);
+		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
+	}
+	return 0;
+}
+
+static int i_update_mul(int x, int y, int w, IUINT32 *card, void *user)
+{
+	IUINT32 cc = *(IUINT32*)user;
+	IINT32 cr, cg, cb, ca;
+	IINT32 c, r, g, b, a;
+	IRGBA_FROM_A8R8G8B8(cc, cr, cg, cb, ca);
+	for (; w > 0; w--, card++) {
+		c = card[0];
+		IRGBA_FROM_A8R8G8B8(c, r, g, b, a);
+		r = r * cr;
+		g = g * cg;
+		b = b * cb;
+		a = a * ca;
+		r = _idiv_255(r);
+		g = _idiv_255(g);
+		b = _idiv_255(b);
+		a = _idiv_255(a);
+		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
+	}
+	return 0;
+}
+
+
+// 色彩变幻：输入 5 x 5矩阵
+void ibitmap_color_transform(IBITMAP *dst, const IRECT *b, const float *t)
+{
+	cfixed transform[20];
+	int i;
+	for (i = 0; i < 20; i += 4) {
+		cfixed *dst = transform + i;
+		const float *src = t + i;
+		dst[0] = cfixed_from_float(src[0]);
+		dst[1] = cfixed_from_float(src[1]);
+		dst[2] = cfixed_from_float(src[2]);
+		dst[3] = cfixed_from_float(src[3]);
+		dst[4] = cfixed_from_float(src[4]);
+	}
+	ibitmap_update(dst, b, i_update_trans, 0, transform);
+}
+
+// 色彩变幻：加法
+void ibitmap_color_add(IBITMAP *dst, const IRECT *b, IUINT32 color)
+{
+	ibitmap_update(dst, b, i_update_add, 0, &color);
+}
+
+// 色彩变幻：减法
+void ibitmap_color_sub(IBITMAP *dst, const IRECT *b, IUINT32 color)
+{
+	ibitmap_update(dst, b, i_update_sub, 0, &color);
+}
+
+// 色彩变幻：乘法
+void ibitmap_color_mul(IBITMAP *dst, const IRECT *b, IUINT32 color)
+{
+	ibitmap_update(dst, b, i_update_mul, 0, &color);
+}
+
 
 
 //---------------------------------------------------------------------
