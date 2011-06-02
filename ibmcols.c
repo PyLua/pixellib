@@ -2530,14 +2530,14 @@ static int ifilter_shrink_x_c(IUINT8 *dstpix, IUINT8 *srcpix, int height,
 	xrecip = (int)(zrecip / xspace);
 
 	for (y = 0; y < height; y++) {
-		IUINT16 accumulate[4] = { 0, 0, 0, 0 };
+		IUINT32 accumulate[4] = { 0, 0, 0, 0 };
 		int xcounter = xspace;
 		for (x = 0; x < srcwidth; x++) {
 			if (xcounter > 0x10000) {
-				accumulate[0] += (IUINT16) *srcpix++;
-				accumulate[1] += (IUINT16) *srcpix++;
-				accumulate[2] += (IUINT16) *srcpix++;
-				accumulate[3] += (IUINT16) *srcpix++;
+				accumulate[0] += (IUINT32) *srcpix++;
+				accumulate[1] += (IUINT32) *srcpix++;
+				accumulate[2] += (IUINT32) *srcpix++;
+				accumulate[3] += (IUINT32) *srcpix++;
 				xcounter -= 0x10000;
 			}	else {
 				int xfrac = 0x10000 - xcounter;
@@ -2550,10 +2550,10 @@ static int ifilter_shrink_x_c(IUINT8 *dstpix, IUINT8 *srcpix, int height,
 				ismooth_putpix_x(2);
 				ismooth_putpix_x(3);
 				#undef ismooth_putpix_x
-				accumulate[0] = (IUINT16)((*srcpix++ * xfrac) >> 16);
-				accumulate[1] = (IUINT16)((*srcpix++ * xfrac) >> 16);
-				accumulate[2] = (IUINT16)((*srcpix++ * xfrac) >> 16);
-				accumulate[3] = (IUINT16)((*srcpix++ * xfrac) >> 16);
+				accumulate[0] = (IUINT32)((*srcpix++ * xfrac) >> 16);
+				accumulate[1] = (IUINT32)((*srcpix++ * xfrac) >> 16);
+				accumulate[2] = (IUINT32)((*srcpix++ * xfrac) >> 16);
+				accumulate[3] = (IUINT32)((*srcpix++ * xfrac) >> 16);
 				xcounter = xspace - xfrac;
 			}
 		}
@@ -2572,23 +2572,25 @@ static int ifilter_shrink_y_c(IUINT8 *dstpix, IUINT8 *srcpix, int width,
 	IINT32 yspace = 0x10000 * srcheight / dstheight;
 	IINT32 yrecip = 0;
 	IINT32 ycounter = yspace;
-	IUINT16 *templine;
+	IUINT32 *templine;
 
 	IINT64 zrecip = 1;
 	zrecip <<= 32;
 	yrecip = (IINT32)(zrecip / yspace);
 
-	templine = (IUINT16*)icmalloc(dstpitch * 2);
-	assert(templine);
+	templine = (IUINT32*)icmalloc(dstpitch * 4);
+	if (templine == NULL) return -1;
+
+	memset(templine, 0, dstpitch * 4);
 
 	for (y = 0; y < srcheight; y++) {
-		IUINT16 *accumulate = templine;
+		IUINT32 *accumulate = templine;
 		if (ycounter > 0x10000) {
 			for (x = 0; x < width; x++) {
-				*accumulate++ += (IUINT16) *srcpix++;
-				*accumulate++ += (IUINT16) *srcpix++;
-				*accumulate++ += (IUINT16) *srcpix++;
-				*accumulate++ += (IUINT16) *srcpix++;
+				*accumulate++ += (IUINT32) *srcpix++;
+				*accumulate++ += (IUINT32) *srcpix++;
+				*accumulate++ += (IUINT32) *srcpix++;
+				*accumulate++ += (IUINT32) *srcpix++;
 			}
 			ycounter -= 0x10000;
 		}	else {
@@ -2608,10 +2610,10 @@ static int ifilter_shrink_y_c(IUINT8 *dstpix, IUINT8 *srcpix, int width,
 			accumulate = templine;
 			srcpix -= 4 * width;
 			for (x = 0; x < width; x++) {
-				*accumulate++ = (IUINT16) ((*srcpix++ * yfrac) >> 16);
-				*accumulate++ = (IUINT16) ((*srcpix++ * yfrac) >> 16);
-				*accumulate++ = (IUINT16) ((*srcpix++ * yfrac) >> 16);
-				*accumulate++ = (IUINT16) ((*srcpix++ * yfrac) >> 16);
+				*accumulate++ = (IUINT32) ((*srcpix++ * yfrac) >> 16);
+				*accumulate++ = (IUINT32) ((*srcpix++ * yfrac) >> 16);
+				*accumulate++ = (IUINT32) ((*srcpix++ * yfrac) >> 16);
+				*accumulate++ = (IUINT32) ((*srcpix++ * yfrac) >> 16);
 			}
 			ycounter = yspace - yfrac;
 		}
