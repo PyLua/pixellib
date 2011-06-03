@@ -982,19 +982,30 @@ IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
 static int i_update_trans(int x, int y, int w, IUINT32 *card, void *user)
 {
 	cfixed *mat = (cfixed*)user;
+	cfixed mm[20];
 	IINT32 cc, r, g, b, a;
 	cfixed r2, g2, b2, a2;
+	int i;
+	for (i = 0; i < 20; i++) mm[i] = mat[i] >> 6;
 	for (; w > 0; w--, card++) {
 		cc = card[0];
 		IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
-		r2 = r * mat[ 0] + g * mat[ 1] + b * mat[ 2] + a * mat[ 3] + mat[ 4];
-		g2 = r * mat[ 5] + g * mat[ 6] + b * mat[ 7] + a * mat[ 8] + mat[ 9];
-		b2 = r * mat[10] + g * mat[11] + b * mat[12] + a * mat[13] + mat[14];
-		a2 = r * mat[15] + g * mat[16] + b * mat[17] + a * mat[18] + mat[19];
-		r = cfixed_to_int(r2);
-		g = cfixed_to_int(g2);
-		b = cfixed_to_int(b2);
-		a = cfixed_to_int(a2);
+		r2 = r * mm[ 0] + g * mm[ 1] + b * mm[ 2] + a * mm[ 3] + mm[ 4];
+		g2 = r * mm[ 5] + g * mm[ 6] + b * mm[ 7] + a * mm[ 8] + mm[ 9];
+		b2 = r * mm[10] + g * mm[11] + b * mm[12] + a * mm[13] + mm[14];
+		a2 = r * mm[15] + g * mm[16] + b * mm[17] + a * mm[18] + mm[19];
+		r = (IINT32)(r2 >> 10);
+		g = (IINT32)(g2 >> 10);
+		b = (IINT32)(b2 >> 10);
+		a = (IINT32)(a2 >> 10);
+		if (r < 0) r = 0;
+		else if (r > 255) r = 255;
+		if (g < 0) g = 0;
+		else if (g > 255) g = 255;
+		if (b < 0) b = 0;
+		else if (b > 255) b = 255;
+		if (a < 0) a = 0;
+		else if (a > 255) a = 255;
 		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
 	}
 	return 0;
