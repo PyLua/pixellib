@@ -394,6 +394,8 @@ struct ipixel_gradient_walker
 	IUINT32 left_rb;
 	IUINT32 right_ag;
 	IUINT32 right_rb;
+	IUINT32 left_c;
+	IUINT32 right_c;
 	IINT64 left_x;
 	IINT64 right_x;
 	IINT32 stepper;
