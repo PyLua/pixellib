@@ -857,13 +857,9 @@ static void ipixel_line_fixed_edge_init(ipixel_edge_t *e, int n, cfixed y,
 static void ipixel_raster_edges(IBITMAP *image, ipixel_edge_t *l, 
 		ipixel_edge_t *r, cfixed t, cfixed b, const IRECT *clip);
 
-// 光栅化清除
-static void ipixel_raster_edges_clear(IBITMAP *image, ipixel_edge_t *l,
-		ipixel_edge_t *r, cfixed t, cfixed b, const IRECT *clip);
-
 // 光栅化扫描线
 static int ipixel_raster_edges_spans(ipixel_edge_t *l, ipixel_edge_t *r, 
-		cfixed t, cfixed b, const IRECT *clip, ipixel_span_t *spans);
+		cfixed t, cfixed b, int n, const IRECT *clip, ipixel_span_t *spans);
 
 
 //---------------------------------------------------------------------
@@ -920,64 +916,19 @@ void ipixel_raster_trapezoid(IBITMAP *image, const ipixel_trapezoid_t *trap,
 
 
 //---------------------------------------------------------------------
-// 光栅化梯形清除
-//---------------------------------------------------------------------
-void ipixel_raster_clear(IBITMAP *image, const ipixel_trapezoid_t *trap,
-		int x_off, int y_off, const IRECT *clip)
-{
-	cfixed x_off_fixed;
-	cfixed y_off_fixed;
-	ipixel_edge_t l, r;
-	cfixed t, b;
-	IRECT rect;
-
-	assert(image && image->bpp == 8);
-
-	if (image->bpp != 8) return;
-
-	if (!ipixel_trapezoid_valid(trap)) return;
-
-	if (clip == NULL) {
-		clip = &rect;
-		rect.left = 0;
-		rect.top = 0;
-		rect.right = (int)image->w;
-		rect.bottom = (int)image->h;
-	}
-
-	x_off_fixed = cfixed_from_int(x_off);
-	y_off_fixed = cfixed_from_int(y_off);
-
-	t = trap->top + y_off_fixed - cfixed_const_1;
-	if (cfixed_to_int(t) < clip->top) 
-		t = cfixed_from_int(clip->top);
-	t = ipixel_sample_ceil_y(t, 1);
-
-	b = trap->bottom + y_off_fixed + cfixed_const_1;
-	if (cfixed_to_int(b) >= clip->bottom)
-		b = cfixed_from_int(clip->bottom) - 1;
-	b = ipixel_sample_floor_y(b, 1);
-
-	if (b >= t) {
-		ipixel_line_fixed_edge_init(&l, 1, t, &trap->left, x_off, y_off);
-		ipixel_line_fixed_edge_init(&r, 1, t, &trap->right, x_off, y_off);
-		ipixel_raster_edges_clear(image, &l, &r, t, b, clip);
-	}
-}
-
-
-//---------------------------------------------------------------------
 // 光栅化线段
 //---------------------------------------------------------------------
 int ipixel_raster_spans(ipixel_span_t *spans, const ipixel_trapezoid_t *trap,
-		int x_off, int y_off, const IRECT *clip)
+		int subpixel, int x_off, int y_off, const IRECT *clip)
 {
+	static const int table[3] = { 8, 4, 1 };
 	cfixed x_off_fixed;
 	cfixed y_off_fixed;
 	ipixel_edge_t l, r;
 	cfixed t, b;
 	IRECT rect;
 	int count = 0;
+	int bpp = 8;
 
 	if (!ipixel_trapezoid_valid(trap)) return 0;
 
@@ -989,23 +940,25 @@ int ipixel_raster_spans(ipixel_span_t *spans, const ipixel_trapezoid_t *trap,
 		rect.bottom = 32767;
 	}
 
+	bpp = table[subpixel & 3];
+
 	x_off_fixed = cfixed_from_int(x_off);
 	y_off_fixed = cfixed_from_int(y_off);
 
-	t = trap->top + y_off_fixed - cfixed_const_1 * 2;
+	t = trap->top + y_off_fixed;
 	if (cfixed_to_int(t) < clip->top) 
 		t = cfixed_from_int(clip->top);
-	t = ipixel_sample_ceil_y(t, 1);
+	t = ipixel_sample_ceil_y(t, bpp);
 
-	b = trap->bottom + y_off_fixed + cfixed_const_1 * 2;
+	b = trap->bottom + y_off_fixed;
 	if (cfixed_to_int(b) >= clip->bottom)
 		b = cfixed_from_int(clip->bottom) - 1;
-	b = ipixel_sample_floor_y(b, 1);
+	b = ipixel_sample_floor_y(b, bpp);
 
 	if (b >= t) {
-		ipixel_line_fixed_edge_init(&l, 1, t, &trap->left, x_off, y_off);
-		ipixel_line_fixed_edge_init(&r, 1, t, &trap->right, x_off, y_off);
-		count = ipixel_raster_edges_spans(&l, &r, t, b, clip, spans);
+		ipixel_line_fixed_edge_init(&l, bpp, t, &trap->left, x_off, y_off);
+		ipixel_line_fixed_edge_init(&r, bpp, t, &trap->right, x_off, y_off);
+		count = ipixel_raster_edges_spans(&l, &r, t, b, bpp, clip, spans);
 	}
 
 	return count;
@@ -1396,78 +1349,59 @@ static void ipixel_raster_edges_bits_1(IBITMAP *image, ipixel_edge_t *l,
 }
 
 
-// 光栅化清除
-static void ipixel_raster_edges_clear(IBITMAP *image, ipixel_edge_t *l,
-		ipixel_edge_t *r, cfixed t, cfixed b, const IRECT *clip)
-{
-	cfixed y = t;
-
-	for (; ; ) {
-		int yi = cfixed_to_int(y);
-		cfixed lx, rx;
-		int lxi, rxi;
-
-		// 裁剪X
-		lx = l->x - cfixed_const_1 * 2;
-		rx = r->x + cfixed_const_1 * 2;
-
-		if (rx > lx) {
-			lxi = cfixed_to_int(lx);
-			rxi = cfixed_to_int(rx);
-			if (yi >= clip->top && yi < clip->bottom) {
-				IUINT8 *ap = (IUINT8*)image->line[yi];
-				if (lxi < clip->left) lxi = clip->left;
-				if (rxi > clip->right) rxi = clip->right;
-				if (rxi > lxi) {
-					memset(ap + lxi, 0, rxi - lxi);
-				}
-			}
-		}
-
-		if (y == b) {
-			break;
-		}
-
-		if (cfixed_frac(y) != Y_FRAC_LAST(1)) {
-			IPIXEL_EDGE_STEP_SMALL(l);
-			IPIXEL_EDGE_STEP_SMALL(r);
-			y += STEP_Y_SMALL(1);
-		}	else {
-			IPIXEL_EDGE_STEP_BIG(l);
-			IPIXEL_EDGE_STEP_BIG(r);
-			y += STEP_Y_BIG(1);
-		}
-	}
-}
-
 
 // 光栅化扫描线
 static int ipixel_raster_edges_spans(ipixel_edge_t *l, ipixel_edge_t *r, 
-		cfixed t, cfixed b, const IRECT *clip, ipixel_span_t *spans)
+		cfixed t, cfixed b, int n, const IRECT *clip, ipixel_span_t *spans)
 {
-	ipixel_span_t *saved = spans;
+	cfixed step_y_small = STEP_Y_SMALL(n);
+	cfixed step_y_big = STEP_Y_BIG(n);
+	cfixed y_frac_last = Y_FRAC_LAST(n);
 	cfixed y = t;
+	ipixel_span_t *span;
+	int cl, ct, cr, cb;
+	int count;
 
-	for (; ; ) {
+	cl = clip->left;
+	ct = clip->top;
+	cr = clip->right;
+	cb = clip->bottom;
+
+	for (y = t, span = NULL; ; ) {
 		int yi = cfixed_to_int(y);
 		cfixed lx, rx;
 		int lxi, rxi;
+		int sl, sr;
 
 		// 裁剪X
-		lx = l->x - cfixed_const_1 * 2;
-		rx = r->x + cfixed_const_1 * 4;
+		lx = l->x;
+		rx = r->x;
 
-		if (rx > lx) {
+		if (rx > lx && yi >= ct && yi < cb) {
 			lxi = cfixed_to_int(lx);
-			rxi = cfixed_to_int(rx);
-			if (yi >= clip->top && yi < clip->bottom) {
-				if (lxi < clip->left) lxi = clip->left;
-				if (rxi > clip->right) rxi = clip->right;
-				if (rxi > lxi) {
-					spans->x = lxi;
-					spans->y = yi;
-					spans->w = rxi - lxi;
-					spans++;
+			rxi = cfixed_to_int(cfixed_ceil(rx));
+			if (lxi < cl) lxi = cl;
+			if (rxi > cr) rxi = cr;
+			if (rxi > lxi) {
+				if (span == NULL) {
+					span = spans;
+					span->x = lxi;
+					span->w = rxi - lxi;
+					span->y = yi;
+				}
+				else if (span->y < yi) {
+					span++;
+					span->x = lxi;
+					span->w = rxi - lxi;
+					span->y = yi;
+				}	
+				else {
+					sl = span->x;
+					sr = span->x + span->w;
+					if (lxi < sl) sl = lxi;
+					if (rxi > sr) sr = rxi;
+					span->x = sl;
+					span->w = sr - sl;
 				}
 			}
 		}
@@ -1476,18 +1410,21 @@ static int ipixel_raster_edges_spans(ipixel_edge_t *l, ipixel_edge_t *r,
 			break;
 		}
 
-		if (cfixed_frac(y) != Y_FRAC_LAST(1)) {
-			IPIXEL_EDGE_STEP_SMALL(l);
-			IPIXEL_EDGE_STEP_SMALL(r);
-			y += STEP_Y_SMALL(1);
-		}	else {
+		if (cfixed_frac(y) == y_frac_last) {
 			IPIXEL_EDGE_STEP_BIG(l);
 			IPIXEL_EDGE_STEP_BIG(r);
-			y += STEP_Y_BIG(1);
+			y += step_y_big;
+		}	
+		else {
+			IPIXEL_EDGE_STEP_SMALL(l);
+			IPIXEL_EDGE_STEP_SMALL(r);
+			y += step_y_small;
 		}
 	}
 
-	return (int)(spans - saved);
+	count = (span == NULL)? 0 : (int)((span - spans) + 1);
+
+	return count;
 }
 
 
@@ -1562,14 +1499,13 @@ int ipixel_trapezoid_bound(const ipixel_trapezoid_t *t, int n, IRECT *rect)
 
 
 // 取得traps的扫描线
-int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n, 
+int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n, int subpixel,
 	ipixel_span_t *spans, int x_off, int y_off, const IRECT *clip)
 {
 	ipixel_span_t *lines, *outspans;
 	IRECT bound;
 	int height;
 	int cl, cr;
-	int xl, xr;
 	int count;
 	int i, j;
 	
@@ -1593,13 +1529,15 @@ int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n,
 	lines = spans + height;
 
 	for (i = 0; i < height; i++) {
-		lines[i].x = 0;
+		lines[i].x = bound.right + 1000;
 		lines[i].y = bound.top + i;
-		lines[i].w = 0;
+		lines[i].w = -100;
 	}
 
 	for (i = 0; i < n; i++) {
-		count = ipixel_raster_spans(outspans, &t[i], x_off, y_off, clip);
+		count = ipixel_raster_spans(outspans, &t[i], subpixel, x_off, y_off, 
+			clip);
+		assert(count <= height);
 		for (j = 0; j < count; j++) {
 			ipixel_span_t *s = outspans + j;
 			ipixel_span_t *m = lines + s->y - bound.top;
@@ -1610,29 +1548,10 @@ int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n,
 
 			assert(s->y >= bound.top && s->y < bound.bottom);
 	
-			if (xl < cl) xl = cl;
-			if (xr > cr) xr = cr;
 			if (xl < ml) ml = xl;
 			if (xr > mr) mr = xr;
-			m->x = ml;
-			m->w = mr - ml;
-		}
-
-		// top row and bottom row
-		for (j = 0; j < 2; j++) {
-			int y = (j == 0)? bound.top : bound.bottom - 1;
-			ipixel_span_t *m = lines + y - bound.top;
-			int ml = m->x;
-			int mr = m->x + m->w;
-			if (ipixel_trapezoid_span_bound(&t[i], y - y_off, &xl, &xr))
-				continue;
-			xl += x_off;
-			xr += x_off;
-			xr += 4;
-			if (xl < cl) xl = cl;
-			if (xr > cr) xr = cr;
-			if (xl < ml) ml = xl;
-			if (xr > mr) mr = xr;
+			if (ml < bound.left) ml = bound.left;
+			if (mr > bound.right) mr = bound.right;
 			m->x = ml;
 			m->w = mr - ml;
 		}
@@ -2464,5 +2383,799 @@ int ibitmap_raster_draw_3d(IBITMAP *dst, double x, double y, double z,
 	return ibitmap_raster_float(dst, pts, src, rect, color, 0, clip);
 }
 
+
+
+//=====================================================================
+// 色彩梯度部分
+//=====================================================================
+void ipixel_gradient_walker_init(ipixel_gradient_walker_t *walker, 
+	const ipixel_gradient_t *gradient)
+{
+	walker->nstops = gradient->nstops;
+	walker->stops = (ipixel_gradient_stop_t*)gradient->stops;
+	walker->left_x = 0;
+	walker->right_x = 0x10000;
+	walker->stepper = 0;
+	walker->left_ag = 0;
+	walker->left_rb = 0;
+	walker->right_ag = 0;
+	walker->right_rb = 0;
+	walker->overflow = gradient->overflow;
+	walker->transparent = gradient->transparent;
+	walker->need_reset = 1;
+}
+
+void ipixel_gradient_walker_reset(ipixel_gradient_walker_t *walker,
+	IINT64 pos_fixed_48_16)
+{
+	IINT64 x, left_x, right_x;
+	IUINT32 left_c, right_c;
+	ipixel_gradient_stop_t *stops = walker->stops;
+	int n, count = walker->nstops;
+	IINT64 pos = pos_fixed_48_16;
+
+	switch (walker->overflow)
+	{
+	case IBOM_WRAP:
+		x = (IINT32)(pos & 0xffff);
+		for (n = 0; n < count; n++) 
+			if ((IINT32)x < stops[n].x) break;
+		if (n == 0) {
+			left_x = stops[count - 1].x - 0x10000;
+			left_c = stops[count - 1].color;
+		}	else {
+			left_x = stops[n - 1].x;
+			left_c = stops[n - 1].color;
+		}
+		if (n == count) {
+			right_x = stops[0].x + 0x10000;
+			right_c = stops[0].color;
+		}	else {
+			right_x = stops[n].x;
+			right_c = stops[n].color;
+		}
+		left_x += (pos - x);
+		right_x += (pos - x);
+		break;
+
+	case IBOM_REPEAT:
+		for (n = 0; n < count; n++)
+			if (pos < stops[n].x) break;
+		if (n == 0) {
+			left_x = ((IINT64)0x80000000) << 32;
+			left_c = stops[0].color;
+		}	else {
+			left_x = stops[n - 1].x;
+			left_c = stops[n - 1].color;
+		}
+		if (n == count) {
+			right_x = ((IINT64)0x7fffffff) << 32;
+			right_c = stops[n - 1].color;
+		}	else {
+			right_x = stops[n].x;
+			right_c = stops[n].color;
+		}
+		break;
+
+	case IBOM_MIRROR:
+		x = (IINT32)(pos & 0xffff);
+		if ((IINT32)pos & 0x10000)
+			x = 0x10000 - x;
+		for (n = 0; n < count; n++) 
+			if (x < stops[n].x) break;
+		if (n == 0) {
+			left_x = -stops[0].x;
+			left_c = stops[0].color;
+		}	else {
+			left_x = stops[n - 1].x;
+			left_c = stops[n - 1].color;
+		}
+		if (n == count) {
+			right_x = 0x20000 - stops[n - 1].x;
+			right_c = stops[n - 1].color;
+		}	else {
+			right_x = stops[n].x;
+			right_c = stops[n].color;
+		}
+		if ((IINT32)pos & 0x10000) {
+			IUINT32 tmp_c;
+			IINT64 tmp_x;
+			tmp_x = 0x10000 - right_x;
+			right_x = 0x10000 - left_x;
+			left_x = tmp_x;
+			tmp_c = right_c;
+			right_c = left_c;
+			left_c = tmp_c;
+			x = 0x10000 - x;
+		}
+		left_x += (pos - x);
+		right_x += (pos - x);
+		break;
+	
+	default:
+		for (n = 0; n < count; n++) 
+			if (pos < stops[n].x) break;
+		if (n == 0) {
+			left_x = (IINT32)0x80000000;
+			right_x = stops[0].x;
+			left_c = right_c = walker->transparent;
+		}	
+		else if (n == count) {
+			left_x = stops[count - 1].x;
+			right_x = 0x7fffffff;
+			left_c = right_c = walker->transparent;
+		}	else {
+			left_x = stops[n - 1].x;
+			right_x = stops[n].x;
+			left_c = stops[n - 1].color;
+			right_c = stops[n].color;
+		}
+		break;
+	}
+
+	walker->left_x = left_x;
+	walker->right_x = right_x;
+	walker->left_ag = (left_c & 0xff00ff00) >> 8;
+	walker->left_rb = (left_c & 0x00ff00ff);
+	walker->right_ag = (right_c & 0xff00ff00) >> 8;
+	walker->right_rb = (right_c & 0x00ff00ff);
+
+	if (walker->left_x == walker->right_x ||
+		(walker->left_ag == walker->right_ag && 
+		walker->left_rb == walker->right_rb)) {
+		walker->stepper = 0;
+	}	
+	else {
+		IINT64 width = (IINT64)(right_x - left_x);
+		if (width > 0) walker->stepper = (IINT32)(((1 << 24) + width / 2) / width);
+		else walker->stepper = 0;
+	}
+
+	walker->need_reset = 0;
+}
+
+
+#define IPIXEL_GRADIENT_NEED_RESET(w, x) \
+	((w)->need_reset || (x) < (w)->left_x || (x) >= (w)->right_x)
+
+IUINT32 ipixel_gradient_walker_pixel(ipixel_gradient_walker_t *walker,
+	IINT64 pos_fixed_48_16)
+{
+	int dist, idist;
+	IUINT32 t1, t2, a, color;
+	IINT64 x = pos_fixed_48_16;
+
+	if (IPIXEL_GRADIENT_NEED_RESET(walker, x))
+		ipixel_gradient_walker_reset(walker, x);
+
+	if (walker->left_c == walker->right_c)
+		return walker->left_c;
+
+	dist = ((int)(x - walker->left_x) * walker->stepper) >> 16;
+	idist = 256 - dist;
+
+	t1 = walker->left_rb * idist + walker->right_rb * dist;
+	t1 = (t1 >> 8) & 0xff00ff;
+
+	t2 = walker->left_ag * idist + walker->right_ag * dist;
+	t2 &= 0xff00ff00;
+
+	color = t2 & 0xff000000;
+	a = color >> 24;
+	a = a;
+
+	return color | (t1 & 0xff00ff) | (t2 & 0xff00);
+}
+
+
+
+//=====================================================================
+// 色彩源实现
+//=====================================================================
+
+// 通用梯度初始化
+static void ipixel_gradient_init_common(ipixel_gradient_t *gradient,
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	gradient->stops = (ipixel_gradient_stop_t*)stops;
+	gradient->nstops = nstops;
+	gradient->overflow = IBOM_REPEAT;
+	gradient->transparent = 0;
+}
+
+// 计算点乘
+static inline IINT64 ipixel_fixed_dot(IINT64 x1, IINT64 y1, IINT64 z1,
+	IINT64 x2, IINT64 y2, IINT64 z2)
+{
+	return x1 * x2 + y1 * y2 + z1 * z2;
+}
+
+// 浮点数点乘
+static inline double ipixel_float_dot(double x1, double y1, double z1,
+	double x2, double y2, double z2)
+{
+	return x1 * x2 + y1 * y2 + z1 * z2;
+}
+
+// 初始化线性梯度
+static void ipixel_gradient_linear_init(ipixel_gradient_linear_t *gradient,
+	const ipixel_point_fixed_t *p1, const ipixel_point_fixed_t *p2,
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	ipixel_gradient_init_common(&gradient->gradient, stops, nstops);
+	gradient->p1.x = p1->x;
+	gradient->p1.y = p1->y;
+	gradient->p2.x = p2->x;
+	gradient->p2.y = p2->y;
+}
+
+// 初始化放射梯度
+static void ipixel_gradient_radial_init(ipixel_gradient_radial_t *gradient,
+	const ipixel_point_fixed_t *inner, const ipixel_point_fixed_t *outer,
+	cfixed inner_radius, cfixed outer_radius, 
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	ipixel_gradient_init_common(&gradient->gradient, stops, nstops);
+	gradient->x1 = inner->x;
+	gradient->y1 = inner->y;
+	gradient->r1 = inner_radius;
+	gradient->x2 = outer->x;
+	gradient->y2 = outer->y;
+	gradient->r2 = outer_radius;
+	gradient->xd = gradient->x2 - gradient->x1;
+	gradient->yd = gradient->y2 - gradient->y1;
+	gradient->rd = gradient->r2 - gradient->r1;
+	gradient->a = (double)ipixel_fixed_dot(gradient->xd, gradient->yd, 
+		-gradient->rd, gradient->xd, gradient->yd, gradient->rd);
+	if (gradient->a != 0) 
+		gradient->inva = 1.0 * cfixed_const_1 / gradient->a;
+	else 
+		gradient->inva = 0.0;
+	gradient->mindr = -1.0 * cfixed_const_1 * gradient->r1;
+}
+
+#define IPX_MOD(a, b) ((a) < 0 ? ((b) - ((-(a) - 1) % (b))) - 1 : (a) % (b))
+
+// 初始化锥型梯度
+static void ipixel_gradient_conical_init(ipixel_gradient_conical_t *gradient,
+	const ipixel_point_fixed_t *center, cfixed angle, 
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	ipixel_gradient_init_common(&gradient->gradient, stops, nstops);
+
+	angle = IPX_MOD(angle, cfixed_from_int(360));
+	gradient->center = *center;
+	gradient->angle = cfixed_to_double(angle) * 3.141592653589793 / 180.0;
+}
+
+// 更新 fetch
+static inline void ipixel_source_update(ipixel_source_t *source)
+{
+	if (source->type == IPIXEL_SOURCE_BITMAP) {
+		source->fetch = ipixel_span_get_proc(source->source.bitmap, 
+			source->transform);
+	}
+}
+
+// 初始化位图源
+void ipixel_source_init_bitmap(ipixel_source_t *source, IBITMAP *bmp)
+{
+	source->type = IPIXEL_SOURCE_BITMAP;
+	source->source.bitmap = bmp;
+	source->overflow = (int)ibitmap_imode(bmp, overflow);
+	source->transparent = (IUINT32)bmp->mask;
+	source->srect.left = 0;
+	source->srect.top = 0;
+	source->srect.right = (int)bmp->w;
+	source->srect.bottom = (int)bmp->h;
+	source->transform = NULL;
+	source->fetch = NULL;
+	ipixel_source_update(source);
+}
+
+// 初始化固定颜色源
+void ipixel_source_init_solid(ipixel_source_t *source, IUINT32 color)
+{
+	source->type = IPIXEL_SOURCE_SOLID;
+	source->source.solid.color = color;
+	source->fetch = NULL;
+}
+
+// 初始化线性梯度源
+void ipixel_source_init_gradient_linear(ipixel_source_t *source,
+	const ipixel_point_fixed_t *p1, const ipixel_point_fixed_t *p2,
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	source->type = IPIXEL_SOURCE_LINEAR;
+	source->transform = NULL;
+	ipixel_gradient_linear_init(&source->source.linear, p1, p2, 
+		stops, nstops);
+	source->transparent = 0;
+	source->overflow = IBOM_REPEAT;
+	source->fetch = NULL;
+}
+
+// 初始化辐射源
+void ipixel_source_init_gradient_radial(ipixel_source_t *source,
+	const ipixel_point_fixed_t *inner, const ipixel_point_fixed_t *outer,
+	cfixed inner_radius, cfixed outer_radius, 
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	source->type = IPIXEL_SOURCE_RADIAL;
+	source->transform = NULL;
+	ipixel_gradient_radial_init(&source->source.radial, inner, outer,
+		inner_radius, outer_radius, stops, nstops);
+	source->transparent = 0;
+	source->overflow = IBOM_REPEAT;
+	source->fetch = NULL;
+}
+
+// 初始化锥体源
+void ipixel_source_init_gradient_conical(ipixel_source_t *source,
+	const ipixel_point_fixed_t *center, cfixed angle, 
+	const ipixel_gradient_stop_t *stops, int nstops)
+{
+	source->type = IPIXEL_SOURCE_CONICAL;
+	source->transform = NULL;
+	ipixel_gradient_conical_init(&source->source.conical, center, angle,
+		stops, nstops);
+	source->transparent = 0;
+	source->overflow = IBOM_REPEAT;
+	source->fetch = NULL;
+}
+
+
+// 设置变换矩阵
+void ipixel_source_set_transform(ipixel_source_t *source,
+	const ipixel_transform_t *t)
+{
+	source->transform = (ipixel_transform_t*)t;
+	source->fetch = NULL;
+	ipixel_source_update(source);
+}
+
+// 设置越界方式
+void ipixel_source_set_overflow(ipixel_source_t *source,
+	enum IBOM overflow, IUINT32 transparent)
+{
+	source->overflow = (int)overflow;
+	source->transparent = transparent;
+
+	switch (source->type)
+	{
+	case IPIXEL_SOURCE_BITMAP:
+		ibitmap_imode(source->source.bitmap, overflow) = (int)overflow;
+		source->source.bitmap->mask = (IUINT32)transparent;
+		break;
+
+	case IPIXEL_SOURCE_SOLID:
+		break;
+
+	case IPIXEL_SOURCE_LINEAR:
+		source->source.linear.gradient.overflow = (int)overflow;
+		source->source.linear.gradient.transparent = transparent;
+		break;
+
+	case IPIXEL_SOURCE_RADIAL:
+		source->source.radial.gradient.overflow = (int)overflow;
+		source->source.radial.gradient.transparent = transparent;
+		break;
+
+	case IPIXEL_SOURCE_CONICAL:
+		source->source.conical.gradient.overflow = (int)overflow;
+		source->source.conical.gradient.transparent = transparent;
+		break;
+	}
+	ipixel_source_update(source);
+}
+
+// 设置过滤器
+void ipixel_source_set_filter(ipixel_source_t *source,
+	enum IPIXELFILTER filter)
+{
+	if (source->type == IPIXEL_SOURCE_BITMAP) {
+		ibitmap_imode(source->source.bitmap, filter) = (int)filter;
+		ipixel_source_update(source);
+	}
+}
+
+// 设置裁剪矩形
+void ipixel_source_set_bound(ipixel_source_t *source,
+	const IRECT *bound)
+{
+	IBITMAP *src;
+	IRECT size;
+	if (source->type != IPIXEL_SOURCE_BITMAP) 
+		return;
+	src = source->source.bitmap;
+	size.left = 0;
+	size.top = 0;
+	size.right = (int)src->w;
+	size.bottom = (int)src->h;
+	if (bound == NULL) {
+		source->srect = size;
+	}	else {
+		source->srect = *bound;
+		ipixel_rect_intersection(&source->srect, &size);
+	}
+}
+
+
+// 取得固定颜色扫描线
+static int ipixel_source_fetch_solid(const ipixel_source_t *source, 
+	int offset, int line, int width, IUINT32 *card, const IUINT8 *mask)
+{
+	IUINT32 color = source->source.solid.color;
+	_ipixel_fill_32(card, 0, width, color);
+	return 0;
+}
+
+// 取得位图的扫描线
+static int ipixel_source_fetch_bitmap(const ipixel_source_t *source,
+	int offset, int line, int width, IUINT32 *card, const IUINT8 *mask)
+{
+	IBITMAP *src;
+	int retval;
+	src = source->source.bitmap;
+	if (source->fetch == NULL) 
+		return -1000;
+	retval = ipixel_span_fetch(src, offset, line, width, card, 
+		source->transform, source->fetch, mask, &source->srect);
+	return retval;
+}
+
+
+// 取得线性梯度的扫描线
+static int ipixel_source_fetch_linear(const ipixel_source_t *source,
+	int offset, int line, int width, IUINT32 *card, const IUINT8 *mask)
+{
+	const ipixel_gradient_linear_t *linear = &source->source.linear;
+	const ipixel_gradient_t *gradient = &linear->gradient;
+	ipixel_gradient_walker_t walker;
+	ipixel_vector_t v, unit;
+	IINT64 l, dx, dy;
+	IUINT32 *endup = card + width;
+	const static IUINT8 mask0[2] = { 255, 255 };
+	int incmask = 1;
+
+	ipixel_gradient_walker_init(&walker, gradient);
+
+	if (mask == NULL) mask = mask0, incmask = 0;
+
+	v.vector[0] = cfixed_from_int(offset) + cfixed_const_half;
+	v.vector[1] = cfixed_from_int(line) + cfixed_const_half;
+	v.vector[2] = cfixed_const_1;
+
+	if (source->transform) {
+		if (ipixel_transform_point(source->transform, &v) != 0)
+			return -1;
+		unit.vector[0] = source->transform->matrix[0][0];
+		unit.vector[1] = source->transform->matrix[1][0];
+		unit.vector[2] = source->transform->matrix[2][0];
+	}
+	else {
+		unit.vector[0] = cfixed_const_1;
+		unit.vector[1] = 0;
+		unit.vector[2] = 0;
+	}
+
+	dx = linear->p2.x - linear->p1.x;
+	dy = linear->p2.y - linear->p1.y;
+
+	l = dx * dx + dy * dy;
+
+	if (l == 0 || unit.vector[2] == 0) {
+		// 插值，无透视
+		IINT64 t, next_inc;
+		double inc;
+		if (l == 0 || v.vector[2] == 0) {
+			t = 0;
+			inc = 0;
+		}	
+		else {
+			double invden, v2;
+			invden = cfixed_const_1 * (double)cfixed_const_1 / 
+				(l * (double)v.vector[2]);
+			v2 = v.vector[2] * (1.0 / cfixed_const_1);
+			t = (IINT64)(((dx * v.vector[0] + dy * v.vector[1]) - 
+				(dx * linear->p1.x + dy * linear->p1.y) * v2) * invden);
+			inc = (dx * unit.vector[0] + dy * unit.vector[1]) * invden;
+		}
+
+		next_inc = 0;
+
+		if (((IINT64)inc * width) == 0) {
+			IUINT32 color = ipixel_gradient_walker_pixel(&walker, t);
+			while (card < endup) *card++ = color;
+		}
+		else {
+			int i;
+			for (i = 0; card < endup; mask += incmask, card++) {
+				if (mask[0]) {
+					card[0] = ipixel_gradient_walker_pixel(&walker, 
+						t + next_inc);
+				}
+				i++;
+				next_inc = (IINT64)(inc * i);
+			}
+		}
+	}
+	else {
+		// 透视
+		double t;
+		for (t = 0; card < endup; mask += incmask, card++) {
+			if (mask[0]) {
+				if (v.vector[2] != 0) {
+					double invden, v2;
+					invden = cfixed_const_1 * (double)cfixed_const_1 / 
+						(l * (double)v.vector[2]);
+					v2 = v.vector[2] * (1.0 / cfixed_const_1);
+					t = ((dx * v.vector[0] + dy * v.vector[1]) - 
+						(dx * linear->p1.x + dy * linear->p1.y) * v2) * 
+						invden;
+				}
+				card[0] = ipixel_gradient_walker_pixel(&walker, (IINT64)t);
+			}
+			v.vector[0] += unit.vector[0];
+			v.vector[1] += unit.vector[1];
+			v.vector[2] += unit.vector[2];
+		}
+	}
+
+	return 0;
+}
+
+static inline IUINT32 ipixel_radial_compute(double a, double b, double c, 
+	double inva, double dr, double mindr, ipixel_gradient_walker_t *walker)
+{
+	double det;
+	if (a == 0.0 && b != 0.0) {
+		return ipixel_gradient_walker_pixel(walker, 
+			(IINT64)(cfixed_const_half * c / b));
+	}
+	det = ipixel_float_dot(b, a, 0, b, -c, 0);
+	if (det >= 0) {
+		double sqrtdet, t0, t1;
+		sqrtdet = sqrt(det);
+		t0 = (b + sqrtdet) * inva;
+		t1 = (b - sqrtdet) * inva;
+		if (walker->overflow == IBOM_TRANSPARENT) {
+			if (0 <= t0 && t0 <= cfixed_const_1) 
+				return ipixel_gradient_walker_pixel(walker, (IINT64)t0);
+			else if (0 <= t1 && t1 <= cfixed_const_1)
+				return ipixel_gradient_walker_pixel(walker, (IINT64)t1);
+		}
+		else {
+			if (t0 * dr > mindr) 
+				return ipixel_gradient_walker_pixel(walker, (IINT64)t0);
+			else if (t1 * dr > mindr)
+				return ipixel_gradient_walker_pixel(walker, (IINT64)t1);
+		}
+	}
+
+	return walker->transparent;
+}
+
+// 取得线性梯度的扫描线
+static int ipixel_source_fetch_radial(const ipixel_source_t *source,
+	int offset, int line, int width, IUINT32 *card, const IUINT8 *mask)
+{
+	const ipixel_gradient_radial_t *radial = &source->source.radial;
+	const ipixel_gradient_t *gradient = &radial->gradient;
+	ipixel_gradient_walker_t walker;
+	IUINT32 *endup = card + width;
+	ipixel_vector_t v, unit;
+	const static IUINT8 mask0[2] = { 255, 255 };
+	int incmask = 1;
+
+	if (mask == NULL) mask = mask0, incmask = 0;
+
+	v.vector[0] = cfixed_from_int(offset) + cfixed_const_half;
+	v.vector[1] = cfixed_from_int(line) + cfixed_const_half;
+	v.vector[2] = cfixed_const_1;
+
+	ipixel_gradient_walker_init(&walker, gradient);
+	
+	if (source->transform) {
+		if (ipixel_transform_point(source->transform, &v) != 0)
+			return -1;
+		unit.vector[0] = source->transform->matrix[0][0];
+		unit.vector[1] = source->transform->matrix[1][0];
+		unit.vector[2] = source->transform->matrix[2][0];
+	}
+	else {
+		unit.vector[0] = cfixed_const_1;
+		unit.vector[1] = 0;
+		unit.vector[2] = 0;
+	}
+
+	if (unit.vector[2] == 0 && v.vector[2] == cfixed_const_1) {
+		// 插值变换
+		IINT64 b, db, c, dc, ddc;
+		v.vector[0] -= radial->x1;
+		v.vector[1] -= radial->y1;
+		b = ipixel_fixed_dot(v.vector[0], v.vector[1], radial->r1,
+			radial->xd, radial->yd, radial->rd);
+		db = ipixel_fixed_dot(unit.vector[0], unit.vector[1], 0,
+			radial->xd, radial->yd, 0);
+
+		c = ipixel_fixed_dot(v.vector[0], v.vector[1], 
+			-((IINT64)radial->r1), 
+			v.vector[0], v.vector[1], radial->r1);
+		dc = ipixel_fixed_dot(2 * (IINT64)v.vector[0] + unit.vector[0],
+			2 * (IINT64)v.vector[1] + unit.vector[1], 0,
+			unit.vector[0], unit.vector[1], 0);
+		ddc = 2 * ipixel_fixed_dot(unit.vector[0], unit.vector[1], 0,
+			unit.vector[0], unit.vector[1], 0);
+
+		for (; card < endup; mask += incmask, card++) {
+			if (mask[0]) {
+				card[0] = ipixel_radial_compute(
+					radial->a, (double)b, (double)c, radial->inva, radial->rd,
+					radial->mindr, &walker);
+			}
+			b += db;
+			c += dc;
+			dc += ddc;
+		}
+	}
+	else {
+		// 透视变换
+		IUINT32 transparent = source->transparent;
+		for (; card < endup; mask += incmask, card++) {
+			if (mask[0]) {
+				if (v.vector[2] != 0) {
+					double pdx, pdy, invv2, b, c;
+					invv2 = 1.0 * cfixed_const_1 / v.vector[2];
+					pdx = v.vector[0] * invv2 - radial->x1;
+					pdy = v.vector[1] * invv2 - radial->y1;
+					b = ipixel_float_dot(pdx, pdy, radial->r1,
+						radial->xd, radial->yd, radial->rd);
+					c = ipixel_float_dot(pdx, pdy, -radial->r1,
+						pdx, pdy, radial->r1);
+					card[0] = ipixel_radial_compute(
+						radial->a, b, c, 
+						radial->inva, radial->rd, radial->mindr,
+						&walker);
+				}
+				else {
+					card[0] = transparent;
+				}
+			}
+			v.vector[0] += unit.vector[0];
+			v.vector[1] += unit.vector[1];
+			v.vector[2] += unit.vector[2];
+		}
+	}
+
+	return 0;
+}
+
+static inline double ipixel_conical_coordinate(double x, double y, double a)
+{
+	double t;
+	t = atan2(y, x) + a;
+	while (t < 0) t += 3.141592653589793 * 2.0;
+	while (t >= 2.0 * 3.141592653589793) t -= 3.141592653589793 * 2.0;
+	return 1 - t * (1.0 / (2 * 3.141592653589793));
+}
+
+// 取得线性梯度的扫描线
+static int ipixel_source_fetch_conical(const ipixel_source_t *source,
+	int offset, int line, int width, IUINT32 *card, const IUINT8 *mask)
+{
+	const ipixel_gradient_conical_t *conical = &source->source.conical;
+	const ipixel_gradient_t *gradient = &conical->gradient;
+	const static IUINT8 mask0[2] = { 255, 255 };
+	ipixel_gradient_walker_t walker;
+	IUINT32 *endup = card + width;
+	double cx = 1.0, cy = 0.0, cz = 0.0;
+	double rx = offset + 0.5;
+	double ry = line + 0.5;
+	double rz = 1.0;
+	int affine = 1;
+	int incmask = 1;
+
+	if (mask == NULL) mask = mask0, incmask = 0;
+
+	ipixel_gradient_walker_init(&walker, gradient);
+
+	if (source->transform) {
+		ipixel_vector_t v;
+		v.vector[0] = cfixed_from_int(offset) + cfixed_const_half;
+		v.vector[1] = cfixed_from_int(line) + cfixed_const_half;
+		v.vector[2] = cfixed_const_1;
+		if (ipixel_transform_point(source->transform, &v) != 0)
+			return -1;
+		cx = source->transform->matrix[0][0] / 65536.0;
+		cy = source->transform->matrix[1][0] / 65536.0;
+		cz = source->transform->matrix[2][0] / 65536.0;
+		rx = v.vector[0] / 65536.0;
+		ry = v.vector[1] / 65536.0;
+		rz = v.vector[2] / 65536.0;
+		affine = source->transform->matrix[2][0] == 0 &&
+			v.vector[2] == cfixed_const_1;
+	}
+
+	if (affine) {
+		// 仿射变换
+		rx -= conical->center.x / 65536.0;
+		ry -= conical->center.y / 65536.0;
+		for (; card < endup; mask += incmask, card++) {
+			if (mask[0]) {
+				double t = ipixel_conical_coordinate(rx, ry, conical->angle);
+				card[0] = ipixel_gradient_walker_pixel(&walker, 
+					(IINT64)(t * 65536.0));
+			}
+			rx += cx;
+			ry += cy;
+		}
+	}
+	else {
+		// 投影变换
+		double centerx = conical->center.x / 65536.0;
+		double centery = conical->center.y / 65536.0;
+		for (; card < endup; mask += incmask, card++) {
+			double x, y;
+			if (mask[0]) {
+				double t;
+				if (rz != 0) {
+					x = rx / rz;
+					y = ry / rz;
+				}	else {
+					x = y = 0.0;
+				}
+				x -= centerx;
+				y -= centery;
+				t = ipixel_conical_coordinate(x, y, conical->angle);
+				card[0] = ipixel_gradient_walker_pixel(&walker, 
+					(IINT64)(t * 65536.0));
+			}
+			rx += cx;
+			ry += cy;
+			rz += cz;
+		}
+	}
+
+	return 0;
+}
+
+
+
+// 取得扫描线
+int ipixel_source_fetch(const ipixel_source_t *source, int offset, int line,
+	int width, IUINT32 *card, const IUINT8 *mask)
+{
+	int retval = -100;
+	switch (source->type)
+	{
+	case IPIXEL_SOURCE_BITMAP:
+		retval = ipixel_source_fetch_bitmap(source, offset, line, width,
+			card, mask);
+		break;
+
+	case IPIXEL_SOURCE_SOLID:
+		retval = ipixel_source_fetch_solid(source, offset, line, width,
+			card, mask);
+		break;
+	
+	case IPIXEL_SOURCE_LINEAR:
+		retval = ipixel_source_fetch_linear(source, offset, line, width,
+			card, mask);
+		break;
+
+	case IPIXEL_SOURCE_RADIAL:
+		retval = ipixel_source_fetch_radial(source, offset, line, width,
+			card, mask);
+		break;
+
+	case IPIXEL_SOURCE_CONICAL:
+		retval = ipixel_source_fetch_conical(source, offset, line, width,
+			card, mask);
+		break;
+	}
+
+	return retval;
+}
 
 

@@ -115,12 +115,12 @@ int cvector_push(struct CVECTOR *vector, const void *data, size_t size);
 
 // 批量填充梯形
 int ipixel_render_traps(IBITMAP *dst, const ipixel_trapezoid_t *traps, 
-	int ntraps, IBITMAP *alpha, IUINT32 color, int isadditive, 
+	int ntraps, IBITMAP *alpha, const ipixel_source_t *src, int isadditive,
 	const IRECT *clip, struct CVECTOR *scratch);
 
 // 绘制多边形
 int ipixel_render_polygon(IBITMAP *dst, const ipixel_point_fixed_t *pts,
-	int npts, IBITMAP *alpha, IUINT32 color, int isadditive,
+	int npts, IBITMAP *alpha, const ipixel_source_t *src, int isadditive,
 	const IRECT *clip, struct CVECTOR *scratch);
 
 
@@ -144,33 +144,49 @@ struct IPAINT
 	double line_width;
 	ipixel_point_t *pts;
 	int npts;
+	ipixel_source_t *current;
+	ipixel_source_t source;
 	cvector_t scratch;
 	cvector_t points;
 	cvector_t pointf;
+	cvector_t gradient;
 };
 
 
 //---------------------------------------------------------------------
 // 作图接口
 //---------------------------------------------------------------------
+
+// 创建图形对象
 ipaint_t *ipaint_create(IBITMAP *image);
 
+// 销毁图形对象
 void ipaint_destroy(ipaint_t *paint);
 
+// 设置目标位图
 int ipaint_set_image(ipaint_t *paint, IBITMAP *image);
 
 
+// 色彩源：设置当前色彩源
+void ipaint_source_set(ipaint_t *paint, ipixel_source_t *source);
+
+// 设置当前颜色
 void ipaint_set_color(ipaint_t *paint, IUINT32 color);
 
+// 设置裁剪窗口
 void ipaint_set_clip(ipaint_t *paint, const IRECT *clip);
 
+// 设置字体颜色
 void ipaint_text_color(ipaint_t *paint, IUINT32 color);
 
+// 设置字体背景
 void ipaint_text_background(ipaint_t *paint, IUINT32 color);
 
+// 设置抗锯齿
 void ipaint_anti_aliasing(ipaint_t *paint, int level);
 
 
+// 绘制多边形
 int ipaint_draw_polygon(ipaint_t *paint, const ipixel_point_t *pts, int n);
 
 int ipaint_draw_line(ipaint_t *paint, double x1, double y1, double x2, 
@@ -203,8 +219,6 @@ int ipaint_raster_draw_3d(ipaint_t *paint, double x, double y, double z,
 
 int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src, 
 	const IRECT *bound, IUINT32 color, int flags);
-
-
 
 
 
