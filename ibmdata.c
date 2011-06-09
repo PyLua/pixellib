@@ -2417,7 +2417,7 @@ void ipixel_gradient_walker_reset(ipixel_gradient_walker_t *walker,
 	switch (walker->overflow)
 	{
 	case IBOM_WRAP:
-		x = (IINT32)(pos & 0xffff);
+		x = (IINT32)pos & 0xffff;
 		for (n = 0; n < count; n++) 
 			if ((IINT32)x < stops[n].x) break;
 		if (n == 0) {
@@ -2496,13 +2496,13 @@ void ipixel_gradient_walker_reset(ipixel_gradient_walker_t *walker,
 		for (n = 0; n < count; n++) 
 			if (pos < stops[n].x) break;
 		if (n == 0) {
-			left_x = (IINT32)0x80000000;
+			left_x = ((IINT64)0x80000000) << 32;
 			right_x = stops[0].x;
 			left_c = right_c = walker->transparent;
 		}	
 		else if (n == count) {
 			left_x = stops[count - 1].x;
-			right_x = 0x7fffffff;
+			right_x = ((IINT64)0x7fffffff) << 32;
 			left_c = right_c = walker->transparent;
 		}	else {
 			left_x = stops[n - 1].x;
@@ -2515,6 +2515,8 @@ void ipixel_gradient_walker_reset(ipixel_gradient_walker_t *walker,
 
 	walker->left_x = left_x;
 	walker->right_x = right_x;
+	walker->left_c = left_c;
+	walker->right_c = right_c;
 	walker->left_ag = (left_c & 0xff00ff00) >> 8;
 	walker->left_rb = (left_c & 0x00ff00ff);
 	walker->right_ag = (right_c & 0xff00ff00) >> 8;
