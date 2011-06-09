@@ -2840,6 +2840,9 @@ static int ipixel_source_fetch_linear(const ipixel_source_t *source,
 	const static IUINT8 mask0[2] = { 255, 255 };
 	int incmask = 1;
 
+	if (gradient->stops == NULL || gradient->nstops < 1)
+		return -1;
+
 	ipixel_gradient_walker_init(&walker, gradient);
 
 	if (mask == NULL) mask = mask0, incmask = 0;
@@ -2850,7 +2853,7 @@ static int ipixel_source_fetch_linear(const ipixel_source_t *source,
 
 	if (source->transform) {
 		if (ipixel_transform_point(source->transform, &v) != 0)
-			return -1;
+			return -2;
 		unit.vector[0] = source->transform->matrix[0][0];
 		unit.vector[1] = source->transform->matrix[1][0];
 		unit.vector[2] = source->transform->matrix[2][0];
@@ -2970,6 +2973,9 @@ static int ipixel_source_fetch_radial(const ipixel_source_t *source,
 	const static IUINT8 mask0[2] = { 255, 255 };
 	int incmask = 1;
 
+	if (gradient->stops == NULL || gradient->nstops < 1)
+		return -1;
+
 	if (mask == NULL) mask = mask0, incmask = 0;
 
 	v.vector[0] = cfixed_from_int(offset) + cfixed_const_half;
@@ -2980,7 +2986,7 @@ static int ipixel_source_fetch_radial(const ipixel_source_t *source,
 	
 	if (source->transform) {
 		if (ipixel_transform_point(source->transform, &v) != 0)
-			return -1;
+			return -2;
 		unit.vector[0] = source->transform->matrix[0][0];
 		unit.vector[1] = source->transform->matrix[1][0];
 		unit.vector[2] = source->transform->matrix[2][0];
@@ -3078,6 +3084,9 @@ static int ipixel_source_fetch_conical(const ipixel_source_t *source,
 	int affine = 1;
 	int incmask = 1;
 
+	if (gradient->stops == NULL || gradient->nstops < 1)
+		return -1;
+
 	if (mask == NULL) mask = mask0, incmask = 0;
 
 	ipixel_gradient_walker_init(&walker, gradient);
@@ -3088,7 +3097,7 @@ static int ipixel_source_fetch_conical(const ipixel_source_t *source,
 		v.vector[1] = cfixed_from_int(line) + cfixed_const_half;
 		v.vector[2] = cfixed_const_1;
 		if (ipixel_transform_point(source->transform, &v) != 0)
-			return -1;
+			return -2;
 		cx = source->transform->matrix[0][0] / 65536.0;
 		cy = source->transform->matrix[1][0] / 65536.0;
 		cz = source->transform->matrix[2][0] / 65536.0;
