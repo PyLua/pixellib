@@ -1573,13 +1573,17 @@ static struct CVECTOR ipixel_scratch = { 0, 0, 0 };
 
 // 批量填充梯形
 int ipixel_render_traps(IBITMAP *dst, const ipixel_trapezoid_t *traps, 
-	int ntraps, IBITMAP *alpha, IUINT32 color, int isadditive, 
+	int ntraps, IBITMAP *alpha, const ipixel_source_t *src, int isadd,
 	const IRECT *clip, struct CVECTOR *scratch)
 {
 	iHLineDrawProc hline;
 	ipixel_span_t *spans;
+	iSpanDrawProc draws;
 	IRECT bound, rect;
-	int cx, cy, ch, i;
+	int cx, cy, ch, cw, n, i, fmt;
+	iColorIndex *index;
+	IUINT32 color;
+	IUINT32 *card;
 	long size;
 
 	if (ipixel_trapezoid_bound(traps, ntraps, &bound) == 0)
@@ -1607,21 +1611,37 @@ int ipixel_render_traps(IBITMAP *dst, const ipixel_trapezoid_t *traps,
 	cx = bound.left;
 	cy = bound.top;
 	ch = bound.bottom - bound.top;
+	cw = bound.right - bound.left;
 
 	ipixel_rect_offset(&bound, -cx, -cy);
 	
 	if (scratch == NULL) scratch = &ipixel_scratch;
+	size = (ch + 5) * sizeof(ipixel_span_t) * 2;
 
-	size = ch * sizeof(ipixel_span_t) * 2;
+	if (src->type != IPIXEL_SOURCE_SOLID) 
+		size += ch * sizeof(IUINT32);
+	
 	if (size > (long)scratch->size) {
 		if (cvector_resize(scratch, size) != 0)
 			return -3;
 	}
 
-	spans = (ipixel_span_t*)scratch->data;
+	if (src->type == IPIXEL_SOURCE_SOLID) {
+		spans = (ipixel_span_t*)scratch->data;
+		card = NULL;
+		color = src->source.solid.color;
+	}	else {
+		spans = (ipixel_span_t*)(scratch->data + sizeof(IUINT32) * cw);
+		card = (IUINT32*)scratch->data;
+		color = 0;
+	}
 
-	size = ipixel_trapezoid_spans(traps, ntraps, spans, -cx, -cy, &bound);
-	hline = ipixel_get_hline_proc(ibitmap_pixfmt_guess(dst), isadditive, 0);
+	n = ibitmap_imode(dst, subpixel);
+
+	fmt = ibitmap_pixfmt_guess(dst);
+	size = ipixel_trapezoid_spans(traps, ntraps, n, spans, -cx, -cy, &bound);
+	hline = ipixel_get_hline_proc(fmt, isadd, 0);
+	draws = ipixel_get_span_proc(fmt, isadd, 0);
 
 	for (i = 0; i < (int)size; i++) {
 		int y = spans[i].y;
@@ -1631,11 +1651,24 @@ int ipixel_render_traps(IBITMAP *dst, const ipixel_trapezoid_t *traps,
 
 	ipixel_raster_traps(alpha, traps, ntraps, -cx, -cy, &bound);
 
+	index = (iColorIndex*)dst->extra;
+	if (index == NULL) index = _ipixel_dst_index;
+
 	for (i = 0; i < (int)size; i++) {
 		int y = spans[i].y;
 		IUINT8 *mask = (IUINT8*)alpha->line[y] + spans[i].x;
-		hline(dst->line[cy + y], cx + spans[i].x, spans[i].w, color, mask,
-			(const iColorIndex*)dst->extra);
+		int dx = cx + spans[i].x;
+		int dy = cy + spans[i].y;
+		int dw = spans[i].w;
+		int retval;
+		if (card == NULL) {
+			hline(dst->line[dy], dx, dw, color, mask, index);
+		}	else {
+			assert(dw <= cw);
+			retval = ipixel_source_fetch(src, dx, dy, dw, card, mask);
+			if (retval != 0) continue;
+			draws(dst->line[dy], dx, dw, card, mask, index);
+		}
 	}
 
 	return 0;
@@ -1644,7 +1677,7 @@ int ipixel_render_traps(IBITMAP *dst, const ipixel_trapezoid_t *traps,
 
 // 绘制多边形
 int ipixel_render_polygon(IBITMAP *dst, const ipixel_point_fixed_t *pts,
-	int npts, IBITMAP *alpha, IUINT32 color, int isadditive,
+	int npts, IBITMAP *alpha, const ipixel_source_t *src, int isadditive,
 	const IRECT *clip, struct CVECTOR *scratch)
 {
 	char _buffer[IBITMAP_STACK_BUFFER];
@@ -1685,7 +1718,7 @@ int ipixel_render_polygon(IBITMAP *dst, const ipixel_point_fixed_t *pts,
 		}
 	}
 
-	retval = ipixel_render_traps(dst, traps, ntraps, alpha, color, 
+	retval = ipixel_render_traps(dst, traps, ntraps, alpha, src, 
 		isadditive, clip, scratch);
 
 exit_label:
@@ -1714,6 +1747,9 @@ static void ipaint_init(ipaint_t *paint)
 	cvector_init(&paint->scratch);
 	cvector_init(&paint->points);
 	cvector_init(&paint->pointf);
+	cvector_init(&paint->gradient);
+	ipixel_source_init_solid(&paint->source, 0xff444444);
+	paint->current = &paint->source;
 }
 
 int ipaint_set_image(ipaint_t *paint, IBITMAP *image)
@@ -1724,10 +1760,8 @@ int ipaint_set_image(ipaint_t *paint, IBITMAP *image)
 
 	if (paint->alpha) {
 		subpixel = ibitmap_imode(paint->alpha, subpixel);
-		if (paint->alpha->w < image->w || paint->alpha->h < image->h) {
-			ibitmap_release(paint->alpha);
-			paint->alpha = NULL;
-		}
+		ibitmap_release(paint->alpha);
+		paint->alpha = NULL;
 	}
 
 	if (paint->alpha == NULL) {
@@ -1760,11 +1794,14 @@ ipaint_t *ipaint_create(IBITMAP *image)
 
 void ipaint_destroy(ipaint_t *paint)
 {
+	if (paint == NULL) return;
 	if (paint->alpha) ibitmap_release(paint->alpha);
 	paint->alpha = NULL;
 	cvector_destroy(&paint->scratch);
 	cvector_destroy(&paint->points);
 	cvector_destroy(&paint->pointf);
+	cvector_destroy(&paint->gradient);
+	free(paint);
 }
 
 
@@ -1854,7 +1891,7 @@ int ipaint_draw_primitive(ipaint_t *paint)
 	if (pts == NULL) return -20;
 
 	retval = ipixel_render_polygon(paint->image, pts, paint->npts, 
-		paint->alpha, paint->color, paint->additive, &paint->clip, 
+		paint->alpha, paint->current, paint->additive, &paint->clip, 
 		&paint->scratch);
 
 	return retval;
@@ -1864,14 +1901,21 @@ int ipaint_draw_traps(ipaint_t *paint, ipixel_trapezoid_t *traps, int ntraps)
 {
 	int retval;
 	retval = ipixel_render_traps(paint->image, traps, ntraps, paint->alpha,
-		paint->color, paint->additive, &paint->clip, &paint->scratch);
+		paint->current, paint->additive, &paint->clip, &paint->scratch);
 	return retval;
 }
 
+// 色彩源：设置当前色彩源
+void ipaint_source_set(ipaint_t *paint, ipixel_source_t *source)
+{
+	paint->current = (source)? source : &(paint->source);
+}
 
 void ipaint_set_color(ipaint_t *paint, IUINT32 color)
 {
 	paint->color = color;
+	paint->source.source.solid.color = color;
+	paint->current = &paint->source;
 }
 
 void ipaint_set_clip(ipaint_t *paint, const IRECT *clip)
@@ -1925,7 +1969,6 @@ int ipaint_draw_polygon(ipaint_t *paint, const ipixel_point_t *pts, int n)
 	return ipaint_draw_primitive(paint);
 }
 
-#include <stdio.h>
 
 int ipaint_draw_line(ipaint_t *paint, double x1, double y1, double x2,
 	double y2)
@@ -2177,4 +2220,6 @@ int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src,
 		color, &paint->clip, flags);
 	return 0;
 }
+
+
 

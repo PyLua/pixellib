@@ -211,13 +211,9 @@ extern "C" {
 void ipixel_raster_trapezoid(IBITMAP *image, const ipixel_trapezoid_t *trap,
 		int x_off, int y_off, const IRECT *clip);
 
-// 光栅化清除梯形
-void ipixel_raster_clear(IBITMAP *image, const ipixel_trapezoid_t *trap,
-		int x_off, int y_off, const IRECT *clip);
-
 // 光栅化扫描线
 int ipixel_raster_spans(ipixel_span_t *spans, const ipixel_trapezoid_t *trap,
-		int x_off, int y_off, const IRECT *clip);
+		int subpixel, int x_off, int y_off, const IRECT *clip);
 
 // 光栅化三角形
 void ipixel_raster_triangle(IBITMAP *image, const ipixel_point_fixed_t *p1,
@@ -287,7 +283,7 @@ static inline int ipixel_trapezoid_line_bound(const ipixel_trapezoid_t *t,
 
 
 // 取得traps的扫描线，需要传递spans的bound的高的两倍大小的spans进去
-int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n, 
+int ipixel_trapezoid_spans(const ipixel_trapezoid_t *t, int n, int subpixel,
 	ipixel_span_t *spans, int x_off, int y_off, const IRECT *clip);
 
 
@@ -367,6 +363,174 @@ int ibitmap_raster_draw_3d(IBITMAP *dst, double x, double y, double z,
 	const IBITMAP *src, const IRECT *rect, double offset_x, double offset_y,
 	double scale_x, double scale_y, double angle_x, double angle_y, 
 	double angle_z, IUINT32 color, const IRECT *clip);
+
+
+
+//=====================================================================
+// 色彩梯度部分
+//=====================================================================
+typedef struct ipixel_gradient          ipixel_gradient_t;
+typedef struct ipixel_gradient_stop     ipixel_gradient_stop_t;
+typedef struct ipixel_gradient_walker   ipixel_gradient_walker_t;
+
+
+struct ipixel_gradient
+{
+	int overflow;
+	IUINT32 transparent;
+	int nstops;
+	ipixel_gradient_stop_t *stops;
+};
+
+struct ipixel_gradient_stop
+{
+	cfixed x;
+	IUINT32 color;
+};
+
+struct ipixel_gradient_walker
+{
+	IUINT32 left_ag;
+	IUINT32 left_rb;
+	IUINT32 right_ag;
+	IUINT32 right_rb;
+	IINT64 left_x;
+	IINT64 right_x;
+	IINT32 stepper;
+	IUINT32 transparent;
+	int nstops;
+	ipixel_gradient_stop_t *stops;
+	int overflow;
+	int need_reset;
+};
+
+
+void ipixel_gradient_walker_init(ipixel_gradient_walker_t *walker, 
+	const ipixel_gradient_t *gradient);
+
+IUINT32 ipixel_gradient_walker_pixel(ipixel_gradient_walker_t *walker,
+	IINT64 pos_fixed_48_16);
+
+
+//---------------------------------------------------------------------
+// 色彩源实现
+//---------------------------------------------------------------------
+typedef struct ipixel_gradient_linear   ipixel_gradient_linear_t;
+typedef struct ipixel_gradient_radial   ipixel_gradient_radial_t;
+typedef struct ipixel_gradient_conical  ipixel_gradient_conical_t;
+typedef struct ipixel_solid_color       ipixel_solid_color_t;
+typedef struct ipixel_source            ipixel_source_t;
+
+// 线性梯度
+struct ipixel_gradient_linear
+{
+	ipixel_gradient_t gradient;
+	ipixel_point_fixed_t p1;
+	ipixel_point_fixed_t p2;
+};
+
+// 放射梯度
+struct ipixel_gradient_radial
+{
+	ipixel_gradient_t gradient;
+	cfixed x1, y1, r1;
+	cfixed x2, y2, r2;
+	cfixed xd, yd, rd;
+	double a;
+	double inva;
+	double mindr;
+};
+
+// 锥型梯度
+struct ipixel_gradient_conical
+{
+	ipixel_gradient_t gradient;
+	ipixel_point_fixed_t center;
+	double angle;
+};
+
+// 固定颜色
+struct ipixel_solid_color
+{
+	IUINT32 color;
+};
+
+// 像素源联合体
+union ipixel_source_union
+{
+	IBITMAP *bitmap;
+	ipixel_gradient_linear_t linear;
+	ipixel_gradient_radial_t radial;
+	ipixel_gradient_conical_t conical;
+	ipixel_solid_color_t solid;
+};
+
+// 像素源类型
+enum IPIXELSOURCE
+{
+	IPIXEL_SOURCE_BITMAP	= 0,
+	IPIXEL_SOURCE_SOLID		= 1,
+	IPIXEL_SOURCE_LINEAR	= 2,
+	IPIXEL_SOURCE_RADIAL	= 3,
+	IPIXEL_SOURCE_CONICAL	= 4,
+};
+
+// 像素源定义
+struct ipixel_source
+{
+	enum IPIXELSOURCE type;
+	ipixel_transform_t *transform;
+	int overflow;
+	IUINT32 transparent;
+	iBitmapFetchProc fetch;
+	IRECT srect;
+	union ipixel_source_union source;
+};
+
+
+// 初始化位图源
+void ipixel_source_init_bitmap(ipixel_source_t *source, IBITMAP *bmp);
+
+// 初始化固定颜色源
+void ipixel_source_init_solid(ipixel_source_t *source, IUINT32 color);
+
+// 初始化线性梯度源
+void ipixel_source_init_gradient_linear(ipixel_source_t *source,
+	const ipixel_point_fixed_t *p1, const ipixel_point_fixed_t *p2,
+	const ipixel_gradient_stop_t *stops, int nstops);
+
+// 初始化辐射源
+void ipixel_source_init_gradient_radial(ipixel_source_t *source,
+	const ipixel_point_fixed_t *inner, const ipixel_point_fixed_t *outer,
+	cfixed inner_radius, cfixed outer_radius, 
+	const ipixel_gradient_stop_t *stops, int nstops);
+
+// 初始化锥体源
+void ipixel_source_init_gradient_conical(ipixel_source_t *source,
+	const ipixel_point_fixed_t *center, cfixed angle, 
+	const ipixel_gradient_stop_t *stops, int nstops);
+
+
+// 设置变换矩阵：矩阵指针变化但内容不变时也要调用
+void ipixel_source_set_transform(ipixel_source_t *source,
+	const ipixel_transform_t *t);
+
+// 设置越界方式
+void ipixel_source_set_overflow(ipixel_source_t *source,
+	enum IBOM overflow, IUINT32 transparent);
+
+// 设置过滤器
+void ipixel_source_set_filter(ipixel_source_t *source,
+	enum IPIXELFILTER filter);
+
+// 设置裁剪矩形
+void ipixel_source_set_bound(ipixel_source_t *source,
+	const IRECT *bound);
+
+
+// 取得扫描线
+int ipixel_source_fetch(const ipixel_source_t *source, int offset, int line,
+	int width, IUINT32 *card, const IUINT8 *mask);
 
 
 #ifdef __cplusplus
