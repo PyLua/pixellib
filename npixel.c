@@ -210,17 +210,17 @@ int iscreen_init_main(int w, int h, int bpp)
 	ikitwin_lock(&bits, &pitch);
 	iscreen = ibitmap_ref(bits, pitch, w, h, iscreen_bpp);
 	ikitwin_unlock();
-	for (fmt = 0, i = 0; i < IPIX_FMT_OTHER; i++) {
-		if (ipixel_fmt[i].rmask == rmask &&
-			ipixel_fmt[i].gmask == gmask &&
-			ipixel_fmt[i].bmask == bmask &&
-			ipixel_fmt[i].has_alpha == 0 &&
-			ipixel_fmt[i].bpp == iscreen_bpp) {
+	for (fmt = 0, i = 0; i < IPIX_FMT_COUNT; i++) {
+		if (ipixelfmt[i].rmask == rmask &&
+			ipixelfmt[i].gmask == gmask &&
+			ipixelfmt[i].bmask == bmask &&
+			ipixelfmt[i].alpha == 0 &&
+			ipixelfmt[i].bpp == iscreen_bpp) {
 			fmt = i;
 			break;
 		}
 	}
-	ibitmap_set_pixfmt(iscreen, fmt);
+	ibitmap_pixfmt_set(iscreen, fmt);
 	#endif
 	cscreen = ibitmap_create(w, h, bpp);
 	fmt = ibitmap_pixfmt_guess(cscreen);
