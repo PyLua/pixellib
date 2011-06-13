@@ -2923,3 +2923,201 @@ void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
 }
 
 
+
+/**********************************************************************
+ * CLIPING
+ **********************************************************************/
+
+/*
+ * ipixel_clip - clip the rectangle from the src clip and dst clip then
+ * caculate a new rectangle which is shared between dst and src cliprect:
+ * clipdst  - dest clip array (left, top, right, bottom)
+ * clipsrc  - source clip array (left, top, right, bottom)
+ * (x, y)   - dest position
+ * rectsrc  - source rect
+ * mode     - check IPIXEL_FLIP_HFLIP or IPIXEL_FLIP_VFLIP
+ * return zero for successful, return non-zero if there is no shared part
+ */
+int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
+    int *rectsrc, int mode)
+{
+    int dcl = clipdst[0];       /* dest clip: left     */
+    int dct = clipdst[1];       /* dest clip: top      */
+    int dcr = clipdst[2];       /* dest clip: right    */
+    int dcb = clipdst[3];       /* dest clip: bottom   */
+    int scl = clipsrc[0];       /* source clip: left   */
+    int sct = clipsrc[1];       /* source clip: top    */
+    int scr = clipsrc[2];       /* source clip: right  */
+    int scb = clipsrc[3];       /* source clip: bottom */
+    int dx = *x;                /* dest x position     */
+    int dy = *y;                /* dest y position     */
+    int sl = rectsrc[0];        /* source rectangle: left   */
+    int st = rectsrc[1];        /* source rectangle: top    */
+    int sr = rectsrc[2];        /* source rectangle: right  */
+    int sb = rectsrc[3];        /* source rectangle: bottom */
+    int hflip, vflip;
+    int w, h, d;
+    
+    hflip = (mode & IPIXEL_FLIP_HFLIP)? 1 : 0;
+    vflip = (mode & IPIXEL_FLIP_VFLIP)? 1 : 0;
+
+    if (dcr <= dcl || dcb <= dct || scr <= scl || scb <= sct) 
+        return -1;
+
+    if (sr <= scl || sb <= sct || sl >= scr || st >= scb) 
+        return -2;
+
+    /* check dest clip: left */
+    if (dx < dcl) {
+        d = dcl - dx;
+        dx = dcl;
+        if (!hflip) sl += d;
+        else sr -= d;
+    }
+
+    /* check dest clip: top */
+    if (dy < dct) {
+        d = dct - dy;
+        dy = dct;
+        if (!vflip) st += d;
+        else sb -= d;
+    }
+
+    w = sr - sl;
+    h = sb - st;
+
+    if (w < 0 || h < 0) 
+        return -3;
+
+    /* check dest clip: right */
+    if (dx + w > dcr) {
+        d = dx + w - dcr;
+        if (!hflip) sr -= d;
+        else sl += d;
+    }
+
+    /* check dest clip: bottom */
+    if (dy + h > dcb) {
+        d = dy + h - dcb;
+        if (!vflip) sb -= d;
+        else st += d;
+    }
+
+    if (sl >= sr || st >= sb) 
+        return -4;
+
+    /* check source clip: left */
+    if (sl < scl) {
+        d = scl - sl;
+        sl = scl;
+        if (!hflip) dx += d;
+    }
+
+    /* check source clip: top */
+    if (st < sct) {
+        d = sct - st;
+        st = sct;
+        if (!vflip) dy += d;
+    }
+
+    if (sl >= sr || st >= sb) 
+        return -5;
+
+    /* check source clip: right */
+    if (sr > scr) {
+        d = sr - scr;
+        sr = scr;
+        if (hflip) dx += d;
+    }
+
+    /* check source clip: bottom */
+    if (sb > scb) {
+        d = sb - scb;
+        sb = scb;
+        if (vflip) dy += d;
+    }
+
+    if (sl >= sr || st >= sb) 
+        return -6;
+
+    *x = dx;
+    *y = dy;
+
+    rectsrc[0] = sl;
+    rectsrc[1] = st;
+    rectsrc[2] = sr;
+    rectsrc[3] = sb;
+
+    return 0;
+}
+
+
+/**********************************************************************
+ * OTHER FUNCTION
+ **********************************************************************/
+static void ipixel_blend_pmul_default(IUINT32 *dst, const IUINT32 *src,
+	int width, const IUINT8 *mask)
+{
+	if (mask == NULL) {
+		ILINS_LOOP_DOUBLE(
+			{
+				IBLEND_PARGB(dst[0], src[0]);
+				dst++;
+				src++;
+			},
+			{
+				IBLEND_PARGB(dst[0], src[0]);
+				dst++;
+				src++;
+				IBLEND_PARGB(dst[1], src[1]);
+				dst++;
+				src++;
+			},
+			width
+		);
+	}
+	else {
+		ILINS_LOOP_DOUBLE(
+			{
+				IBLEND_PARGB_MASK(dst[0], src[0], mask[0]);
+				dst++;
+				src++;
+				mask += 1;
+			},
+			{
+				IBLEND_PARGB_MASK(dst[0], src[0], mask[0]);
+				dst++;
+				src++;
+				mask++;
+				IBLEND_PARGB_MASK(dst[0], src[0], mask[0]);
+				dst++;
+				src++;
+				mask++;
+			},
+			width
+		);
+	}
+}
+
+/* default blending */
+static iPixelBlendPMul ipixel_blend_pmul_proc = ipixel_blend_pmul_default;
+
+/* execute premultiplied blending */
+void ipixel_blend_pmul(IUINT32 *dst, const IUINT32 *src, int width, 
+	const IUINT8 *mask)
+{
+	ipixel_blend_pmul_proc(dst, src, width, mask);
+}
+
+/* set premultiplied blending function, returns default blender */
+void *ipixel_blend_pmul_set(iPixelBlendPMul blender)
+{
+	if (blender == NULL) 
+		ipixel_blend_pmul_proc = ipixel_blend_pmul_default;
+	else
+		ipixel_blend_pmul_proc = blender;
+	return ipixel_blend_pmul_default;
+}
+
+
+

@@ -511,6 +511,30 @@ void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover);
 /* card proc set */
 void ipixel_card_set_proc(int id, void *proc);
 
+/*
+ * ipixel_clip - clip the rectangle from the src clip and dst clip then
+ * caculate a new rectangle which is shared between dst and src cliprect:
+ * clipdst  - dest clip array (left, top, right, bottom)
+ * clipsrc  - source clip array (left, top, right, bottom)
+ * (x, y)   - dest position
+ * rectsrc  - source rect
+ * mode     - check IPIXEL_FLIP_HFLIP or IPIXEL_FLIP_VFLIP
+ * return zero for successful, return non-zero if there is no shared part
+ */
+int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
+    int *rectsrc, int mode);
+
+/* premultiplied blend */
+typedef void (*iPixelBlendPMul)(IUINT32 *dst, const IUINT32 *src, int width,
+	const IUINT8 *mask);
+
+/* execute premultiplied blending */
+void ipixel_blend_pmul(IUINT32 *dst, const IUINT32 *src, int width, 
+	const IUINT8 *mask);
+
+/* set premultiplied blending function, returns default blender */
+void *ipixel_blend_pmul_set(iPixelBlendPMul blender);
+
 
 /**********************************************************************
  * MACRO: Pixel Fetching & Storing
@@ -879,9 +903,12 @@ void ipixel_card_set_proc(int id, void *proc);
             IUINT32 __a = (a); \
             IUINT32 __b = _ipixel_norm(__a); \
             IUINT32 __X1 = __a; \
-            IUINT32 __X2 = ((r) * __b) >> 8; \
-            IUINT32 __X3 = ((g) * __b) >> 8; \
-            IUINT32 __X4 = ((b) * __b) >> 8; \
+            IUINT32 __X2 = ((r) * __b); \
+            IUINT32 __X3 = ((g) * __b); \
+            IUINT32 __X4 = ((b) * __b); \
+			__X2 = (__X2 + (__X2 >> 8)) >> 8; \
+			__X3 = (__X3 + (__X3 >> 8)) >> 8; \
+			__X4 = (__X4 + (__X4 >> 8)) >> 8; \
             c = _ipixel_asm_8888(__X1, __X2, __X3, __X4); \
         }   while (0)
 
@@ -890,9 +917,9 @@ void ipixel_card_set_proc(int id, void *proc);
             IUINT32 __FA = _ipixel_norm(__SA); \
             (a) = __SA; \
             if (__FA > 0) { \
-                (r) = ((((c) >> 16) & 0xff) << 8) / __FA; \
-                (g) = ((((c) >>  8) & 0xff) << 8) / __FA; \
-                (b) = ((((c) >>  0) & 0xff) << 8) / __FA; \
+                (r) = ((((c) >> 16) & 0xff) * 255) / __FA; \
+                (g) = ((((c) >>  8) & 0xff) * 255) / __FA; \
+                (b) = ((((c) >>  0) & 0xff) * 255) / __FA; \
             }    else { \
                 (r) = 0; (g) = 0; (b) = 0; \
             }    \
@@ -1620,6 +1647,48 @@ void ipixel_card_set_proc(int id, void *proc);
 		(db) = ICLIP_256(XB); \
 		(da) = ICLIP_256(XA); \
 	}	while (0)
+
+
+/* premutiplied 32bits blending: 
+   dst = src + (255 - src.alpha) * dst / 255 */
+#define IBLEND_PARGB(color_dst, color_src) do { \
+		IUINT32 __A = 255 - ((color_src) >> 8); \
+		IUINT32 __DST_RB = (color_dst) & 0xff00ff; \
+		IUINT32 __DST_AG = ((color_dst) >> 8) & 0xff00ff; \
+		__DST_RB *= __A; \
+		__DST_AG *= __A; \
+		__DST_RB += __DST_RB >> 8; \
+		__DST_AG += __DST_AG >> 8; \
+		__DST_RB >>= 8; \
+		__DST_AG &= 0xff00ff00; \
+		__A = (__DST_RB & 0xff00ff) | __DST_AG; \
+		(color_dst) = __A + (color_src); \
+	}	while (0)
+
+
+/* premutiplied 32bits blending (with mask): 
+   tmp = src * coverage / 255,
+   dst = tmp + (255 - tmp.alpha) * dst / 255 */
+#define IBLEND_PARGB_MASK(color_dst, color_src, coverage) do { \
+		IUINT32 __r1 = (color_src) & 0xff00ff; \
+		IUINT32 __r2 = ((color_src) >> 8) & 0xff00ff; \
+		IUINT32 __r3 = _ipixel_norm(coverage); \
+		IUINT32 __r4; \
+		__r1 *= __r3; \
+		__r2 *= __r3; \
+		__r3 = (color_dst) & 0xff00ff; \
+		__r4 = ((color_dst) >> 8) & 0xff00ff; \
+		__r1 = ((__r1) >> 8) & 0xff00ff; \
+		__r2 = (__r2) & 0xff00ff00; \
+		__r1 = __r1 | __r2; \
+		__r2 = 255 - (__r2 >> 24); \
+		__r3 *= __r2; \
+		__r4 *= __r2; \
+		__r3 = ((__r3 + (__r3 >> 8)) >> 8) & 0xff00ff; \
+		__r4 = (__r4 + (__r4 >> 8)) & 0xff00ff00; \
+		(color_dst) = (__r3 | __r4) + (__r1); \
+	}	while (0)
+
 
 
 

@@ -1760,8 +1760,10 @@ int ipaint_set_image(ipaint_t *paint, IBITMAP *image)
 
 	if (paint->alpha) {
 		subpixel = ibitmap_imode(paint->alpha, subpixel);
-		ibitmap_release(paint->alpha);
-		paint->alpha = NULL;
+		if (paint->alpha->w != image->w || paint->alpha->h != image->h) {
+			ibitmap_release(paint->alpha);
+			paint->alpha = NULL;
+		}
 	}
 
 	if (paint->alpha == NULL) {
