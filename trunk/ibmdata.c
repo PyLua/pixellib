@@ -2417,7 +2417,7 @@ void ipixel_gradient_walker_reset(ipixel_gradient_walker_t *walker,
 	switch (walker->overflow)
 	{
 	case IBOM_WRAP:
-		x = (IINT32)pos & 0xffff;
+		x = ((IINT32)pos) & 0xffff;
 		for (n = 0; n < count; n++) 
 			if ((IINT32)x < stops[n].x) break;
 		if (n == 0) {
