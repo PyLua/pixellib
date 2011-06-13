@@ -1007,14 +1007,15 @@ IBITMAP *ibitmap_round_rect(const IBITMAP *src, int radius, int style)
 			IUINT32 limit = (style == 1)? (h4 / 2) : (h4);
 			IINT64 pos = ((IINT64)j * 0xffff) / limit;
 			IUINT32 color = ipixel_gradient_walker_pixel(&walker, pos);
-			IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2;
+			IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2, save;
 			IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1);
 			for (i = w4; i > 0; i--, srcpix += 4, dstpix += 4) {
-				if (srcpix[_ipixel_card_alpha]) {
+				if (srcpix[_ipixel_card_alpha] && dstpix[_ipixel_card_alpha]) {
 					cc = *(IUINT32*)dstpix;
 					IRGBA_FROM_A8R8G8B8(cc, r2, g2, b2, a2);
+					save = a2;
 					IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2);
-					*(IUINT32*)dstpix = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+					*(IUINT32*)dstpix = IRGBA_TO_A8R8G8B8(r2, g2, b2, save);
 				}
 			}
 		}
@@ -2321,4 +2322,90 @@ int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src,
 }
 
 
+
+//---------------------------------------------------------------------
+// 特效若干
+//---------------------------------------------------------------------
+
+// 生成特效
+IBITMAP *ibitmap_glossy_make(IBITMAP *bmp, int radius, int border, int light,
+	int shadow, int shadow_pos)
+{
+	IBITMAP *input = NULL;
+	IBITMAP *output = NULL;
+	int w = (int)bmp->w;
+	int h = (int)bmp->h;
+	int limit = ((w < h)? w : h) / 3;
+	if (radius > limit) radius = limit;
+	if (border > limit) border = limit;
+	if (border) {
+		IBITMAP *small;
+		int r1 = radius + border / 3;
+		int r2 = radius;
+		output = ibitmap_round_rect(bmp, r1, 2);
+		if (output == NULL) return NULL;
+
+		small = ibitmap_chop(bmp, border, border, w - border * 2, 
+			h - border * 2);
+
+		if (small == NULL) {
+			ibitmap_release(output);
+			return NULL;
+		}
+		input = ibitmap_round_rect(small, r2, light);
+
+		ibitmap_release(small);
+		if (input == NULL) {
+			ibitmap_release(output);
+			return NULL;
+		}
+		ibitmap_pixfmt_set(output, IPIX_FMT_A8R8G8B8);
+		ibitmap_color_sub(output, NULL, 0x00101010);
+
+		ibitmap_blend(output, border, border, input, 0, 0, 
+			(int)input->w, (int)input->h, 0xffffffff, NULL, 0);
+		ibitmap_release(input);
+	}
+	else {
+		output = ibitmap_round_rect(bmp, radius, light);
+		if (output == NULL) return NULL;
+	}
+
+	if (shadow > 0 && shadow_pos >= 0) {
+		IBITMAP *tmp;
+		tmp = ibitmap_drop_shadow(output, shadow, shadow);
+
+		if (tmp == NULL) {
+			ibitmap_release(output);
+			return NULL;
+		}
+
+		input = ibitmap_create((int)tmp->w, (int)tmp->h, 32);
+		ibitmap_pixfmt_set(input, IPIX_FMT_A8R8G8B8);
+		ibitmap_fill(input, 0, 0, (int)input->w, (int)input->h, 0, 0);
+
+		ibitmap_convert(input, 0, 0, tmp, 0, 0, (int)tmp->w, (int)tmp->h, 
+			NULL, 0);
+
+		ibitmap_release(tmp);
+
+		shadow_pos = shadow_pos % 3;
+		if (shadow_pos == 0) {
+			ibitmap_blend(input, shadow, shadow, output, 0, 0,
+				w, h, 0xffffffff, NULL, 0);
+		}
+		else if (shadow_pos == 1) {
+			ibitmap_blend(input, shadow, 0, output, 0, 0,
+				w, h, 0xffffffff, NULL, 0);
+		}
+		else if (shadow_pos == 2) {
+			ibitmap_blend(input, 0, 0, output, 0, 0,
+				w, h, 0xffffffff, NULL, 0);
+		}
+		ibitmap_release(output);
+		output = input;
+	}
+
+	return output;
+}
 

@@ -66,13 +66,6 @@ int ibitmap_put_line(IBITMAP *dst, int x1, int y1, int x2, int y2,
 void ibitmap_put_circle(IBITMAP *dst, int x0, int y0, int r, int fill,
 	const IRECT *clip, IUINT32 color, int additive);
 
-// 生成阴影
-IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry);
-
-// 生成圆角
-IBITMAP *ibitmap_round_rect(const IBITMAP *src, int radius, int style);
-
-
 // 色彩变幻：输入 5 x 5矩阵
 void ibitmap_color_transform(IBITMAP *dst, const IRECT *b, const float *t);
 
@@ -84,6 +77,14 @@ void ibitmap_color_sub(IBITMAP *dst, const IRECT *b, IUINT32 color);
 
 // 色彩变幻：乘法
 void ibitmap_color_mul(IBITMAP *dst, const IRECT *b, IUINT32 color);
+
+
+// 生成阴影
+IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry);
+
+// 生成圆角
+IBITMAP *ibitmap_round_rect(const IBITMAP *src, int radius, int style);
+
 
 
 //---------------------------------------------------------------------
@@ -220,6 +221,15 @@ int ipaint_raster_draw_3d(ipaint_t *paint, double x, double y, double z,
 int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src, 
 	const IRECT *bound, IUINT32 color, int flags);
 
+
+
+//---------------------------------------------------------------------
+// 特效若干
+//---------------------------------------------------------------------
+
+// 生成特效
+IBITMAP *ibitmap_glossy_make(IBITMAP *bmp, int radius, int border, int light,
+	int shadow, int shadow_pos);
 
 
 #ifdef __cplusplus
