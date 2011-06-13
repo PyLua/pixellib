@@ -2004,7 +2004,7 @@ void ipixel_card_multi_default(IUINT32 *card, int size, IUINT32 color)
 void (*ipixel_card_multi_proc)(IUINT32 *card, int size, IUINT32 color) =
 	ipixel_card_multi_default;
 
-
+/* multi card */
 void ipixel_card_multi(IUINT32 *card, int size, IUINT32 color)
 {
 	ipixel_card_multi_proc(card, size, color);
@@ -2029,6 +2029,7 @@ void ipixel_card_mask_default(IUINT32 *card, int size, const IUINT32 *mask)
 void (*ipixel_card_mask_proc)(IUINT32 *card, int size, const IUINT32 *mask) =
 	ipixel_card_mask_default;
 
+/* mask card */
 void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask)
 {
 	ipixel_card_mask_proc(card, size, mask);
@@ -2055,11 +2056,36 @@ void ipixel_card_cover_default(IUINT32 *card, int size, const IUINT8 *cover)
 void (*ipixel_card_cover_proc)(IUINT32 *card, int size, const IUINT8 *cover) 
 	= ipixel_card_cover_default;
 
+/* mask cover */
 void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover)
 {
 	ipixel_card_cover_proc(card, size, cover);
 }
 
+void ipixel_card_pmul_default(IUINT32 *dst, int size, const IUINT32 *card,
+	const IUINT8 *cover)
+{
+	IUINT32 *endup = dst + size;
+	if (cover == NULL) {
+		for (; dst < endup; card++, dst++) {
+			IBLEND_PARGB(dst[0], card[0]);
+		}
+	}	else {
+		for (; dst < endup; cover++, card++, dst++) {
+			IBLEND_PARGB_COVER(dst[0], card[0], cover[0]);
+		}
+	}
+}
+
+void (*ipixel_card_pmul_proc)(IUINT32*, int, const IUINT32*, const IUINT8*) =
+	ipixel_card_pmul_default;
+
+/* premultiplied blending */
+void ipixel_card_pmul(IUINT32 *dst, int size, const IUINT32 *card, 
+	const IUINT8 *cover)
+{
+	ipixel_card_pmul_proc(dst, size, card, cover);
+}
 
 /* card proc set */
 void ipixel_card_set_proc(int id, void *proc)
@@ -2083,6 +2109,13 @@ void ipixel_card_set_proc(int id, void *proc)
 		else {
 			ipixel_card_cover_proc = 
 				(void (*)(IUINT32 *, int, const IUINT8 *))proc;
+		}
+	}
+	else if (id == 3) {
+		if (proc == NULL) ipixel_card_pmul_proc = ipixel_card_pmul_default;
+		else {
+			ipixel_card_pmul_proc = 
+				(void (*)(IUINT32*, int, const IUINT32*, const IUINT8*))proc;
 		}
 	}
 }
@@ -3050,74 +3083,5 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 
     return 0;
 }
-
-
-/**********************************************************************
- * OTHER FUNCTION
- **********************************************************************/
-static void ipixel_blend_pmul_default(IUINT32 *dst, const IUINT32 *src,
-	int width, const IUINT8 *mask)
-{
-	if (mask == NULL) {
-		ILINS_LOOP_DOUBLE(
-			{
-				IBLEND_PARGB(dst[0], src[0]);
-				dst++;
-				src++;
-			},
-			{
-				IBLEND_PARGB(dst[0], src[0]);
-				dst++;
-				src++;
-				IBLEND_PARGB(dst[1], src[1]);
-				dst++;
-				src++;
-			},
-			width
-		);
-	}
-	else {
-		ILINS_LOOP_DOUBLE(
-			{
-				IBLEND_PARGB_MASK(dst[0], src[0], mask[0]);
-				dst++;
-				src++;
-				mask += 1;
-			},
-			{
-				IBLEND_PARGB_MASK(dst[0], src[0], mask[0]);
-				dst++;
-				src++;
-				mask++;
-				IBLEND_PARGB_MASK(dst[0], src[0], mask[0]);
-				dst++;
-				src++;
-				mask++;
-			},
-			width
-		);
-	}
-}
-
-/* default blending */
-static iPixelBlendPMul ipixel_blend_pmul_proc = ipixel_blend_pmul_default;
-
-/* execute premultiplied blending */
-void ipixel_blend_pmul(IUINT32 *dst, const IUINT32 *src, int width, 
-	const IUINT8 *mask)
-{
-	ipixel_blend_pmul_proc(dst, src, width, mask);
-}
-
-/* set premultiplied blending function, returns default blender */
-void *ipixel_blend_pmul_set(iPixelBlendPMul blender)
-{
-	if (blender == NULL) 
-		ipixel_blend_pmul_proc = ipixel_blend_pmul_default;
-	else
-		ipixel_blend_pmul_proc = blender;
-	return ipixel_blend_pmul_default;
-}
-
 
 

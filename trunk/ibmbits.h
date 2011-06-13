@@ -508,6 +508,10 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask);
 /* mask cover */
 void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover);
 
+/* premultiplied blending */
+void ipixel_card_pmul(IUINT32 *dst, int size, const IUINT32 *card, 
+	const IUINT8 *cover);
+
 /* card proc set */
 void ipixel_card_set_proc(int id, void *proc);
 
@@ -523,17 +527,6 @@ void ipixel_card_set_proc(int id, void *proc);
  */
 int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
     int *rectsrc, int mode);
-
-/* premultiplied blend */
-typedef void (*iPixelBlendPMul)(IUINT32 *dst, const IUINT32 *src, int width,
-	const IUINT8 *mask);
-
-/* execute premultiplied blending */
-void ipixel_blend_pmul(IUINT32 *dst, const IUINT32 *src, int width, 
-	const IUINT8 *mask);
-
-/* set premultiplied blending function, returns default blender */
-void *ipixel_blend_pmul_set(iPixelBlendPMul blender);
 
 
 /**********************************************************************
@@ -1666,10 +1659,10 @@ void *ipixel_blend_pmul_set(iPixelBlendPMul blender);
 	}	while (0)
 
 
-/* premutiplied 32bits blending (with mask): 
+/* premutiplied 32bits blending (with coverage): 
    tmp = src * coverage / 255,
    dst = tmp + (255 - tmp.alpha) * dst / 255 */
-#define IBLEND_PARGB_MASK(color_dst, color_src, coverage) do { \
+#define IBLEND_PARGB_COVER(color_dst, color_src, coverage) do { \
 		IUINT32 __r1 = (color_src) & 0xff00ff; \
 		IUINT32 __r2 = ((color_src) >> 8) & 0xff00ff; \
 		IUINT32 __r3 = _ipixel_norm(coverage); \
