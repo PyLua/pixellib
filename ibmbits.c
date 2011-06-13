@@ -2062,7 +2062,7 @@ void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover)
 	ipixel_card_cover_proc(card, size, cover);
 }
 
-void ipixel_card_pmul_default(IUINT32 *dst, int size, const IUINT32 *card,
+void ipixel_card_over_default(IUINT32 *dst, int size, const IUINT32 *card,
 	const IUINT8 *cover)
 {
 	IUINT32 *endup = dst + size;
@@ -2077,14 +2077,14 @@ void ipixel_card_pmul_default(IUINT32 *dst, int size, const IUINT32 *card,
 	}
 }
 
-void (*ipixel_card_pmul_proc)(IUINT32*, int, const IUINT32*, const IUINT8*) =
-	ipixel_card_pmul_default;
+void (*ipixel_card_over_proc)(IUINT32*, int, const IUINT32*, const IUINT8*) =
+	ipixel_card_over_default;
 
-/* premultiplied blending */
-void ipixel_card_pmul(IUINT32 *dst, int size, const IUINT32 *card, 
+/* card composite: src over */
+void ipixel_card_over(IUINT32 *dst, int size, const IUINT32 *card, 
 	const IUINT8 *cover)
 {
-	ipixel_card_pmul_proc(dst, size, card, cover);
+	ipixel_card_over_proc(dst, size, card, cover);
 }
 
 /* card proc set */
@@ -2112,9 +2112,9 @@ void ipixel_card_set_proc(int id, void *proc)
 		}
 	}
 	else if (id == 3) {
-		if (proc == NULL) ipixel_card_pmul_proc = ipixel_card_pmul_default;
+		if (proc == NULL) ipixel_card_over_proc = ipixel_card_over_default;
 		else {
-			ipixel_card_pmul_proc = 
+			ipixel_card_over_proc = 
 				(void (*)(IUINT32*, int, const IUINT32*, const IUINT8*))proc;
 		}
 	}

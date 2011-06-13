@@ -508,8 +508,8 @@ void ipixel_card_mask(IUINT32 *card, int size, const IUINT32 *mask);
 /* mask cover */
 void ipixel_card_cover(IUINT32 *card, int size, const IUINT8 *cover);
 
-/* premultiplied blending */
-void ipixel_card_pmul(IUINT32 *dst, int size, const IUINT32 *card, 
+/* card composite: src over */
+void ipixel_card_over(IUINT32 *dst, int size, const IUINT32 *card, 
 	const IUINT8 *cover);
 
 /* card proc set */
