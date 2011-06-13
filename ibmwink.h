@@ -70,7 +70,7 @@ void ibitmap_put_circle(IBITMAP *dst, int x0, int y0, int r, int fill,
 IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry);
 
 // 生成圆角
-IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r);
+IBITMAP *ibitmap_round_rect(const IBITMAP *src, int radius, int style);
 
 
 // 色彩变幻：输入 5 x 5矩阵

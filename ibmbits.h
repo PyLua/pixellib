@@ -1611,7 +1611,7 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 /* looking up alpha values from lut instead of div. calculation */
 /* lut must be inited by ipixel_lut_init() */
 #define IBLEND_NORMAL_FAST(sr, sg, sb, sa, dr, dg, db, da) do { \
-		IUINT32 __lutpos = (((da) & 0xfc) << 5) | (((sa) & 0xfc) >> 1); \
+		IUINT32 __lutpos = (((da) & 0xf8) << 4) | (((sa) & 0xfc) >> 1); \
 		IINT32 SA = ipixel_blend_lut[(__lutpos) + 0]; \
 		IINT32 FA = ipixel_blend_lut[(__lutpos) + 1]; \
 		SA = _ipixel_norm((sa)); \

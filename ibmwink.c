@@ -911,11 +911,12 @@ IBITMAP *ibitmap_drop_shadow(const IBITMAP *src, int rx, int ry)
 
 
 // Éú³ÉÔ²½Ç
-IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
+IBITMAP *ibitmap_round_rect(const IBITMAP *src, int radius, int style)
 {
 	IBITMAP *alpha, *beta;
 	int w = (int)src->w;
 	int h = (int)src->h;
+	int r = radius * 4;
 	int w4 = w * 4;
 	int h4 = h * 4;
 	int x1 = r;
@@ -924,9 +925,11 @@ IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
 	int y2 = h4 - r - 1;
 	int i, j;
 
-	alpha = ibitmap_resample(src, NULL, w4, h4, 0);
+	alpha = ibitmap_resample(src, NULL, w4, h4, 1);
 	if (alpha == NULL) return NULL;
+
 	beta = ibitmap_create(w4, h4, 32);
+
 	if (beta == NULL) {
 		ibitmap_release(alpha);
 		return NULL;
@@ -936,7 +939,8 @@ IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
 	ibitmap_convert(beta, 0, 0, alpha, 0, 0, w4, h4, NULL, 0);
 	ibitmap_release(alpha);
 
-	alpha = ibitmap_create(w4, h4, 32);
+	alpha = ibitmap_create(w4, h4 * 2 + 1, 32);
+
 	if (alpha == NULL) {
 		ibitmap_release(beta);
 		return NULL;
@@ -962,6 +966,99 @@ IBITMAP *ibitmap_round_rect(const IBITMAP *src, int r)
 		#else
 			if (srcpix[3] == 0) dstpix[3] = 0;
 		#endif
+		}
+	}
+
+	if (style == 0) {
+	}
+	else if (style == 1 || style == 2) {
+		ipixel_gradient_stop_t stops[3] = {
+			{ 0, 0xff606060 }, 
+			{ 0x8000, 0xff404040 },
+			{ 0xffff, 0xff101010 },
+		};
+		ipixel_gradient_t gradient = { IBOM_TRANSPARENT, 0, 3, stops };
+		ipixel_gradient_walker_t walker;
+		if (style == 1) y2 = h4 / 2 - r - 1;
+		else y2 = h4 - r - 1;
+		memset(alpha->pixel, 0, alpha->pitch * alpha->h);
+		ibitmap_put_circle(alpha, x1, y1, r, 1, NULL, 0xffffffff, 0);
+		ibitmap_put_circle(alpha, x1, y2, r, 1, NULL, 0xffffffff, 0);
+		ibitmap_put_circle(alpha, x2, y1, r, 1, NULL, 0xffffffff, 0);
+		ibitmap_put_circle(alpha, x2, y2, r, 1, NULL, 0xffffffff, 0);
+		if (style == 1) {
+			ibitmap_fill(alpha, 0, y1, w4, h4 / 2 - 2 * r, 0xffffffff, 0);
+			ibitmap_fill(alpha, x1, 0, w4 - 2 * r, h4 / 2, 0xffffffff, 0);
+		}	else {
+			ibitmap_fill(alpha, 0, y1, w4, h4 - 2 * r, 0xffffffff, 0);
+			ibitmap_fill(alpha, x1, 0, w4 - 2 * r, h4, 0xffffffff, 0);
+		}
+
+		if (style == 2) {
+			stops[0].color = 0xff404040;
+			stops[1].color = 0xff101010;
+			stops[2].color = 0xff000000;
+		}
+		ipixel_gradient_walker_init(&walker, &gradient);
+
+		for (j = 0; j < h4; j++) {
+			IUINT8 *srcpix = (IUINT8*)alpha->line[j];
+			IUINT8 *dstpix = (IUINT8*)beta->line[j];
+			IUINT32 limit = (style == 1)? (h4 / 2) : (h4);
+			IINT64 pos = ((IINT64)j * 0xffff) / limit;
+			IUINT32 color = ipixel_gradient_walker_pixel(&walker, pos);
+			IUINT32 cc, r1, g1, b1, a1, r2, g2, b2, a2;
+			IRGBA_FROM_A8R8G8B8(color, r1, g1, b1, a1);
+			for (i = w4; i > 0; i--, srcpix += 4, dstpix += 4) {
+				if (srcpix[_ipixel_card_alpha]) {
+					cc = *(IUINT32*)dstpix;
+					IRGBA_FROM_A8R8G8B8(cc, r2, g2, b2, a2);
+					IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2);
+					*(IUINT32*)dstpix = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+				}
+			}
+		}
+	}
+	else if (style == 3) {
+		ipixel_gradient_stop_t stops[3] = {
+			{ 0, 0xff555555 }, 
+			{ 0x6000, 0xff303030 },
+			{ 0xffff, 0xff101010 },
+		};
+		ipixel_source_t source;
+		ipixel_point_fixed_t p1;
+		ipixel_point_fixed_t p2;
+		cfixed r1, r2;
+		int rr = (w4 + h4) / 2;
+		iSpanDrawProc span;
+		IUINT32 *card;
+
+		p1.x = cfixed_from_int(w4 / 2);
+		p1.y = cfixed_from_int(-h4 * 2 / 4);
+		p2 = p1;
+		r1 = cfixed_from_int(rr);
+		r2 = r1 / 2;
+		ipixel_source_init_gradient_radial(&source, &p1, &p2, r2, r1,
+			stops, 3);
+		ipixel_source_set_overflow(&source, IBOM_TRANSPARENT, 0);
+		span = ipixel_get_span_proc(IPIX_FMT_A8R8G8B8, 1, 0);
+		card = (IUINT32*)alpha->pixel;
+
+		for (j = 0; j < h4; j++) {
+			IUINT8 *dstpix = (IUINT8*)beta->line[j];
+			IUINT8 *srcpix = (IUINT8*)card;
+			IUINT32 c1, c2, r1, g1, b1, a1, r2, g2, b2, a2;
+			ipixel_source_fetch(&source, 0, j, w4, card, NULL);
+			for (i = w4; i > 0; srcpix += 4, dstpix += 4, i--) {
+				if (dstpix[_ipixel_card_alpha]) {
+					c1 = *(IUINT32*)srcpix;
+					c2 = *(IUINT32*)dstpix;
+					IRGBA_FROM_A8R8G8B8(c1, r1, g1, b1, a1);
+					IRGBA_FROM_A8R8G8B8(c2, r2, g2, b2, a2);
+					IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2);
+					*(IUINT32*)dstpix = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+				}
+			}
 		}
 	}
 

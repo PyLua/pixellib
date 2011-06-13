@@ -1407,7 +1407,7 @@ void ipixel_lut_init(void)
 	#undef IPIXEL_LUT_INIT
 	
 	for (i = 0; i < 2048; i++) {
-		IUINT32 da = _ipixel_scale_6[i >> 6];
+		IUINT32 da = _ipixel_scale_5[i >> 6];
 		IUINT32 sa = _ipixel_scale_6[i & 63];
 		IUINT32 FA = da + ((255 - da) * sa) / 255;
 		IUINT32 SA = (FA != 0)? ((sa * 255) / FA) : 0;
