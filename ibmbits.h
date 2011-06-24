@@ -894,7 +894,7 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 
 #define _ipixel_to_pmul(c, r, g, b, a) do { \
             IUINT32 __a = (a); \
-            IUINT32 __b = _ipixel_norm(__a); \
+            IUINT32 __b = (__a); \
             IUINT32 __X1 = __a; \
             IUINT32 __X2 = ((r) * __b); \
             IUINT32 __X3 = ((g) * __b); \
@@ -907,7 +907,7 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 
 #define _ipixel_from_pmul(c, r, g, b, a) do { \
             IUINT32 __SA = ((c) >> 24); \
-            IUINT32 __FA = _ipixel_norm(__SA); \
+            IUINT32 __FA = (__SA); \
             (a) = __SA; \
             if (__FA > 0) { \
                 (r) = ((((c) >> 16) & 0xff) * 255) / __FA; \
