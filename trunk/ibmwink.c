@@ -1618,6 +1618,7 @@ int cvector_resize(struct CVECTOR *vector, size_t size)
 			free(vector->data);
 			vector->block = 0;
 			vector->data = NULL;
+			vector->size = 0;
 		}
 		return 0;
 	}
