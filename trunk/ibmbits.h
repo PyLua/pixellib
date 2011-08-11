@@ -442,15 +442,6 @@ long ipixel_blend(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 	const iColorIndex *sindex, void *workmem);
 
 
-/* ipixel_convert: convert pixel format 
- * parameters: same as ipixel_blend 
- * it just calls ipixel_blend with 'op=IPIXEL_BLEND_OP_COPY'
- */
-long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt, 
-	const void *sbits, long spitch, int sx, int w, int h, IUINT32 color,
-	int flip, const iColorIndex *dindex, const iColorIndex *sindex, 
-	void *workmem);
-
 
 /* draw hline routine */
 typedef void (*iHLineDrawProc)(void *bits, int startx, int w,
@@ -464,36 +455,44 @@ void ipixel_set_hline_proc(int fmt, int isadditive, iHLineDrawProc proc);
 
 
 #define IPIXEL_BLIT_NORMAL		0
-#define IPIXEL_BLIT_MASK		1
+#define IPIXEL_BLIT_MASK		4
 
-/* normal blit procedure */
-typedef void (*iBlitNMProc)(void *dbits, long dpitch, int dx, 
-	const void *sbits, long spitch, int sx, int w, int h, int flip);
 
-/* mask blit procedure */
-typedef void (*iBlitMKProc)(void *dbits, long dpitch, int dx, 
-	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
-	int flip);
+/* mask blit procedure: with or without mask (colorkey) */
+typedef int (*iBlitProc)(void *dst, long dpitch, int dx, const void *src, 
+	long spitch, int sx, int w, int h, IUINT32 mask, int flip);
 
 
 /* get normal blit procedure */
-iBlitNMProc ipixel_get_blit_normal(int bpp, int isdefault);
-
-/* get mask blit procedure */
-iBlitMKProc ipixel_get_blit_mask(int bpp, int isdefault);
+/* if ismask equals to zero, returns normal bliter */
+/* if ismask doesn't equal to zero, returns transparent bliter */
+iBlitProc ipixel_blit_get(int bpp, int ismask, int isdefault);
 
 /* set normal blit procedure */
-void ipixel_set_blit_proc(int bpp, int type, void *proc);
+/* if ismask equals to zero, set normal bliter */
+/* if ismask doesn't equal to zero, set transparent bliter */
+void ipixel_blit_set(int bpp, int ismask, iBlitProc proc);
 
 
-/* normal blit */
-void ipixel_blit_normal(int bpp, void *dbits, long dpitch, int dx, 
-	const void *sbits, long spitch, int sx, int w, int h, int flip);
-
-/* mask blit */
-void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
-	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
-	int flip);
+/* ipixel_blit - bliting (copy pixel from one rectangle to another)
+ * it will only copy pixels in the same depth (1/4/8/16/24/32).
+ * no color format will be convert (using ipixel_convert to do it)
+ * bpp    - color depth of the two bitmap
+ * dst    - dest bits
+ * dpitch - dest pitch (row stride)
+ * dx     - dest x offset
+ * src    - source bits
+ * spitch - source pitch (row stride)
+ * sx     - source x offset
+ * w      - width
+ * h      - height
+ * mask   - mask color (colorkey), no effect without IPIXEL_BLIT_MASK
+ * mode   - IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP | IPIXEL_BLIT_MASK ..
+ * for transparent bliting, set mode with IPIXEL_BLIT_MASK, bliter will 
+ * skip the colors equal to 'mask' parameter.
+ */
+void ipixel_blit(int bpp, void *dst, long dpitch, int dx, const void *src, 
+	long spitch, int sx, int w, int h, IUINT32 mask, int mode);
 
 
 /* reverse card */
@@ -514,6 +513,48 @@ void ipixel_card_over(IUINT32 *dst, int size, const IUINT32 *card,
 
 /* card proc set */
 void ipixel_card_set_proc(int id, void *proc);
+
+
+/* pixel format converting procedure */
+typedef int (*iPixelCvt)(void *dbits, long dpitch, int dx, const void *sbits,
+	long spitch, int sx, int w, int h, IUINT32 mask, int flip,
+	const iColorIndex *dindex, const iColorIndex *sindex);
+
+/* get converting procedure */
+iPixelCvt ipixel_cvt_get(int dfmt, int sfmt, int istransparent);
+
+/* set converting procedure */
+void ipixel_cvt_set(int dfmt, int sfmt, int istransparent, iPixelCvt proc);
+
+/* get converting procedure */
+iPixelCvt ipixel_cvt_get(int dfmt, int sfmt, int istransparent);
+
+
+/* ipixel_convert: convert pixel format and blit
+ * you must provide a working memory pointer to mem. if mem eq NULL,
+ * this function will do nothing but returns how many bytes needed in mem
+ * dfmt   - dest color format
+ * dbits  - dest bits
+ * dpitch - dest pitch (row stride)
+ * dx     - dest x offset
+ * sfmt   - source color format
+ * sbits  - source bits
+ * spitch - source pitch (row stride)
+ * sx     - source x offset
+ * w      - width
+ * h      - height
+ * mask   - mask color (colorkey), no effect without IPIXEL_BLIT_MASK
+ * mode   - IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP | IPIXEL_BLIT_MASK ..
+ * didx   - dest color index
+ * sidx   - source color index
+ * mem    - work memory
+ * for transparent converting, set mode with IPIXEL_BLIT_MASK, it will 
+ * skip the colors equal to 'mask' parameter.
+ */
+long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt, 
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
+	int mode, const iColorIndex *didx, const iColorIndex *sidx, void *mem);
+
 
 /*
  * ipixel_clip - clip the rectangle from the src clip and dst clip then

@@ -2691,28 +2691,15 @@ long ipixel_blend(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 }
 
 
-/* ipixel_convert: convert pixel format 
- * parameters: same as ipixel_blend 
- * it just calls ipixel_blend with 'op=IPIXEL_BLEND_OP_COPY'
- */
-long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt, 
-	const void *sbits, long spitch, int sx, int w, int h, IUINT32 color,
-	int flip, const iColorIndex *dindex, const iColorIndex *sindex, 
-	void *workmem)
-{
-	return ipixel_blend(dfmt, dbits, dpitch, dx, sfmt, sbits, spitch, sx,
-		w, h, color, IPIXEL_BLEND_OP_COPY, flip, dindex, sindex, workmem);
-}
-
-
 
 /**********************************************************************
  * MACRO: BLITING ROUTINE
  **********************************************************************/
 /* normal blit in 32/16/8 bits */
 #define IPIXEL_BLIT_PROC_N(nbits, nbytes, INTTYPE) \
-static void ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx,  \
-	const void *sbits, long spitch, int sx, int w, int h, int flip) \
+static int ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx,  \
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, \
+	int flip) \
 { \
 	int y, x; \
 	if (flip & IPIXEL_FLIP_VFLIP) { \
@@ -2735,12 +2722,14 @@ static void ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx,  \
 			sbits = (const IUINT8*)sbits + spitch; \
 		} \
 	} \
+	return 0; \
 } 
 
 /* normal blit in 24/4/1 bits */
 #define IPIXEL_BLIT_PROC_BITS(nbits) \
-static void ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx, \
-	const void *sbits, long spitch, int sx, int w, int h, int flip) \
+static int ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx, \
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, \
+	int flip) \
 { \
 	int y, x1, x2, sx0, sxd, endx; \
 	if (flip & IPIXEL_FLIP_VFLIP) { \
@@ -2764,12 +2753,13 @@ static void ipixel_blit_proc_##nbits(void *dbits, long dpitch, int dx, \
 		dbits = (IUINT8*)dbits + dpitch; \
 		sbits = (const IUINT8*)sbits + spitch; \
 	} \
+	return 0; \
 }
 
 
 /* mask blit in 32/16/8 bits */
 #define IPIXEL_BLIT_MASK_PROC_N(nbits, nbytes, INTTYPE) \
-static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
+static int ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
 	int dx, const void *sbits, long spitch, int sx, int w, int h, \
 	IUINT32 mask, int flip) \
 { \
@@ -2802,11 +2792,12 @@ static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
 			sbits = (const IUINT8*)sbits + spitch; \
 		} \
 	} \
+	return 0; \
 }
 
 /* mask blit in 24/4/1 bits */
 #define IPIXEL_BLIT_MASK_PROC_BITS(nbits) \
-static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
+static int ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
 	int dx, const void *sbits, long spitch, int sx, int w, int h, \
 	IUINT32 mask, int flip) \
 { \
@@ -2832,6 +2823,7 @@ static void ipixel_blit_mask_proc_##nbits(void *dbits, long dpitch, \
 		dbits = (IUINT8*)dbits + dpitch; \
 		sbits = (const IUINT8*)sbits + spitch; \
 	} \
+	return 0; \
 }
 
 
@@ -2864,8 +2856,8 @@ IPIXEL_BLIT_MASK_PROC_BITS(1);
 /* blit driver desc */
 struct iPixelBlitProc
 {
-	iBlitNMProc normal, normal_default;
-	iBlitMKProc mask, mask_default;
+	iBlitProc normal, normal_default;
+	iBlitProc mask, mask_default;
 };
 
 #define ITABLE_ITEM(bpp) { \
@@ -2892,69 +2884,262 @@ static const int ipixel_lookup_bpp[33] = {
 
 
 /* get normal blit procedure */
-iBlitNMProc ipixel_get_blit_normal(int bpp, int isdefault)
+/* if ismask equals to zero, returns normal bliter */
+/* if ismask doesn't equal to zero, returns transparent bliter */
+iBlitProc ipixel_blit_get(int bpp, int istransparent, int isdefault)
 {
 	int index;
 	if (bpp < 0 || bpp > 32) return NULL;
 	index = ipixel_lookup_bpp[bpp];
 	if (index < 0) return NULL;
-	if (isdefault) return ipixel_blit_proc_list[index].normal_default;
+	if (isdefault) {
+		if (istransparent) return ipixel_blit_proc_list[index].mask_default;
+		return ipixel_blit_proc_list[index].normal_default;
+	}
+	if (istransparent) return ipixel_blit_proc_list[index].mask;
 	return ipixel_blit_proc_list[index].normal;
 }
 
-/* get mask blit procedure */
-iBlitMKProc ipixel_get_blit_mask(int bpp, int isdefault)
-{
-	int index;
-	if (bpp < 0 || bpp > 32) return NULL;
-	index = ipixel_lookup_bpp[bpp];
-	if (index < 0) return NULL;
-	if (isdefault) return ipixel_blit_proc_list[index].mask_default;
-	return ipixel_blit_proc_list[index].mask;
-}
-
 /* set normal blit procedure */
-void ipixel_set_blit_proc(int bpp, int type, void *proc)
+/* if ismask equals to zero, set normal bliter */
+/* if ismask doesn't equal to zero, set transparent bliter */
+void ipixel_set_blit_proc(int bpp, int istransparent, iBlitProc proc)
 {
 	int index;
 	if (bpp < 0 || bpp > 32) return;
 	index = ipixel_lookup_bpp[bpp];
 	if (index < 0) return;
-	switch (type)
-	{
-	case IPIXEL_BLIT_NORMAL:
-		ipixel_blit_proc_list[index].normal = (iBlitNMProc)proc;
-		break;
-	case IPIXEL_BLIT_MASK:
-		ipixel_blit_proc_list[index].mask = (iBlitMKProc)proc;
-		break;
+	if (istransparent == 0) {
+		ipixel_blit_proc_list[index].normal = proc;
+	}	else {
+		ipixel_blit_proc_list[index].mask = proc;
 	}
 }
 
 
-/* normal blit */
-void ipixel_blit_normal(int bpp, void *dbits, long dpitch, int dx, 
-	const void *sbits, long spitch, int sx, int w, int h, int flip)
+
+/* ipixel_blit - bliting (copy pixel from one rectangle to another)
+ * it will only copy pixels in the same depth (1/4/8/16/24/32).
+ * no color format will be convert (using ipixel_convert to do it)
+ * bpp    - color depth of the two bitmap
+ * dst    - dest bits
+ * dpitch - dest pitch (row stride)
+ * dx     - dest x offset
+ * src    - source bits
+ * spitch - source pitch (row stride)
+ * sx     - source x offset
+ * w      - width
+ * h      - height
+ * mask   - mask color (colorkey), no effect without IPIXEL_BLIT_MASK
+ * mode   - IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP | IPIXEL_BLIT_MASK ..
+ * for transparent bliting, set mode with IPIXEL_BLIT_MASK, bliter will 
+ * skip the colors equal to 'mask' parameter.
+ */
+void ipixel_blit(int bpp, void *dst, long dpitch, int dx, const void *src, 
+	long spitch, int sx, int w, int h, IUINT32 mask, int mode)
 {
-	iBlitNMProc bliter;
-	bliter = ipixel_get_blit_normal(bpp, 0);
+	int transparent, flip, index, retval;
+	iBlitProc bliter;
+
+	transparent = (mask & IPIXEL_BLIT_MASK)? 1 : 0;
+	flip = mode & (IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP);
+	
+	assert(bpp >= 0 && bpp <= 32);
+
+	index = ipixel_lookup_bpp[bpp];
+
+	if (transparent) bliter = ipixel_blit_proc_list[index].mask;
+	else bliter = ipixel_blit_proc_list[index].normal;
+
+	/* using current bliter */
+	bliter = ipixel_blit_get(bpp, transparent, 0);
+
 	if (bliter) {
-		bliter(dbits, dpitch, dx, sbits, spitch, sx, w, h, flip);
+		retval = bliter(dst, dpitch, dx, src, spitch, sx, w, h, mask, flip);
+		if (retval == 0) return; /* return for success */
 	}
+
+	/* using default bliter */
+	if (transparent) bliter = ipixel_blit_proc_list[index].mask_default;
+	else bliter = ipixel_blit_proc_list[index].normal_default;
+	
+	bliter(dst, dpitch, dx, src, spitch, sx, w, h, mask, flip);
 }
 
-/* mask blit */
-void ipixel_blit_mask(int bpp, void *dbits, long dpitch, int dx,
+
+/**********************************************************************
+ * CONVERTING
+ **********************************************************************/
+static iPixelCvt ipixel_cvt_table[IPIX_FMT_COUNT][IPIX_FMT_COUNT][2];
+static int ipixel_cvt_inited = 0;
+
+/* initialize converting procedure table */
+static void ipixel_cvt_init(void)
+{
+	int dfmt, sfmt;
+	if (ipixel_cvt_inited) return;
+	for (dfmt = 0; dfmt < IPIX_FMT_COUNT; dfmt++) {
+		for (sfmt = 0; sfmt < IPIX_FMT_COUNT; sfmt++) {
+			ipixel_cvt_table[dfmt][sfmt][0] = NULL;
+			ipixel_cvt_table[dfmt][sfmt][1] = NULL;
+		}
+	}
+	ipixel_cvt_inited = 1;
+}
+
+/* get converting procedure */
+iPixelCvt ipixel_cvt_get(int dfmt, int sfmt, int istransparent)
+{
+	int index = (istransparent)? 1 : 0;
+	if (ipixel_cvt_inited == 0) ipixel_cvt_init();
+	if (dfmt < 0 || dfmt >= IPIX_FMT_COUNT) return NULL;
+	if (sfmt < 0 || sfmt >= IPIX_FMT_COUNT) return NULL;
+	return ipixel_cvt_table[dfmt][sfmt][index];
+}
+
+/* set converting procedure */
+void ipixel_cvt_set(int dfmt, int sfmt, int istransparent, iPixelCvt proc)
+{
+	int index = (istransparent)? 1 : 0;
+	if (ipixel_cvt_inited == 0) ipixel_cvt_init();
+	if (dfmt < 0 || dfmt >= IPIX_FMT_COUNT) return;
+	if (sfmt < 0 || sfmt >= IPIX_FMT_COUNT) return;
+	ipixel_cvt_table[dfmt][sfmt][index] = proc;
+}
+
+/* ipixel_slow: default slow converter */
+long ipixel_cvt_slow(int dfmt, void *dbits, long dpitch, int dx, int sfmt, 
 	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
-	int flip)
+	int mode, const iColorIndex *dindex, const iColorIndex *sindex)
 {
-	iBlitMKProc bliter;
-	bliter = ipixel_get_blit_mask(bpp, 0);
-	if (bliter) {
-		bliter(dbits, dpitch, dx, sbits, spitch, sx, w, h, mask, flip);
+	const iColorIndex *_ipixel_dst_index = dindex;
+	const iColorIndex *_ipixel_src_index = sindex;
+	int flip, sbpp, dbpp, i, j;
+	int transparent;
+
+	flip = mode & (IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP);
+	transparent = (mode & IPIXEL_BLIT_MASK)? 1 : 0;
+
+	sbpp = ipixelfmt[sfmt].bpp;
+	dbpp = ipixelfmt[dfmt].bpp;
+
+	if (flip & IPIXEL_FLIP_VFLIP) { 
+		sbits = (const IUINT8*)sbits + spitch * (h - 1); 
+		spitch = -spitch; 
+	} 
+
+	for (j = 0; j < h; j++) {
+		IUINT32 cc = 0, r, g, b, a;
+		int incx, x1, x2 = dx;
+
+		if ((flip & IPIXEL_FLIP_HFLIP) == 0) x1 = sx, incx = 1;
+		else x1 = sx + w - 1, incx = -1;
+
+		for (i = w; i > 0; x1 += incx, x2++, i--) {
+			switch (sbpp) {
+				case  1: cc = _ipixel_fetch(1, sbits, x1); break;
+				case  4: cc = _ipixel_fetch(4, sbits, x1); break;
+				case  8: cc = _ipixel_fetch(8, sbits, x1); break;
+				case 16: cc = _ipixel_fetch(16, sbits, x1); break;
+				case 24: cc = _ipixel_fetch(24, sbits, x1); break;
+				case 32: cc = _ipixel_fetch(32, sbits, x1); break;
+			}
+
+			if (transparent && cc == mask) 
+				continue;
+
+			IRGBA_DISEMBLE(sfmt, cc, r, g, b, a);
+			IRGBA_ASSEMBLE(dfmt, cc, r, g, b, a);
+
+			switch (dbpp) {
+				case  1: _ipixel_store(1, dbits, x2, cc); break;
+				case  4: _ipixel_store(4, dbits, x2, cc); break;
+				case  8: _ipixel_store(8, dbits, x2, cc); break;
+				case 16: _ipixel_store(16, dbits, x2, cc); break;
+				case 24: _ipixel_store(24, dbits, x2, cc); break;
+				case 32: _ipixel_store(32, dbits, x2, cc); break;
+			}
+		}
+
+		sbits = (const IUINT8*)sbits + spitch;
+		dbits = (IUINT8*)dbits + dpitch;
 	}
+
+	return 0;
 }
 
+
+/* ipixel_convert: convert pixel format 
+ * you must provide a working memory pointer to mem. if mem eq NULL,
+ * this function will do nothing but returns how many bytes needed in mem
+ * dfmt   - dest color format
+ * dbits  - dest bits
+ * dpitch - dest pitch (row stride)
+ * dx     - dest x offset
+ * sfmt   - source color format
+ * sbits  - source bits
+ * spitch - source pitch (row stride)
+ * sx     - source x offset
+ * w      - width
+ * h      - height
+ * mask   - mask color (colorkey), no effect without IPIXEL_BLIT_MASK
+ * mode   - IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP | IPIXEL_BLIT_MASK ..
+ * didx   - dest color index
+ * sidx   - source color index
+ * mem    - work memory
+ * for transparent converting, set mode with IPIXEL_BLIT_MASK, it will 
+ * skip the colors equal to 'mask' parameter.
+ */
+long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt, 
+	const void *sbits, long spitch, int sx, int w, int h, IUINT32 mask, 
+	int mode, const iColorIndex *didx, const iColorIndex *sidx, void *mem)
+{
+	iPixelCvt cvt = NULL;
+	int flip, index;
+
+	if (mem == NULL) {
+		return w * sizeof(IUINT32);
+	}
+
+	if (ipixel_cvt_inited == 0) ipixel_cvt_init();
+
+	assert(dfmt >= 0 && dfmt < IPIX_FMT_COUNT);
+	assert(sfmt >= 0 && sfmt < IPIX_FMT_COUNT);
+
+	flip = mode & (IPIXEL_FLIP_HFLIP | IPIXEL_FLIP_VFLIP);
+	index = (mode & IPIXEL_BLIT_MASK)? 1 : 0;
+
+	if (didx == NULL) didx = _ipixel_dst_index;
+	if (sidx == NULL) sidx = _ipixel_src_index;
+
+	cvt = ipixel_cvt_table[dfmt][sfmt][index];
+
+	/* using converting procedure */
+	if (cvt != NULL) {
+		int retval = cvt(dbits, dpitch, dx, sbits, spitch, sx, w, h, 
+			mask, flip, didx, sidx);
+		if (retval == 0) return 0;
+	}
+
+	/* using bliting procedure when no convertion needed */
+	if (sfmt == dfmt && ipixelfmt[sfmt].type != IPIX_FMT_TYPE_INDEX) {
+		ipixel_blit(ipixelfmt[sfmt].bpp, dbits, dpitch, dx, sbits, 
+			spitch, sx, w, h, mask, mode);
+		return 0;
+	}
+
+	/* without transparent color key using ipixel_blend */
+	if ((mode & IPIXEL_BLIT_MASK) == 0) {
+		return ipixel_blend(dfmt, dbits, dpitch, dx, sfmt, sbits, spitch, sx,
+			w, h, 0xffffffff, IPIXEL_BLEND_OP_COPY, flip, didx, sidx, mem);
+	}
+
+	/* using ipixel_cvt_slow to proceed other convertion */
+	ipixel_cvt_slow(dfmt, dbits, dpitch, dx, sfmt, sbits, spitch, sx,
+		w, h, mask, mode, didx, sidx);
+
+	return 0;
+}
 
 
 /**********************************************************************
