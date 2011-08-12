@@ -305,12 +305,12 @@ extern "C" {
 extern const struct IPIXELFMT ipixelfmt[IPIX_FMT_COUNT];
 
 /* color component bit scale */
-extern const int _ipixel_scale_1[2];
-extern const int _ipixel_scale_2[4];
-extern const int _ipixel_scale_3[8];
-extern const int _ipixel_scale_4[16];
-extern const int _ipixel_scale_5[32];
-extern const int _ipixel_scale_6[64];
+extern const IUINT32 _ipixel_scale_1[2];
+extern const IUINT32 _ipixel_scale_2[4];
+extern const IUINT32 _ipixel_scale_3[8];
+extern const IUINT32 _ipixel_scale_4[16];
+extern const IUINT32 _ipixel_scale_5[32];
+extern const IUINT32 _ipixel_scale_6[64];
 
 /* default index */
 extern iColorIndex *_ipixel_src_index;
@@ -1366,6 +1366,451 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 #define IPIX_FMT_BPP_A1               1
 
 
+
+/**********************************************************************
+ * MACRO: PIXEL CONVERTION (A8R8G8B8 -> *, * -> A8R8G8B8)
+ **********************************************************************/
+/* pixel convertion look-up-tables
+ * using those table to speed-up 16bits->32bits, 8bits->32bits converting.
+ * this is much faster than binary shifting. But look-up-tables must be 
+ * initialized by ipixel_lut_init or calling ipixel_get_fetch(0, 0)
+ */ 
+
+extern IUINT32 _ipixel_cvt_lut_R5G6B5[512];
+extern IUINT32 _ipixel_cvt_lut_B5G6R5[512];
+extern IUINT32 _ipixel_cvt_lut_X1R5G5B5[512];
+extern IUINT32 _ipixel_cvt_lut_X1B5G5R5[512];
+extern IUINT32 _ipixel_cvt_lut_R5G5B5X1[512];
+extern IUINT32 _ipixel_cvt_lut_B5G5R5X1[512];
+extern IUINT32 _ipixel_cvt_lut_A1R5G5B5[512];
+extern IUINT32 _ipixel_cvt_lut_A1B5G5R5[512];
+extern IUINT32 _ipixel_cvt_lut_R5G5B5A1[512];
+extern IUINT32 _ipixel_cvt_lut_B5G5R5A1[512];
+extern IUINT32 _ipixel_cvt_lut_X4R4G4B4[512];
+extern IUINT32 _ipixel_cvt_lut_X4B4G4R4[512];
+extern IUINT32 _ipixel_cvt_lut_R4G4B4X4[512];
+extern IUINT32 _ipixel_cvt_lut_B4G4R4X4[512];
+extern IUINT32 _ipixel_cvt_lut_A4R4G4B4[512];
+extern IUINT32 _ipixel_cvt_lut_A4B4G4R4[512];
+extern IUINT32 _ipixel_cvt_lut_R4G4B4A4[512];
+extern IUINT32 _ipixel_cvt_lut_B4G4R4A4[512];
+extern IUINT32 _ipixel_cvt_lut_R3G3B2[256];
+extern IUINT32 _ipixel_cvt_lut_B2G3R3[256];
+extern IUINT32 _ipixel_cvt_lut_X2R2G2B2[256];
+extern IUINT32 _ipixel_cvt_lut_X2B2G2R2[256];
+extern IUINT32 _ipixel_cvt_lut_R2G2B2X2[256];
+extern IUINT32 _ipixel_cvt_lut_B2G2R2X2[256];
+extern IUINT32 _ipixel_cvt_lut_A2R2G2B2[256];
+extern IUINT32 _ipixel_cvt_lut_A2B2G2R2[256];
+extern IUINT32 _ipixel_cvt_lut_R2G2B2A2[256];
+extern IUINT32 _ipixel_cvt_lut_B2G2R2A2[256];
+
+
+/* look-up-tables accessing */
+#if IWORDS_BIG_ENDIAN
+#define IPIXEL_CVT_LUT_2(fmt, x) \
+		(	_ipixel_cvt_lut_##fmt[((x) & 0xff) + 256] | \
+			_ipixel_cvt_lut_##fmt[((x) >>   8) +   0] )
+#else
+#define IPIXEL_CVT_LUT_2(fmt, x) \
+		(	_ipixel_cvt_lut_##fmt[((x) & 0xff) +   0] | \
+			_ipixel_cvt_lut_##fmt[((x) >>   8) + 256] )
+#endif
+
+#define IPIXEL_CVT_LUT_1(fmt, x) _ipixel_cvt_lut_##fmt[(x)]
+
+
+/* convert from 32 bits */
+#define IPIXEL_FROM_A8R8G8B8(x) (x) 
+#define IPIXEL_FROM_A8B8G8R8(x) \
+		((((x) & 0xff00ff00) | \
+		(((x) & 0xff0000) >> 16) | \
+		(((x) & 0xff) << 16)))
+#define IPIXEL_FROM_R8G8B8A8(x) \
+		((((x) & 0xff) << 24) | (((x) & 0xffffff00) >> 8))
+#define IPIXEL_FROM_B8G8R8A8(x) \
+		(	(((x) & 0x000000ff) << 24) | \
+			(((x) & 0x0000ff00) <<  8) | \
+			(((x) & 0x00ff0000) >>  8) | \
+			(((x) & 0xff000000) >> 24))
+#define IPIXEL_FROM_X8R8G8B8(x) ((x) | 0xff000000)
+#define IPIXEL_FROM_X8B8G8R8(x) \
+		(IPIXEL_FROM_A8B8G8R8(x) | 0xff000000)
+#define IPIXEL_FROM_R8G8B8X8(x) (((x) >> 8) | 0xff000000)
+#define IPIXEL_FROM_B8G8R8X8(x) \
+		(	(((x) & 0x0000ff00) <<  8) | \
+			(((x) & 0x00ff0000) >>  8) | \
+			(((x) & 0xff000000) >> 24) | 0xff000000 )
+#define IPIXEL_FROM_P8R8G8B8(x) ( ((x) >> 24) == 0 ? (0) : \
+		((((((x) >> 16) & 0xff) * 255) / ((x) >> 24)) << 16) | \
+		((((((x) >>  8) & 0xff) * 255) / ((x) >> 24)) << 8) | \
+		((((((x) >>  0) & 0xff) * 255) / ((x) >> 24)) << 0) | \
+		((x) & 0xff000000) )
+
+/* convert from 24 bits */
+#define IPIXEL_FROM_R8G8B8(x) ((x) | 0xff000000)
+#define IPIXEL_FROM_B8G8R8(x) \
+		(	(((x) & 0x0000ff00) | \
+			(((x) & 0xff0000) >> 16) | \
+			(((x) & 0xff) << 16)) | 0xff000000 )
+
+/* convert from 16 bits */
+#define IPIXEL_FROM_R5G6B5(x) IPIXEL_CVT_LUT_2(R5G6B5, x)
+#define IPIXEL_FROM_B5G6R5(x) IPIXEL_CVT_LUT_2(B5G6R5, x)
+#define IPIXEL_FROM_A1R5G5B5(x) IPIXEL_CVT_LUT_2(A1R5G5B5, x)
+#define IPIXEL_FROM_A1B5G5R5(x) IPIXEL_CVT_LUT_2(A1B5G5R5, x)
+#define IPIXEL_FROM_R5G5B5A1(x) IPIXEL_CVT_LUT_2(R5G5B5A1, x)
+#define IPIXEL_FROM_B5G5R5A1(x) IPIXEL_CVT_LUT_2(B5G5R5A1, x)
+#define IPIXEL_FROM_X1R5G5B5(x) IPIXEL_CVT_LUT_2(X1R5G5B5, x)
+#define IPIXEL_FROM_X1B5G5R5(x) IPIXEL_CVT_LUT_2(X1B5G5R5, x)
+#define IPIXEL_FROM_R5G5B5X1(x) IPIXEL_CVT_LUT_2(R5G5B5X1, x)
+#define IPIXEL_FROM_B5G5R5X1(x) IPIXEL_CVT_LUT_2(B5G5R5X1, x)
+#define IPIXEL_FROM_A4R4G4B4(x) IPIXEL_CVT_LUT_2(A4R4G4B4, x)
+#define IPIXEL_FROM_A4B4G4R4(x) IPIXEL_CVT_LUT_2(A4B4G4R4, x)
+#define IPIXEL_FROM_R4G4B4A4(x) IPIXEL_CVT_LUT_2(R4G4B4A4, x)
+#define IPIXEL_FROM_B4G4R4A4(x) IPIXEL_CVT_LUT_2(B4G4R4A4, x)
+#define IPIXEL_FROM_X4R4G4B4(x) IPIXEL_CVT_LUT_2(X4R4G4B4, x)
+#define IPIXEL_FROM_X4B4G4R4(x) IPIXEL_CVT_LUT_2(X4B4G4R4, x)
+#define IPIXEL_FROM_R4G4B4X4(x) IPIXEL_CVT_LUT_2(R4G4B4X4, x)
+#define IPIXEL_FROM_B4G4R4X4(x) IPIXEL_CVT_LUT_2(B4G4R4X4, x)
+
+/* convert from 8 bits */
+#define IPIXEL_FROM_C8(x) _ipixel_A8R8G8B8_from_index(_ipixel_src_index, x)
+#define IPIXEL_FROM_G8(x) _ipixel_asm_8888(255, x, x, x)
+#define IPIXEL_FROM_A8(x) _ipixel_asm_8888(x, 0, 0, 0)
+#define IPIXEL_FROM_R3G3B2(x) IPIXEL_CVT_LUT_1(R3G3B2, x)
+#define IPIXEL_FROM_B2G3R3(x) IPIXEL_CVT_LUT_1(B2G3R3, x)
+#define IPIXEL_FROM_X2R2G2B2(x) IPIXEL_CVT_LUT_1(X2R2G2B2, x)
+#define IPIXEL_FROM_X2B2G2R2(x) IPIXEL_CVT_LUT_1(X2B2G2R2, x)
+#define IPIXEL_FROM_R2G2B2X2(x) IPIXEL_CVT_LUT_1(R2G2B2X2, x)
+#define IPIXEL_FROM_B2G2R2X2(x) IPIXEL_CVT_LUT_1(B2G2R2X2, x)
+#define IPIXEL_FROM_A2R2G2B2(x) IPIXEL_CVT_LUT_1(A2R2G2B2, x)
+#define IPIXEL_FROM_A2B2G2R2(x) IPIXEL_CVT_LUT_1(A2B2G2R2, x)
+#define IPIXEL_FROM_R2G2B2A2(x) IPIXEL_CVT_LUT_1(R2G2B2A2, x)
+#define IPIXEL_FROM_B2G2R2A2(x) IPIXEL_CVT_LUT_1(B2G2R2A2, x)
+#define IPIXEL_FROM_X4C4(x) IPIXEL_FROM_C8(x)
+#define IPIXEL_FROM_X4G4(x) IPIXEL_FROM_G8(_ipixel_scale_4[x])
+#define IPIXEL_FROM_X4A4(x) IPIXEL_FROM_A8(_ipixel_scale_4[x])
+#define IPIXEL_FROM_C4X4(x) IPIXEL_FROM_X4C4(((x) >> 4))
+#define IPIXEL_FROM_G4X4(x) IPIXEL_FROM_X4G4(((x) >> 4))
+#define IPIXEL_FROM_A4X4(x) IPIXEL_FROM_X4A4(((x) >> 4))
+
+/* convert from 4 bits */
+#define IPIXEL_FROM_C4(x) IPIXEL_FROM_X4C4(x)
+#define IPIXEL_FROM_G4(x) IPIXEL_FROM_X4G4(x)
+#define IPIXEL_FROM_A4(x) IPIXEL_FROM_X4A4(x)
+#define IPIXEL_FROM_R1G2B1(x) \
+		(	(_ipixel_scale_1[((x) >> 3)] << 16) | \
+			(_ipixel_scale_2[((x) & 6) >> 1] << 8) | \
+			(_ipixel_scale_1[((x) >> 0) & 1] << 0) | 0xff000000 )
+#define IPIXEL_FROM_B1G2R1(x) \
+		(	(_ipixel_scale_1[((x) >> 3)] << 0) | \
+			(_ipixel_scale_2[((x) & 6) >> 1] << 8) | \
+			(_ipixel_scale_1[((x) >> 0) & 1] << 16) | 0xff000000 )
+#define IPIXEL_FROM_1111(x, s1, s2, s3, s4) \
+		(	(_ipixel_scale_1[((x) >> 3) & 1] << (s1)) | \
+			(_ipixel_scale_1[((x) >> 2) & 1] << (s2)) | \
+			(_ipixel_scale_1[((x) >> 1) & 1] << (s3)) | \
+			(_ipixel_scale_1[((x) >> 0) & 1] << (s4)))
+#define IPIXEL_FROM_A1R1G1B1(x) IPIXEL_FROM_1111(x, 24, 16, 8, 0)
+#define IPIXEL_FROM_A1B1G1R1(x) IPIXEL_FROM_1111(x, 24, 0, 8, 16)
+#define IPIXEL_FROM_R1G1B1A1(x) IPIXEL_FROM_1111(x, 16, 8, 0, 24)
+#define IPIXEL_FROM_B1G1R1A1(x) IPIXEL_FROM_1111(x, 0, 8, 16, 24)
+#define IPIXEL_FROM_X111(x, sr, sg, sb) \
+		(	(_ipixel_scale_1[((x) >> (sr)) & 1] << 16) | \
+			(_ipixel_scale_1[((x) >> (sg)) & 1] <<  8) | \
+			(_ipixel_scale_1[((x) >> (sb)) & 1] <<  0) | 0xff000000 )
+#define IPIXEL_FROM_X1R1G1B1(x) IPIXEL_FROM_X111(x, 2, 1, 0)
+#define IPIXEL_FROM_X1B1G1R1(x) IPIXEL_FROM_X111(x, 0, 1, 2)
+#define IPIXEL_FROM_R1G1B1X1(x) IPIXEL_FROM_X111(x, 3, 2, 1)
+#define IPIXEL_FROM_B1G1R1X1(x) IPIXEL_FROM_X111(x, 1, 2, 3)
+
+/* convert from 1 bits */
+#define IPIXEL_FROM_C1(x) IPIXEL_FROM_C8(x)
+#define IPIXEL_FROM_G1(x) IPIXEL_FROM_G8(_ipixel_scale_1[(x)])
+#define IPIXEL_FROM_A1(x) IPIXEL_FROM_A8(_ipixel_scale_1[(x)])
+
+
+/* pixel convert to 32 bits */
+#define IPIXEL_TO_A8R8G8B8(x) (x)
+#define IPIXEL_TO_A8B8G8R8(x) \
+			(	((x) & 0xff00ff00) | \
+				(((x) >> 16) & 0xff) | (((x) & 0xff) << 16) )
+#define IPIXEL_TO_R8G8B8A8(x) \
+			(	(((x) & 0xffffff) << 8) | (((x) & 0xff000000) >> 24) )
+#define IPIXEL_TO_B8G8R8A8(x) \
+		(	(((x) & 0xff) << 24) | \
+			(((x) & 0xff00) << 8) | \
+			(((x) & 0xff0000) >> 8) | \
+			(((x) & 0xff000000) >> 24) )
+
+#define IPIXEL_TO_X8R8G8B8(x) ((x) & 0xffffff)
+
+#define IPIXEL_TO_X8B8G8R8(x) \
+		(	(((x) & 0xff) << 16) | \
+			((x) & 0xff00) | \
+			(((x) & 0xff0000) >> 16) )
+
+#define IPIXEL_TO_R8G8B8X8(x) ((x) << 8)
+
+#define IPIXEL_TO_B8G8R8X8(x) \
+		(	(((x) & 0xff) << 24) | \
+			(((x) & 0xff00) << 8) | \
+			(((x) & 0xff0000) >> 8) )
+
+#define IPIXEL_TO_P8R8G8B8(x) \
+		IRGBA_TO_P8R8G8B8(	(((x) & 0xff0000) >> 16), \
+							(((x) & 0xff00) >> 8), \
+							(((x) & 0xff)), \
+							(((x) & 0xff000000) >> 24) )
+
+/* pixel convert to 24 bits */
+#define IPIXEL_TO_R8G8B8(x) ((x) & 0xffffff)
+
+#define IPIXEL_TO_B8G8R8(x) \
+		(	(((x) & 0xff) << 16) | \
+			((x) & 0xff00) | \
+			(((x) & 0xff0000) >> 16) )
+
+/* pixel convert to 16 bits */
+#define IPIXEL_TO_R5G6B5(x) \
+		(	(((x) & 0xf80000) >> 8) | \
+			(((x) & 0xfc00) >> 5) | \
+			(((x) & 0xf8) >> 3) )
+
+#define IPIXEL_TO_B5G6R5(x) \
+		(	(((x) & 0xf8) << 8) | \
+			(((x) & 0xfc00) >> 5) | \
+			(((x) & 0xf80000) >> 19) )
+
+#define IPIXEL_TO_X1R5G5B5(x) \
+		(	(((x) & 0xf80000) >> 9) | \
+			(((x) & 0xf800) >> 6) | \
+			(((x) & 0xf8) >> 3) )
+
+#define IPIXEL_TO_X1B5G5R5(x) \
+		(	(((x) & 0xf8) << 7) | \
+			(((x) & 0xf800) >> 6) | \
+			(((x) & 0xf80000) >> 19) )
+
+#define IPIXEL_TO_R5G5B5X1(x) \
+		(	(((x) & 0xf80000) >> 8) | \
+			(((x) & 0xf800) >> 5) | \
+			(((x) & 0xf8) >> 2) )
+
+#define IPIXEL_TO_B5G5R5X1(x) \
+		(	(((x) & 0xf8) << 8) | \
+			(((x) & 0xf800) >> 5) | \
+			(((x) & 0xf80000) >> 18) )
+
+#define IPIXEL_TO_A1R5G5B5(x) \
+		(	(((x) & 0x80000000) >> 16) | \
+			(((x) & 0xf80000) >> 9) | \
+			(((x) & 0xf800) >> 6) | \
+			(((x) & 0xf8) >> 3) )
+
+#define IPIXEL_TO_A1B5G5R5(x) \
+		(	(((x) & 0x80000000) >> 16) | \
+			(((x) & 0xf8) << 7) | \
+			(((x) & 0xf800) >> 6) | \
+			(((x) & 0xf80000) >> 19) )
+
+#define IPIXEL_TO_R5G5B5A1(x) \
+		(	(((x) & 0xf80000) >> 8) | \
+			(((x) & 0xf800) >> 5) | \
+			(((x) & 0xf8) >> 2) | \
+			(((x) & 0x80000000) >> 31) )
+
+#define IPIXEL_TO_B5G5R5A1(x) \
+		(	(((x) & 0xf8) << 8) | \
+			(((x) & 0xf800) >> 5) | \
+			(((x) & 0xf80000) >> 18) | \
+			(((x) & 0x80000000) >> 31) )
+
+#define IPIXEL_TO_X4R4G4B4(x) \
+		(	(((x) & 0xf00000) >> 12) | \
+			(((x) & 0xf000) >> 8) | \
+			(((x) & 0xf0) >> 4) )
+
+#define IPIXEL_TO_X4B4G4R4(x) \
+		(	(((x) & 0xf0) << 4) | \
+			(((x) & 0xf000) >> 8) | \
+			(((x) & 0xf00000) >> 20) )
+
+#define IPIXEL_TO_R4G4B4X4(x) \
+		(	(((x) & 0xf00000) >> 8) | \
+			(((x) & 0xf000) >> 4) | \
+			((x) & 0xf0) )
+
+#define IPIXEL_TO_B4G4R4X4(x) \
+		(	(((x) & 0xf0) << 8) | \
+			(((x) & 0xf000) >> 4) | \
+			(((x) & 0xf00000) >> 16) )
+
+#define IPIXEL_TO_A4R4G4B4(x) \
+		(	(((x) & 0xf0000000) >> 16) | \
+			(((x) & 0xf00000) >> 12) | \
+			(((x) & 0xf000) >> 8) | \
+			(((x) & 0xf0) >> 4) )
+
+#define IPIXEL_TO_A4B4G4R4(x) \
+		(	(((x) & 0xf0000000) >> 16) | \
+			(((x) & 0xf0) << 4) | \
+			(((x) & 0xf000) >> 8) | \
+			(((x) & 0xf00000) >> 20) )
+
+#define IPIXEL_TO_R4G4B4A4(x) \
+		(	(((x) & 0xf00000) >> 8) | \
+			(((x) & 0xf000) >> 4) | \
+			((x) & 0xf0) | \
+			(((x) & 0xf0000000) >> 28) )
+
+#define IPIXEL_TO_B4G4R4A4(x) \
+		(	(((x) & 0xf0) << 8) | \
+			(((x) & 0xf000) >> 4) | \
+			(((x) & 0xf00000) >> 16) | \
+			(((x) & 0xf0000000) >> 28) )
+
+/* pixel convert to 8 bits */
+#define IPIXEL_TO_C8(x) _ipixel_RGB_to_ent(_ipixel_dst_index, \
+			(((x) & 0xff0000) >> 16), \
+			(((x) & 0xff00) >> 8), \
+			(((x) & 0xff)) )
+
+
+#define IPIXEL_TO_G8(x) _ipixel_to_gray( \
+			(((x) & 0xff0000) >> 16), \
+			(((x) & 0xff00) >> 8), \
+			(((x) & 0xff)) )
+
+#define IPIXEL_TO_A8(x) (((x) & 0xff000000) >> 24)
+
+#define IPIXEL_TO_R3G3B2(x) \
+		(	(((x) & 0xe00000) >> 16) | \
+			(((x) & 0xe000) >> 11) | \
+			(((x) & 0xc0) >> 6) )
+
+#define IPIXEL_TO_B2G3R3(x) \
+		(	((x) & 0xc0) | \
+			(((x) & 0xe000) >> 10) | \
+			(((x) & 0xe00000) >> 21) )
+
+#define IPIXEL_TO_X2R2G2B2(x) \
+		(	(((x) & 0xc00000) >> 18) | \
+			(((x) & 0xc000) >> 12) | \
+			(((x) & 0xc0) >> 6) )
+
+#define IPIXEL_TO_X2B2G2R2(x) \
+		(	(((x) & 0xc0) >> 2) | \
+			(((x) & 0xc000) >> 12) | \
+			(((x) & 0xc00000) >> 22) )
+
+#define IPIXEL_TO_R2G2B2X2(x) \
+		(	(((x) & 0xc00000) >> 16) | \
+			(((x) & 0xc000) >> 10) | \
+			(((x) & 0xc0) >> 4) )
+
+#define IPIXEL_TO_B2G2R2X2(x) \
+		(	((x) & 0xc0) | \
+			(((x) & 0xc000) >> 10) | \
+			(((x) & 0xc00000) >> 20) )
+
+#define IPIXEL_TO_A2R2G2B2(x) \
+		(	(((x) & 0xc0000000) >> 24) | \
+			(((x) & 0xc00000) >> 18) | \
+			(((x) & 0xc000) >> 12) | \
+			(((x) & 0xc0) >> 6) )
+
+#define IPIXEL_TO_A2B2G2R2(x) \
+		(	(((x) & 0xc0000000) >> 24) | \
+			(((x) & 0xc0) >> 2) | \
+			(((x) & 0xc000) >> 12) | \
+			(((x) & 0xc00000) >> 22) )
+
+#define IPIXEL_TO_R2G2B2A2(x) \
+		(	(((x) & 0xc00000) >> 16) | \
+			(((x) & 0xc000) >> 10) | \
+			(((x) & 0xc0) >> 4) | \
+			(((x) & 0xc0000000) >> 30) )
+
+#define IPIXEL_TO_B2G2R2A2(x) \
+		(	((x) & 0xc0) | \
+			(((x) & 0xc000) >> 10) | \
+			(((x) & 0xc00000) >> 20) | \
+			(((x) & 0xc0000000) >> 30) )
+
+#define IPIXEL_TO_X4C4(x) (IPIXEL_TO_C8(x) & 0xf)
+#define IPIXEL_TO_X4G4(x) (IPIXEL_TO_G8(x) >> 4)
+#define IPIXEL_TO_X4A4(x) (IPIXEL_TO_A8(x) >> 4)
+#define IPIXEL_TO_C4X4(x) ((IPIXEL_TO_C8(x) & 0xf) << 4)
+#define IPIXEL_TO_G4X4(x) (IPIXEL_TO_G8(x) & 0xf0)
+#define IPIXEL_TO_A4X4(x) (IPIXEL_TO_A8(x) & 0xf0)
+
+/* pixel convert to 4 bits */
+#define IPIXEL_TO_C4(x) IPIXEL_TO_X4C4(x)
+#define IPIXEL_TO_G4(x) IPIXEL_TO_X4G4(x)
+#define IPIXEL_TO_A4(x) IPIXEL_TO_X4A4(x)
+
+#define IPIXEL_TO_R1G2B1(x) \
+		(	(((x) & 0x800000) >> 20) | \
+			(((x) & 0xc000) >> 13) | \
+			(((x) & 0x80) >> 7) )
+
+#define IPIXEL_TO_B1G2R1(x) \
+		(	(((x) & 0x80) >> 4) | \
+			(((x) & 0xc000) >> 13) | \
+			(((x) & 0x800000) >> 23) )
+
+#define IPIXEL_TO_A1R1G1B1(x) \
+		(	(((x) & 0x80000000) >> 28) | \
+			(((x) & 0x800000) >> 21) | \
+			(((x) & 0x8000) >> 14) | \
+			(((x) & 0x80) >> 7) )
+
+#define IPIXEL_TO_A1B1G1R1(x) \
+		(	(((x) & 0x80000000) >> 28) | \
+			(((x) & 0x80) >> 5) | \
+			(((x) & 0x8000) >> 14) | \
+			(((x) & 0x800000) >> 23) )
+
+#define IPIXEL_TO_R1G1B1A1(x) \
+		(	(((x) & 0x800000) >> 20) | \
+			(((x) & 0x8000) >> 13) | \
+			(((x) & 0x80) >> 6) | \
+			(((x) & 0x80000000) >> 31) )
+
+#define IPIXEL_TO_B1G1R1A1(x) \
+		(	(((x) & 0x80) >> 4) | \
+			(((x) & 0x8000) >> 13) | \
+			(((x) & 0x800000) >> 22) | \
+			(((x) & 0x80000000) >> 31) )
+
+#define IPIXEL_TO_X1R1G1B1(x) \
+		(	(((x) & 0x800000) >> 21) | \
+			(((x) & 0x8000) >> 14) | \
+			(((x) & 0x80) >> 7) )
+
+#define IPIXEL_TO_X1B1G1R1(x) \
+		(	(((x) & 0x80) >> 5) | \
+			(((x) & 0x8000) >> 14) | \
+			(((x) & 0x800000) >> 23) )
+
+#define IPIXEL_TO_R1G1B1X1(x) \
+		(	(((x) & 0x800000) >> 20) | \
+			(((x) & 0x8000) >> 13) | \
+			(((x) & 0x80) >> 6) )
+
+#define IPIXEL_TO_B1G1R1X1(x) \
+		(	(((x) & 0x80) >> 4) | \
+			(((x) & 0x8000) >> 13) | \
+			(((x) & 0x800000) >> 22) )
+
+/* pixel convert to 1 bit */
+#define IPIXEL_TO_C1(x) (IPIXEL_TO_C8(x) & 1)
+#define IPIXEL_TO_G1(x) (IPIXEL_TO_G8(x) >> 7)
+#define IPIXEL_TO_A1(x) (IPIXEL_TO_A8(x) >> 7)
+
+
 /**********************************************************************
  * MACRO: PIXEL FORMAT UTILITY
  **********************************************************************/
@@ -1623,6 +2068,7 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 		_ipixel_fill_##bpp(bits, startx, size, color)
 
 
+
 /**********************************************************************
  * MACRO: PIXEL BLENDING
  **********************************************************************/
@@ -1725,11 +2171,12 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 
 
 
-
 #ifdef __cplusplus
 }
 #endif
 
 
 #endif
+
+
 
