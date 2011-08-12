@@ -149,23 +149,23 @@ const struct IPIXELFMT ipixelfmt[64] =
 
 
 /* lookup table for scaling 1 bit colors up to 8 bits */
-const int _ipixel_scale_1[2] = { 0, 255 };
+const IUINT32 _ipixel_scale_1[2] = { 0, 255 };
 
 /* lookup table for scaling 2 bit colors up to 8 bits */
-const int _ipixel_scale_2[4] = { 0, 85, 170, 255 };
+const IUINT32 _ipixel_scale_2[4] = { 0, 85, 170, 255 };
 
 /* lookup table for scaling 3 bit colors up to 8 bits */
-const int _ipixel_scale_3[8] = { 0, 36, 72, 109, 145, 182, 218, 255 };
+const IUINT32 _ipixel_scale_3[8] = { 0, 36, 72, 109, 145, 182, 218, 255 };
 
 /* lookup table for scaling 4 bit colors up to 8 bits */
-const int _ipixel_scale_4[16] = 
+const IUINT32 _ipixel_scale_4[16] = 
 {
     0, 16, 32, 49, 65, 82, 98, 115, 
     139, 156, 172, 189, 205, 222, 238, 255
 };
 
 /* lookup table for scaling 5 bit colors up to 8 bits */
-const int _ipixel_scale_5[32] =
+const IUINT32 _ipixel_scale_5[32] =
 {
    0,   8,   16,  24,  32,  41,  49,  57,
    65,  74,  82,  90,  98,  106, 115, 123,
@@ -174,7 +174,7 @@ const int _ipixel_scale_5[32] =
 };
 
 /* lookup table for scaling 6 bit colors up to 8 bits */
-const int _ipixel_scale_6[64] =
+const IUINT32 _ipixel_scale_6[64] =
 {
    0,   4,   8,   12,  16,  20,  24,  28,
    32,  36,  40,  44,  48,  52,  56,  60,
@@ -554,15 +554,15 @@ static void _ifetch_proc_A8B8G8R8(const void *bits, int x,
 	ILINS_LOOP_DOUBLE( 
 		{
 			*buffer++ = ((*pixel & 0xff00ff00) |
-				((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
+				((*pixel & 0xff0000) >> 16) | ((*pixel & 0xff) << 16));
 			pixel++;
 		},
 		{
 			*buffer++ = ((*pixel & 0xff00ff00) |
-				((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
+				((*pixel & 0xff0000) >> 16) | ((*pixel & 0xff) << 16));
 			pixel++;
 			*buffer++ = ((*pixel & 0xff00ff00) |
-				((*pixel >> 16) & 0xff) | ((*pixel & 0xff) << 16));
+				((*pixel & 0xff0000) >> 16) | ((*pixel & 0xff) << 16));
 			pixel++;
 		},
 		w);
@@ -575,15 +575,15 @@ static void _ifetch_proc_R8G8B8A8(const void *bits, int x,
 	ILINS_LOOP_DOUBLE( 
 		{
 			*buffer++ = ((*pixel & 0xff) << 24) |
-				((*pixel >> 8) & 0xffffff);
+				((*pixel & 0xffffff00) >> 8);
 			pixel++;
 		},
 		{
 			*buffer++ = ((*pixel & 0xff) << 24) |
-				((*pixel >> 8) & 0xffffff);
+				((*pixel & 0xffffff00) >> 8);
 			pixel++;
 			*buffer++ = ((*pixel & 0xff) << 24) |
-				((*pixel >> 8) & 0xffffff);
+				((*pixel & 0xffffff00) >> 8);
 			pixel++;
 		},
 		w);
@@ -615,15 +615,15 @@ static void _ifetch_proc_R8G8B8X8(const void *bits, int x,
 	ILINS_LOOP_DOUBLE( 
 		{
 			*buffer++ = (0xff000000) |
-				((*pixel >> 8) & 0xffffff);
+				((*pixel & 0xffffff00) >> 8);
 			pixel++;
 		},
 		{
 			*buffer++ = (0xff000000) |
-				((*pixel >> 8) & 0xffffff);
+				((*pixel & 0xffffff00) >> 8);
 			pixel++;
 			*buffer++ = (0xff000000) |
-				((*pixel >> 8) & 0xffffff);
+				((*pixel & 0xffffff00) >> 8);
 			pixel++;
 		},
 		w);
@@ -724,15 +724,15 @@ static void _istore_proc_A8B8G8R8(void *bits,
 	ILINS_LOOP_DOUBLE( 
 		{
 			*pixel++ = (values[0] & 0xff00ff00) |
-				((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
+				((values[0] & 0xff0000) >> 16) | ((values[0] & 0xff) << 16);
 			values++;
 		},
 		{
 			*pixel++ = (values[0] & 0xff00ff00) |
-				((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
+				((values[0] & 0xff0000) >> 16) | ((values[0] & 0xff) << 16);
 			values++;
 			*pixel++ = (values[0] & 0xff00ff00) |
-				((values[0] >> 16) & 0xff) | ((values[0] & 0xff) << 16);
+				((values[0] & 0xff0000) >> 16) | ((values[0] & 0xff) << 16);
 			values++;
 		},
 		w);
@@ -824,7 +824,7 @@ static void _istore_proc_B8G8R8(void *bits,
 	int i;
 	for (i = w; i > 0; i--) {
 		c = *values++;
-		c = (c & 0x00ff00) | ((c >> 16) & 0xff) | ((c << 16) & 0xff0000);
+		c = (c & 0x00ff00) | ((c & 0xff0000) >> 16) | ((c & 0xff) << 16);
 		ISTORE24(pixel, c);
 		pixel += 3;
 	}
@@ -999,7 +999,7 @@ static IUINT32 _ifetch_pixel_A8B8G8R8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
-	return ((pixel & 0xff00ff00) | ((pixel >> 16) & 0xff) | 
+	return ((pixel & 0xff00ff00) | ((pixel & 0xff0000) >> 16) | 
 		((pixel & 0xff) << 16));
 }
 
@@ -1007,7 +1007,7 @@ static IUINT32 _ifetch_pixel_R8G8B8A8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
-	return ((pixel & 0xff) << 24) | ((pixel >> 8) & 0xffffff);
+	return ((pixel & 0xff) << 24) | ((pixel & 0xffffff00) >> 8);
 }
 
 static IUINT32 _ifetch_pixel_B8G8R8A8(const void *bits,
@@ -1031,7 +1031,7 @@ static IUINT32 _ifetch_pixel_X8B8G8R8(const void *bits,
 	int offset, const iColorIndex *idx)
 {
 	IUINT32 pixel = ((const IUINT32*)(bits))[offset];
-	return ((pixel & 0x0000ff00) | ((pixel >> 16) & 0xff) | 
+	return ((pixel & 0x0000ff00) | ((pixel & 0xff0000) >> 16) | 
 		((pixel & 0xff) << 16)) | 0xff000000;
 }
 
@@ -1211,7 +1211,7 @@ void ipixel_set_proc(int pixfmt, int type, void *proc)
  * FETCHING STORING LOOK UP TABLE
  **********************************************************************/
 #define IFETCH_LUT_2(sfmt) \
-static IUINT32 _ipixel_lut_##sfmt[256 * 2]; \
+IUINT32 _ipixel_cvt_lut_##sfmt[256 * 2]; \
 static void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
     int w, IUINT32 *buffer, const iColorIndex *idx) \
 { \
@@ -1219,15 +1219,15 @@ static void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
 	IUINT32 c1, c2, c3, c4; \
 	ILINS_LOOP_DOUBLE( \
 		{ \
-			c1 = _ipixel_lut_##sfmt[*input++ +   0]; \
-			c2 = _ipixel_lut_##sfmt[*input++ + 256]; \
+			c1 = _ipixel_cvt_lut_##sfmt[*input++ +   0]; \
+			c2 = _ipixel_cvt_lut_##sfmt[*input++ + 256]; \
 			*buffer++ = c1 | c2; \
 		}, \
 		{ \
-			c1 = _ipixel_lut_##sfmt[*input++ +   0]; \
-			c2 = _ipixel_lut_##sfmt[*input++ + 256]; \
-			c3 = _ipixel_lut_##sfmt[*input++ +   0]; \
-			c4 = _ipixel_lut_##sfmt[*input++ + 256]; \
+			c1 = _ipixel_cvt_lut_##sfmt[*input++ +   0]; \
+			c2 = _ipixel_cvt_lut_##sfmt[*input++ + 256]; \
+			c3 = _ipixel_cvt_lut_##sfmt[*input++ +   0]; \
+			c4 = _ipixel_cvt_lut_##sfmt[*input++ + 256]; \
 			c1 |= c2; \
 			c3 |= c4; \
 			*buffer++ = c1; \
@@ -1240,14 +1240,14 @@ static IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
 { \
 	const IUINT8 *input = (const IUINT8*)bits + (offset << 1); \
 	IUINT32 c1, c2; \
-	c1 = _ipixel_lut_##sfmt[*input++ +   0]; \
-	c2 = _ipixel_lut_##sfmt[*input++ + 256]; \
+	c1 = _ipixel_cvt_lut_##sfmt[*input++ +   0]; \
+	c2 = _ipixel_cvt_lut_##sfmt[*input++ + 256]; \
 	return c1 | c2; \
 }
 
 
 #define IFETCH_LUT_1(sfmt) \
-static IUINT32 _ipixel_lut_##sfmt[256]; \
+IUINT32 _ipixel_cvt_lut_##sfmt[256]; \
 static void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
     int w, IUINT32 *buffer, const iColorIndex *idx) \
 { \
@@ -1255,12 +1255,12 @@ static void _ifetch_proc_lut_##sfmt(const void *bits, int x, \
 	IUINT32 c1, c2; \
 	ILINS_LOOP_DOUBLE( \
 		{ \
-			c1 = _ipixel_lut_##sfmt[*input++]; \
+			c1 = _ipixel_cvt_lut_##sfmt[*input++]; \
 			*buffer++ = c1; \
 		}, \
 		{ \
-			c1 = _ipixel_lut_##sfmt[*input++]; \
-			c2 = _ipixel_lut_##sfmt[*input++]; \
+			c1 = _ipixel_cvt_lut_##sfmt[*input++]; \
+			c2 = _ipixel_cvt_lut_##sfmt[*input++]; \
 			*buffer++ = c1; \
 			*buffer++ = c2; \
 		}, \
@@ -1270,7 +1270,7 @@ static IUINT32 _ifetch_pixel_lut_##sfmt(const void *bits, \
     int offset, const iColorIndex *idx) \
 { \
 	const IUINT8 *input = (const IUINT8*)bits + offset; \
-	return _ipixel_lut_##sfmt[*input]; \
+	return _ipixel_cvt_lut_##sfmt[*input]; \
 }
 
 #define IFETCH_LUT_MAIN(sfmt, nbytes) \
@@ -1373,7 +1373,7 @@ void ipixel_lut_init(void)
 
 	#define IPIXEL_LUT_INIT(fmt, nbytes) \
 		ipixel_lut_##nbytes##_to_4(IPIX_FMT_##fmt, IPIX_FMT_A8R8G8B8, \
-			_ipixel_lut_##fmt)
+			_ipixel_cvt_lut_##fmt)
 
 	IPIXEL_LUT_INIT(R5G6B5, 2);
 	IPIXEL_LUT_INIT(B5G6R5, 2);
@@ -1579,7 +1579,7 @@ static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 			} \
 			else if (a1 > 0) { \
 				r1 = dst[0]; \
-				cc = _ipixel_lut_##fmt[r1]; \
+				cc = _ipixel_cvt_lut_##fmt[r1]; \
 				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
 				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
@@ -1600,7 +1600,7 @@ static void ipixel_span_draw_proc_##fmt##_0(void *bits, \
 			else if (r2 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				r1 = dst[0]; \
-				cc = _ipixel_lut_##fmt[r1]; \
+				cc = _ipixel_cvt_lut_##fmt[r1]; \
 				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
 				IBLEND_##mode(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
@@ -1622,7 +1622,7 @@ static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 			_ipixel_load_card(card, r1, g1, b1, a1); \
 			if (a1 > 0) { \
 				r1 = dst[0]; \
-				cc = _ipixel_lut_##fmt[r1]; \
+				cc = _ipixel_cvt_lut_##fmt[r1]; \
 				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
 				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
@@ -1638,7 +1638,7 @@ static void ipixel_span_draw_proc_##fmt##_1(void *bits, \
 			if (a1 > 0 && cc > 0) { \
 				a1 = _imul_y_div_255(a1, cc); \
 				r1 = dst[0]; \
-				cc = _ipixel_lut_##fmt[r1]; \
+				cc = _ipixel_cvt_lut_##fmt[r1]; \
 				IRGBA_FROM_PIXEL(A8R8G8B8, cc, r2, g2, b2, a2); \
 				IBLEND_ADDITIVE(r1, g1, b1, a1, r2, g2, b2, a2); \
 				cc = IRGBA_TO_PIXEL(fmt, r2, g2, b2, a2); \
@@ -2970,40 +2970,39 @@ void ipixel_blit(int bpp, void *dst, long dpitch, int dx, const void *src,
 /**********************************************************************
  * CONVERTING
  **********************************************************************/
-static iPixelCvt ipixel_cvt_table[IPIX_FMT_COUNT][IPIX_FMT_COUNT][2];
+static iPixelCvt ipixel_cvt_table[IPIX_FMT_COUNT][IPIX_FMT_COUNT][8];
 static int ipixel_cvt_inited = 0;
 
 /* initialize converting procedure table */
 static void ipixel_cvt_init(void)
 {
-	int dfmt, sfmt;
+	int dfmt, sfmt, i;
 	if (ipixel_cvt_inited) return;
 	for (dfmt = 0; dfmt < IPIX_FMT_COUNT; dfmt++) {
 		for (sfmt = 0; sfmt < IPIX_FMT_COUNT; sfmt++) {
-			ipixel_cvt_table[dfmt][sfmt][0] = NULL;
-			ipixel_cvt_table[dfmt][sfmt][1] = NULL;
+			for (i = 0; i < 8; i++) ipixel_cvt_table[dfmt][sfmt][i] = NULL;
 		}
 	}
 	ipixel_cvt_inited = 1;
 }
 
 /* get converting procedure */
-iPixelCvt ipixel_cvt_get(int dfmt, int sfmt, int istransparent)
+iPixelCvt ipixel_cvt_get(int dfmt, int sfmt, int index)
 {
-	int index = (istransparent)? 1 : 0;
 	if (ipixel_cvt_inited == 0) ipixel_cvt_init();
 	if (dfmt < 0 || dfmt >= IPIX_FMT_COUNT) return NULL;
 	if (sfmt < 0 || sfmt >= IPIX_FMT_COUNT) return NULL;
+	if (index < 0 || index >= 8) return NULL;
 	return ipixel_cvt_table[dfmt][sfmt][index];
 }
 
 /* set converting procedure */
-void ipixel_cvt_set(int dfmt, int sfmt, int istransparent, iPixelCvt proc)
+void ipixel_cvt_set(int dfmt, int sfmt, int index, iPixelCvt proc)
 {
-	int index = (istransparent)? 1 : 0;
 	if (ipixel_cvt_inited == 0) ipixel_cvt_init();
 	if (dfmt < 0 || dfmt >= IPIX_FMT_COUNT) return;
 	if (sfmt < 0 || sfmt >= IPIX_FMT_COUNT) return;
+	if (index < 0 || index >= 8) return;
 	ipixel_cvt_table[dfmt][sfmt][index] = proc;
 }
 

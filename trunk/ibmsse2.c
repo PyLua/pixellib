@@ -39,7 +39,6 @@ static inline void _ipixel_cvt_to_##fmt(void *bits, IUINT32 pixel) { \
 }
 
 #define IPIXEL_CVT_LUT(fmt) \
-static IUINT32 _ipixel_cvt_lut_##fmt[512]; \
 static inline IUINT32 _ipixel_cvt_from_##fmt(const void *bpp) { \
 	IUINT32 c1 = _ipixel_cvt_lut_##fmt[((const IUINT8*)bpp)[0] +   0]; \
 	IUINT32 c2 = _ipixel_cvt_lut_##fmt[((const IUINT8*)bpp)[1] + 256]; \
@@ -227,27 +226,6 @@ static void _ipixel_cvt_lut_init(void)
 	int i;
 
 	if (_ipixel_cvt_lut_inited) return;
-
-	#define IPIXEL_CVT_LUT_BUILD(fmt) \
-		ipixel_lut_2_to_4(IPIX_FMT_##fmt, IPIX_FMT_A8R8G8B8, \
-			_ipixel_cvt_lut_##fmt)
-
-	IPIXEL_CVT_LUT_BUILD(R5G6B5);
-	IPIXEL_CVT_LUT_BUILD(B5G6R5);
-	IPIXEL_CVT_LUT_BUILD(A1R5G5B5);
-	IPIXEL_CVT_LUT_BUILD(A1B5G5R5);
-	IPIXEL_CVT_LUT_BUILD(R5G5B5A1);
-	IPIXEL_CVT_LUT_BUILD(B5G5R5A1);
-	IPIXEL_CVT_LUT_BUILD(X1R5G5B5);
-	IPIXEL_CVT_LUT_BUILD(X1B5G5R5);
-	IPIXEL_CVT_LUT_BUILD(R5G5B5X1);
-	IPIXEL_CVT_LUT_BUILD(B5G5R5X1);
-	IPIXEL_CVT_LUT_BUILD(A4R4G4B4);
-	IPIXEL_CVT_LUT_BUILD(A4B4G4R4);
-	IPIXEL_CVT_LUT_BUILD(R4G4B4A4);
-	IPIXEL_CVT_LUT_BUILD(B4G4R4A4);
-
-	#undef IPIXEL_CVT_LUT_BUILD
 
 	for (i = 0; i < 4096; i++) {
 		int alpha = _ipixel_scale_6[i >> 6];
