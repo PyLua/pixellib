@@ -224,12 +224,44 @@ int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src,
 
 
 //---------------------------------------------------------------------
+// 色彩空间
+//---------------------------------------------------------------------
+typedef struct IYCRCB
+{
+	unsigned char Y, Cr, Cb;
+	unsigned char reserved;
+}	IYCrCb;
+
+typedef struct IHSV
+{
+	float H, S, V;
+	unsigned char reserved;
+}	IHSV;
+
+
+void iconv_RGB_to_YCrCb(const IRGB *input, long size, IYCrCb *output);
+
+void iconv_YCrCb_to_RGB(const IYCrCb *input, long size, IRGB *output);
+
+void iconv_RGB_to_HSV(const IRGB *input, long size, IHSV *output);
+
+void iconv_HSV_to_RGB(const IHSV *input, long size, IRGB *output);
+
+
+
+
+//---------------------------------------------------------------------
 // 特效若干
 //---------------------------------------------------------------------
 
 // 生成特效
 IBITMAP *ibitmap_glossy_make(IBITMAP *bmp, int radius, int border, int light,
 	int shadow, int shadow_pos);
+
+// 调整色调
+void ibitmap_adjust_hsv(IBITMAP *bmp, float hue, float saturation, 
+	float value, const IRECT *bound);
+
 
 
 #ifdef __cplusplus

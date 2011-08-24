@@ -2325,6 +2325,229 @@ int ipaint_draw(ipaint_t *paint, int x, int y, const IBITMAP *src,
 
 
 
+
+
+//---------------------------------------------------------------------
+// 色彩空间
+//---------------------------------------------------------------------
+
+#define ICONV_BITS		10
+#define ICONV_HALF		(1 << (ICONV_BITS - 1))
+#define ICONV_FIX(F)	((int)((F) * (1 << ICONV_BITS) + 0.5))
+
+#define ICONV_MAX(a, b) (((a) > (b))? (a) : (b))
+#define ICONV_MIN(a, b) (((a) < (b))? (a) : (b))
+#define ICONV_MID(a, x, b) ICONV_MAX(a, ICONV_MIN(x, b))
+
+#define ICONV_CLAMP(x)	{ if (x < 0) x = 0; else if (x > 255) x = 255; }
+#define ICONV_CLAMP1(r, g, b) { \
+	r >>= ICONV_BITS; g >>= ICONV_BITS; b >>= ICONV_BITS; \
+	if (((unsigned)(r) | (unsigned)(g) | (unsigned)(b)) & (~255u)) { \
+		ICONV_CLAMP(r); ICONV_CLAMP(g); ICONV_CLAMP(b); } \
+	}
+#define ICONV_CLAMP2(r1, g1, b1, r2, g2, b2) { \
+	r1 >>= ICONV_BITS; g1 >>= ICONV_BITS; b1 >>= ICONV_BITS; \
+	r2 >>= ICONV_BITS; g2 >>= ICONV_BITS; b2 >>= ICONV_BITS; \
+	if (((unsigned)r1 | (unsigned)g1 | (unsigned)b1 |	\
+		 (unsigned)r2 | (unsigned)g2 | (unsigned)b2) & (~255u)) {	\
+		ICONV_CLAMP(r1); ICONV_CLAMP(g1); ICONV_CLAMP(b1); \
+		ICONV_CLAMP(r2); ICONV_CLAMP(g2); ICONV_CLAMP(b2); } \
+	}
+
+#define ICONV_MUL(r, g, b, x, y, z, w) \
+	(ICONV_FIX(x) * r + ICONV_FIX(y) * g + ICONV_FIX(z) * b + w)
+
+#define ICONV_RGB_TO_Y(r, g, b) \
+	ICONV_MUL(r, g, b, 0.299, 0.584, 0.117, 0)
+#define ICONV_RGB_TO_Cr(r, g, b) \
+	ICONV_MUL(r, g, b, 0.5, -0.4187, -0.0813, (128 << ICONV_BITS))
+#define ICONV_RGB_TO_Cb(r, g, b) \
+	ICONV_MUL(r, g, b, -0.1687, -0.3313, 0.5, (128 << ICONV_BITS))
+
+#define ICONV_SCALE(f, x) (ICONV_FIX(f) * (x - 128) + ICONV_HALF)
+
+#define ICONV_YCrCb_TO_R(Y, Cr, Cb) \
+	((Y << ICONV_BITS) + ICONV_SCALE(1.402, Cr))
+#define ICONV_YCrCb_TO_G(Y, Cr, Cb) \
+	((Y << ICONV_BITS) - ICONV_SCALE(0.34414, Cb) - \
+	ICONV_SCALE(0.71414, Cr))
+#define ICONV_YCrCb_TO_B(Y, Cr, Cb) \
+	((Y << ICONV_BITS) + ICONV_SCALE(1.772, Cb))
+
+#define ICONV_GET_RGB(input, x, y, z, e) { \
+	x = input->r; y = input->g; z = input->b; e = input->reserved; input++; }
+#define ICONV_PUT_RGB(output, x, y, z, e) { \
+	output->r = (unsigned char)x; \
+	output->g = (unsigned char)y; \
+	output->b = (unsigned char)z; \
+	output->reserved = (unsigned char)e; \
+	output++; }
+
+#define ICONV_GET_YCrCb(input, x, y, z, e) { \
+	x = input->Y; y = input->Cr; z = input->Cb; \
+	e = input->reserved; input++; }
+#define ICONV_PUT_YCrCb(output, x, y, z, e) { \
+	output->Y = (unsigned char)x; \
+	output->Cr = (unsigned char)y; \
+	output->Cb = (unsigned char)z; \
+	output->reserved = e; \
+	output++; }
+
+
+void iconv_RGB_to_YCrCb(const IRGB *input, long size, IYCrCb *output)
+{
+	int Y1, Cr1, Cb1, Y2, Cr2, Cb2, e1, e2;
+	int r1, g1, b1, r2, g2, b2;
+
+	#define iconv_rgb_to_YCrCb_x1 {		\
+		ICONV_GET_RGB(input, r1, g1, b1, e1); \
+		Y1 = ICONV_RGB_TO_Y(r1, g1, b1); \
+		Cr1 = ICONV_RGB_TO_Cr(r1, g1, b1); \
+		Cb1 = ICONV_RGB_TO_Cb(r1, g1, b1); \
+		ICONV_CLAMP1(Y1, Cr1, Cb1); \
+		ICONV_PUT_YCrCb(output, Y1, Cr1, Cb1, e1); \
+	}
+
+	#define iconv_rgb_to_YCrCb_x2 { \
+		ICONV_GET_RGB(input, r1, g1, b1, e1); \
+		ICONV_GET_RGB(input, r2, g2, b2, e2); \
+		Y1 = ICONV_RGB_TO_Y(r1, g1, b1); \
+		Cr1 = ICONV_RGB_TO_Cr(r1, g1, b1); \
+		Cb1 = ICONV_RGB_TO_Cb(r1, g1, b1); \
+		Y2 = ICONV_RGB_TO_Y(r2, g2, b2); \
+		Cr2 = ICONV_RGB_TO_Cr(r2, g2, b2); \
+		Cb2 = ICONV_RGB_TO_Cb(r2, g2, b2); \
+		ICONV_CLAMP2(Y1, Cr1, Cb1, Y2, Cr2, Cb2); \
+		ICONV_PUT_YCrCb(output, Y1, Cr1, Cb1, e1); \
+		ICONV_PUT_YCrCb(output, Y2, Cr2, Cb2, e2); \
+	}
+
+	ILINS_LOOP_DOUBLE (
+			iconv_rgb_to_YCrCb_x1,
+			iconv_rgb_to_YCrCb_x2,
+			size
+		);
+
+	#undef iconv_rgb_to_YCrCb_x1
+	#undef iconv_rgb_to_YCrCb_x2
+}
+
+void iconv_YCrCb_to_RGB(const IYCrCb *input, long size, IRGB *output)
+{
+	int r1, g1, b1, r2, g2, b2, e1, e2;
+	int Y1, Cr1, Cb1, Y2, Cr2, Cb2;
+	#define iconv_YCrCb_to_RGB_x1 { \
+		ICONV_GET_YCrCb(input, Y1, Cr1, Cb1, e1); \
+		r1 = ICONV_YCrCb_TO_R(Y1, Cr1, Cb1); \
+		g1 = ICONV_YCrCb_TO_G(Y1, Cr1, Cb1); \
+		b1 = ICONV_YCrCb_TO_B(Y1, Cr1, Cb1); \
+		ICONV_CLAMP1(r1, g1, b1); \
+		ICONV_PUT_RGB(output, r1, g1, b1, e1); \
+	}
+
+	#define iconv_YCrCb_to_RGB_x2 { \
+		ICONV_GET_YCrCb(input, Y1, Cr1, Cb1, e1); \
+		ICONV_GET_YCrCb(input, Y2, Cr2, Cb2, e2); \
+		r1 = ICONV_YCrCb_TO_R(Y1, Cr1, Cb1); \
+		g1 = ICONV_YCrCb_TO_G(Y1, Cr1, Cb1); \
+		b1 = ICONV_YCrCb_TO_B(Y1, Cr1, Cb1); \
+		r2 = ICONV_YCrCb_TO_R(Y2, Cr2, Cb2); \
+		g2 = ICONV_YCrCb_TO_G(Y2, Cr2, Cb2); \
+		b2 = ICONV_YCrCb_TO_B(Y2, Cr2, Cb2); \
+		ICONV_CLAMP2(r1, g1, b1, r2, g2, b2); \
+		ICONV_PUT_RGB(output, r1, g1, b1, e1); \
+		ICONV_PUT_RGB(output, r2, g2, b2, e2); \
+	}
+
+	ILINS_LOOP_DOUBLE (
+			iconv_YCrCb_to_RGB_x1,
+			iconv_YCrCb_to_RGB_x2,
+			size
+		);
+
+	#undef iconv_YCrCb_to_RGB_x1
+	#undef iconv_YCrCb_to_RGB_x2
+}
+
+void iconv_RGB_to_HSV(const IRGB *input, long size, IHSV *output)
+{
+	float min, max, delta, h, s, v;
+	float r, g, b;
+	for (; size > 0; size--, input++, output++) {
+		r = input->r * (1.0f / 255.0f);
+		g = input->g * (1.0f / 255.0f);
+		b = input->b * (1.0f / 255.0f);
+		min = ICONV_MIN(r, ICONV_MIN(g, b));
+		max = ICONV_MAX(r, ICONV_MAX(g, b));
+		v = max;
+		delta = max - min;
+		if (max == 0.0f) {
+			s = 0.0f;
+			h = 0.0f;
+		}	else {
+			s = delta / max;
+			if (r == max) h = (g - b) / delta;
+			else if (g == max) h = 2.0f + (b - r) / delta;
+			else h = 4.0f + (r - g) / delta;
+			h *= 60.0f;
+			if (h < 0.0f) h += 360.0f;
+		}
+		output->H = ICONV_MID(0.0f, h, 359.0f);
+		output->S = ICONV_MID(0.0f, s, 1.0f);
+		output->V = ICONV_MID(0.0f, v, 1.0f);
+		output->reserved = input->reserved;
+	}
+}
+
+void iconv_HSV_to_RGB(const IHSV *input, long size, IRGB *output)
+{
+	float r, g, b, h, s, v, f, p, q, t;
+	int i;
+	for (; size > 0; size--, input++, output++) {
+		h = input->H;
+		s = input->S;
+		v = input->V;
+		if (s == 0.0f) {
+			r = g = b = 1.0f;
+		}	else {
+			if (h < 0.0f || h >= 360.0f) {
+				while (h < 0.0f) h += 360.0f;
+				while (h >= 360.0f) h -= 360.0f;
+			}
+			h /= 60.0f;
+			i = (int)h;
+			f = h - i;
+			p = v * (1.0f - s);
+			q = v * (1.0f - s * f);
+			t = v * (1.0f - s * (1.0f - f));
+			switch (i)
+			{
+			case 0: r = v; g = t; b = p; break;
+			case 1: r = q; g = v; b = p; break;
+			case 2: r = p; g = v; b = t; break;
+			case 3: r = p; g = q; b = v; break;
+			case 4: r = t; g = p; b = v; break;
+			case 5: r = v; g = p; b = q; break;
+			case 6: r = v; g = t; b = p; break;
+			default:
+				r = g = b = 0;
+				printf("error: i=%d\n", i);
+				assert(i < 6);
+				break;
+			}
+		}
+		r = ICONV_MID(0.0f, r, 1.0f);
+		g = ICONV_MID(0.0f, g, 1.0f);
+		b = ICONV_MID(0.0f, b, 1.0f);
+		output->r = (unsigned char)(r * 255.0f);
+		output->g = (unsigned char)(g * 255.0f);
+		output->b = (unsigned char)(b * 255.0f);
+		output->reserved = input->reserved;
+	}
+}
+
+
+
 //---------------------------------------------------------------------
 // 特效若干
 //---------------------------------------------------------------------
@@ -2410,4 +2633,44 @@ IBITMAP *ibitmap_glossy_make(IBITMAP *bmp, int radius, int border, int light,
 
 	return output;
 }
+
+
+static int ibitmap_update_hsv(int x, int y, int w, IUINT32 *card, void *user)
+{
+	float h = ((IHSV*)user)->H;
+	float s = ((IHSV*)user)->S;
+	float v = ((IHSV*)user)->V;
+	IUINT32 cc, r, g, b, a, i;
+	for (i = w; i > 0; card++, i--) {
+		IHSV hsv;
+		IRGB rgb;
+		cc = card[0];
+		IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
+		rgb.r = r;
+		rgb.g = g;
+		rgb.b = b;
+		iconv_RGB_to_HSV(&rgb, 1, &hsv);
+		hsv.H += h;
+		hsv.S *= s;
+		hsv.V *= v;
+		iconv_HSV_to_RGB(&hsv, 1, &rgb);
+		r = rgb.r;
+		g = rgb.g;
+		b = rgb.b;
+		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
+	}
+	return 0;
+}
+
+// 调整色调
+void ibitmap_adjust_hsv(IBITMAP *bmp, float hue, float saturation, 
+	float value, const IRECT *bound)
+{
+	IHSV hsv;
+	hsv.H = (float)hue;
+	hsv.S = (float)saturation;
+	hsv.V = (float)value;
+	ibitmap_update(bmp, bound, ibitmap_update_hsv, 0, &hsv);
+}
+
 

@@ -3768,3 +3768,222 @@ IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound,
 }
 
 
+//---------------------------------------------------------------------
+// 像素合成
+//---------------------------------------------------------------------
+static iPixelComposite ipixel_composite_table[16][2];
+static int ipixel_composite_inited = 0;
+
+
+static int ipixel_comp_copy(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	memcpy(dst, src, w * sizeof(IUINT32));
+	return 0;
+}
+
+static int ipixel_comp_blend(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		IBLEND_NORMAL_FAST(r1, g1, b1, a1, r2, g2, b2, a2);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_add(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		r2 = ICLIP_256(r1 + r2);
+		g2 = ICLIP_256(g1 + g2);
+		b2 = ICLIP_256(b1 + b2);
+		a2 = ICLIP_256(a1 + a2);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_sub(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		r2 = ICLIP_256(r2 - r1);
+		g2 = ICLIP_256(g2 - g1);
+		b2 = ICLIP_256(b2 - b1);
+		a2 = ICLIP_256(a2 - a1);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_sub_inv(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		r2 = ICLIP_256(r1 - r2);
+		g2 = ICLIP_256(g1 - g2);
+		b2 = ICLIP_256(b1 - b2);
+		a2 = ICLIP_256(a1 - a2);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_xor(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	for (; w > 0; dst++, src++, w--) {
+		dst[0] ^= src[0];
+	}
+	return 0;
+}
+
+
+// 初始化像素合成
+static void ipixel_composite_init(void)
+{
+	int i;
+	if (ipixel_composite_inited) return;
+	ipixel_composite_table[IPIXEL_OP_COPY][0] = ipixel_comp_copy;
+	ipixel_composite_table[IPIXEL_OP_COPY][1] = ipixel_comp_copy;
+	ipixel_composite_table[IPIXEL_OP_BLEND][0] = ipixel_comp_blend;
+	ipixel_composite_table[IPIXEL_OP_BLEND][1] = ipixel_comp_blend;
+	ipixel_composite_table[IPIXEL_OP_ADD][0] = ipixel_comp_add;
+	ipixel_composite_table[IPIXEL_OP_ADD][1] = ipixel_comp_add;
+	ipixel_composite_table[IPIXEL_OP_SUB][0] = ipixel_comp_sub;
+	ipixel_composite_table[IPIXEL_OP_SUB][1] = ipixel_comp_sub;
+	ipixel_composite_table[IPIXEL_OP_SUB_INV][0] = ipixel_comp_sub_inv;
+	ipixel_composite_table[IPIXEL_OP_SUB_INV][1] = ipixel_comp_sub_inv;
+	ipixel_composite_table[IPIXEL_OP_XOR][0] = ipixel_comp_xor;
+	ipixel_composite_table[IPIXEL_OP_XOR][1] = ipixel_comp_xor;
+	for (i = IPIXEL_OP_SRC; i < 16; i++) {
+			ipixel_composite_table[i][0] = NULL;
+			ipixel_composite_table[i][1] = NULL;
+	}
+	ipixel_composite_inited = 1;
+}
+
+// 取得像素合成
+iPixelComposite ipixel_composite_get(int op, int isdefault)
+{
+	if (op < 0 || op >= 16) return NULL;
+	return ipixel_composite_table[op][isdefault ? 1 : 0];
+}
+
+// 设置像素合成 
+void ipixel_composite_set(int op, iPixelComposite composite)
+{
+	if (op < 0 || op >= 16) return;
+	if (composite == NULL) composite = ipixel_composite_table[op][1];
+	ipixel_composite_table[op][0] = composite;
+}
+
+// 位图合成
+int ibitmap_composite(IBITMAP *dst, int dx, int dy, const IBITMAP *src, 
+	int sx, int sy, int w, int h, const IRECT *clip, int op, int flags)
+{
+	unsigned char _buffer[IBITMAP_STACK_BUFFER];
+	unsigned char *buffer = _buffer;
+	int retval = 0, sfmt, dfmt;
+	const iColorIndex *sindex;
+	const iColorIndex *dindex;
+	iPixelComposite composite;
+	iFetchProc fetchsrc, fetchdst;
+	iStoreProc storedst;
+	const void *sline;
+	IUINT32 *target;
+	void *dline;
+	long dpitch;
+	long spitch;
+	int flip, i;
+
+	flip = flags & (IBLIT_HFLIP | IBLIT_VFLIP);
+
+	if ((flags & IBLIT_NOCLIP) == 0) {
+		retval = ibitmap_clipex(dst, &dx, &dy, src, &sx, &sy, &w, &h, 
+								clip, flip);
+		if (retval) return -1;
+	}
+
+	if (ipixel_composite_inited == 0) 
+		ipixel_composite_init();
+
+	composite = ipixel_composite_get(op, 0);
+	if (composite == NULL) return -2;
+
+	if (w * 8 > IBITMAP_STACK_BUFFER) {
+		buffer = (unsigned char*)icmalloc(w * 4);
+		if (buffer == NULL) return -3;
+	}
+	
+	sline = (void*)src->line[sy];
+	spitch = (long)src->pitch;
+	dline = (void*)dst->line[dy];
+	dpitch = (long)dst->pitch;
+
+	if ((flip & IBLIT_VFLIP) != 0) {
+		sline = src->line[sy + h - 1];
+		spitch = -spitch;
+	}
+
+	sfmt = ibitmap_pixfmt_guess(src);
+	dfmt = ibitmap_pixfmt_guess(dst);
+
+	if ((flags & IPIXEL_COMPOSITE_SRC_A8R8G8B8) && sfmt == IPIX_FMT_X8R8G8B8)
+		sfmt = IPIX_FMT_A8R8G8B8;
+	if ((flags & IPIXEL_COMPOSITE_DST_A8R8G8B8) && dfmt == IPIX_FMT_X8R8G8B8)
+		dfmt = IPIX_FMT_A8R8G8B8;
+
+	if ((flags & IPIXEL_COMPOSITE_FORCE_32) &&
+		(sfmt == dfmt) && (ipixelfmt[sfmt].bpp == 32)) {
+		sfmt = IPIX_FMT_A8R8G8B8;
+		dfmt = IPIX_FMT_A8R8G8B8;
+	}
+
+	fetchsrc = ipixel_get_fetch(sfmt, 0);
+	fetchdst = ipixel_get_fetch(dfmt, 0);
+	storedst = ipixel_get_store(dfmt, 0);
+
+	sindex = (const iColorIndex*)(src->extra);
+	dindex = (iColorIndex*)(dst->extra);
+	target = (IUINT32*)((IUINT8*)buffer + w * 4);
+	
+	for (i = 0; i < h; i++) {
+		const IUINT32 *card;
+		if (sfmt == IPIX_FMT_A8R8G8B8 && (flip & IBLIT_HFLIP) == 0) {
+			card = ((const IUINT32*)sline) + sx;
+		}	else {
+			card = (const IUINT32*)buffer;
+			fetchsrc(sline, sx, w, (IUINT32*)buffer, sindex);
+			if (flip & IBLIT_HFLIP) {
+				ipixel_card_reverse((IUINT32*)buffer, w);
+			}
+		}
+		if (dfmt == IPIX_FMT_A8R8G8B8) {
+			composite((IUINT32*)dline + dx, card, w);
+		}	else {
+			fetchdst(dline, dx, w, target, dindex);
+			composite(target, card, w);
+			storedst(dline, target, dx, w, dindex);
+		}
+		sline = (const char*)sline + spitch;
+		dline = (char*)dline + dpitch;
+	}
+
+	if (buffer != _buffer) {
+		icfree(buffer);
+		buffer = _buffer;
+	}
+
+	return 0;
+}
+
+
