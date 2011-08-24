@@ -1044,7 +1044,7 @@ int CGdiPlusInit(int startup)
 
 
 // GDI+ 读取内存中的图片
-void *CGdiPlusLoadMemory(const void *data, long size, int *cx, int *cy, 
+void *CGdiPlusLoadCore(const void *data, long size, int *cx, int *cy, 
 	long *pitch, int *pfmt, int *bpp, int *errcode)
 {
 	typedef HRESULT (WINAPI *CreateStream_t)(HGLOBAL, BOOL, LPSTREAM*);
@@ -1281,9 +1281,9 @@ void *CGdiPlusLoadMemory(const void *data, long size, int *cx, int *cy,
 		fmt = 8888,
 		nbytes = 4;
 	else 
-		gpixfmt = GPixelFormat24bppRGB,
-		fmt = 888,
-		nbytes = 3;
+		gpixfmt = GPixelFormat32bppRGB,
+		fmt = 8888,
+		nbytes = 4;
 
 	if (bpp) bpp[0] = nbytes * 8;
 	if (pfmt) pfmt[0] = fmt;
@@ -1364,6 +1364,139 @@ finalizing:
 	if (errcode) errcode[0] = retval;
 
 	return bits;
+}
+
+
+// 解压32U
+static unsigned long iDecode32u(const void *data)
+{
+	const unsigned char *ptr = (const unsigned char*)data;
+	unsigned long c1 = ptr[0];
+	unsigned long c2 = ptr[1];
+	unsigned long c3 = ptr[2];
+	unsigned long c4 = ptr[3];
+	return (c4 << 24) | (c3 << 16) | (c2 << 8) | c1;
+}
+
+// 读取Jng文件
+void *CGdiPlusLoadMemory(const void *data, long size, int *cx, int *cy, 
+	long *pitch, int *pfmt, int *bpp, int *errcode)
+{
+	const unsigned char *ptr = (const unsigned char*)data;
+	unsigned long picw, pich, len1, len2;
+	unsigned char *img1, *img2;
+	long pitch1, pitch2;
+	int icx, icy, ierror;
+	int fmt1, fmt2, bpp1, bpp2; 
+	int i, j;
+
+	if (size < 20) {
+		return CGdiPlusLoadCore(data, size, cx, cy, pitch, pfmt, bpp,
+			errcode);
+	}
+	if (ptr[0] != 'N' || ptr[1] != 'J' || ptr[2] != 'P' || ptr[3] != 'G') {
+		return CGdiPlusLoadCore(data, size, cx, cy, pitch, pfmt, bpp,
+			errcode);
+	}
+
+	picw = iDecode32u(ptr + 4);
+	pich = iDecode32u(ptr + 8);
+	len1 = iDecode32u(ptr + 12);
+	len2 = iDecode32u(ptr + 16);
+
+	if (len1 == 0 && len2 == 0) {
+		if (errcode) errcode[0] = -15;
+		return NULL;
+	}
+
+	img1 = NULL;
+	img2 = NULL;
+
+	if (len1 > 0) {
+		img1 = (unsigned char*)CGdiPlusLoadCore(ptr + 20, len1, &icx, &icy, 
+			&pitch1, &fmt1, &bpp1, &ierror);
+
+		if (img1 == NULL) {
+			if (errcode) errcode[0] = -1000 + ierror;
+			return NULL;
+		}
+
+		if (icx != (int)picw || icy != (int)pich) {
+			free(img1);
+			if (errcode) errcode[0] = -20;
+			return NULL;
+		}
+	}
+
+	if (len2 > 0) {
+		img2 = (unsigned char*)CGdiPlusLoadCore(ptr + 20 + len1, 
+			len2, &icx, &icy, &pitch2, &fmt2, &bpp2, &ierror);
+
+		if (img2 == NULL) {
+			if (img1) free(img1);
+			if (errcode) errcode[0] = -2000 + ierror;
+			return NULL;
+		}
+
+		if (icx != (int)picw || icy != (int)pich) {
+			if (img1) free(img1);
+			free(img2);
+			if (errcode) errcode[0] = -30;
+			return NULL;
+		}
+	}
+
+	if (cx) cx[0] = (int)picw;
+	if (cy) cy[0] = (int)pich;
+	if (pitch) pitch[0] = pitch2;
+	if (pfmt) pfmt[0] = 8888;
+	if (bpp) bpp[0] = 32;
+	if (errcode) errcode[0] = 0;
+
+	if (img1 != NULL && img2 == NULL) {
+		if (pfmt) pfmt[0] = fmt1;
+		if (bpp) bpp[0] = bpp1;
+		return img1;
+	}
+
+	if (img1 == NULL && img2 != NULL) {
+		if (pfmt) pfmt[0] = fmt2;
+		if (bpp) bpp[0] = bpp2;
+		return img2;
+	}
+
+	if (bpp1 != 24 && bpp2 != 32) {
+		if (errcode) errcode[0] = -40;
+		free(img1);
+		free(img2);
+		return NULL;
+	}
+
+	for (j = 0; j < (int)pich; j++) {
+		unsigned char *src = img1 + pitch1 * j;
+		unsigned char *dst = img2 + pitch2 * j;
+		unsigned long endian = 0x11223344;
+		if (*((unsigned char*)&endian) == 0x44) {
+			for (i = (int)picw; i > 0; src += 3, dst += 4, i--) {
+				dst[3] = dst[1];
+				dst[0] = src[0];
+				dst[1] = src[1];
+				dst[2] = src[2];
+			}
+		}
+		else {
+			for (i = (int)picw; i > 0; src += 3, dst += 4, i--) {
+				dst[0] = dst[1];
+				dst[1] = src[0];
+				dst[2] = src[1];
+				dst[3] = src[2];
+			}
+		}
+	}
+
+	free(img1);
+
+	return img2;
 }
 
 
@@ -1532,6 +1665,32 @@ struct IBITMAP *CGdiPlus_Load_Tiff(IMDIO *stream, IRGB *pal)
 	return bmp;
 }
 
+struct IBITMAP *CGdiPlus_Load_Jng(IMDIO *stream, IRGB *pal)
+{
+	unsigned char head[20];
+	unsigned char *ptr;
+	unsigned long s1, s2;
+	IBITMAP *bmp;
+	int error;
+	if (is_reader(stream, head, 20) != 20) {
+		return NULL;
+	}
+	if (head[0] != 'N' || head[1] != 'J' || head[2] != 'P' || head[3] != 'G')
+		return NULL;
+	s1 = iDecode32u(head + 12);
+	s2 = iDecode32u(head + 16);
+	ptr = (unsigned char*)malloc(20 + s1 + s2);
+	if (ptr == NULL) return NULL;
+	memcpy(ptr, head, 20);
+	if (is_reader(stream, ptr + 20, s1 + s2) != s1 + s2) {
+		free(ptr);
+		return NULL;
+	}
+	bmp = CGdiPlusLoadBitmap(ptr, 20 + s1 + s2, &error);
+	free(ptr);
+	return bmp;
+}
+
 // 初始化GDI+ 的解码器
 void CGdiPlusDecoderInit(int GdiPlusStartup)
 {
@@ -1544,6 +1703,7 @@ void CGdiPlusDecoderInit(int GdiPlusStartup)
 	//ipic_loader(0x49, CGdiPlus_Load_Tiff);
 	//ipic_loader(0x4d, CGdiPlus_Load_Tiff);
 	ipic_loader(0xff, CGdiPlus_Load_Jpg);
+	ipic_loader(0x4e, CGdiPlus_Load_Jng);
 	inited = 1;
 }
 
