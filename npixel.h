@@ -169,6 +169,11 @@ BOOL CTransparentBlt(HDC hdcDst, int nXOriginDest, int nYOriginDest,
 BOOL CGradientFill(HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex,
 	PVOID pMesh, ULONG dwNumMesh, ULONG dwMode);
 
+// comctl32.dll 导出：DrawShadowText
+int CDrawShadowText(HDC hdc, LPCWSTR pszText, UINT cch, const RECT *pRect,
+	DWORD dwFlags, COLORREF crText, COLORREF crShadow, int ixOffset, 
+	int iyOffset);
+
 
 // GDI+ 开始1，结束0
 int CGdiPlusInit(int startup);

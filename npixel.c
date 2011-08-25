@@ -968,6 +968,25 @@ BOOL CGradientFill(HDC hdc, PTRIVERTEX pVertex, ULONG dwNumVertex,
 		dwMode);
 }
 
+// comctl32.dll 导出：DrawShadowText
+int CDrawShadowText(HDC hdc, LPCWSTR pszText, UINT cch, const RECT *pRect,
+	DWORD dwFlags, COLORREF crText, COLORREF crShadow, int ixOffset, 
+	int iyOffset)
+{
+	typedef int (WINAPI *DrawShadowText_t)(HDC, LPCWSTR, UINT, const RECT *,
+		DWORD, COLORREF, COLORREF, int, int);
+	static DrawShadowText_t DrawShadowText_o = NULL;
+	static HINSTANCE hDLL = NULL;
+	if (DrawShadowText_o == NULL) {
+		hDLL = LoadLibraryA("comctl32.dll");
+		if (hDLL == NULL) return -1000;
+		DrawShadowText_o = (DrawShadowText_t)
+			GetProcAddress(hDLL, "DrawShadowText");
+		if (DrawShadowText_o == NULL) return -2000;
+	}
+	return DrawShadowText_o(hdc, pszText, cch, pRect, dwFlags, crText,
+		crShadow, ixOffset, iyOffset);
+}
 
 // GDI+ 开始1，结束0
 int CGdiPlusInit(int startup)
