@@ -2646,9 +2646,9 @@ static int ibitmap_update_hsv(int x, int y, int w, IUINT32 *card, void *user)
 		IRGB rgb;
 		cc = card[0];
 		IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
-		rgb.r = r;
-		rgb.g = g;
-		rgb.b = b;
+		rgb.r = (unsigned char)r;
+		rgb.g = (unsigned char)g;
+		rgb.b = (unsigned char)b;
 		iconv_RGB_to_HSV(&rgb, 1, &hsv);
 		hsv.H += h;
 		hsv.S *= s;
