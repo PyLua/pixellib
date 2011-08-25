@@ -502,6 +502,128 @@ static inline cfixed cfixed_from_float_ieee(float f) {
 #define cfloat_is_one(a)      cfloat_is_same(a, 1.0f)
 
 
+//=====================================================================
+// HSV / HSL Color Space
+//=====================================================================
+
+// RGB -> HSV
+static inline void ipixel_cvt_rgb_to_hsv(int r, int g, int b, 
+	float *H, float *S, float *V)
+{
+	int imin = (r < g)? ((r < b)? r : b) : ((g < b)? g : b);
+	int imax = (r > g)? ((r > b)? r : b) : ((g > b)? g : b);
+	int idelta = imax - imin;
+
+	*V = imax * (1.0f / 255.0f);
+
+	if (imax == 0) {
+		*S = *H = 0.0f;
+	}	else {
+		float h;
+		*S = ((float)idelta) / ((float)imax);
+		if (r == imax) h = ((float)(g - b)) / idelta;
+		else if (g == imax) h = 2.0f + ((float)(b - r)) / idelta;
+		else h = 4.0f + ((float)(r - g)) / idelta;
+		h *= 60.0f;
+		if (h < 0.0f) h += 360.0f;
+		*H = h;
+	}
+}
+
+// HSV -> RGB
+static inline IUINT32 ipixel_cvt_hsv_to_rgb(float h, float s, float v)
+{
+	float r, g, b;
+	IINT32 R, G, B;
+	v = (1.0 < v)? 1.0 : v;
+	s = (1.0 < s)? 1.0 : s;  
+	r = g = b = v;
+	if (s != 0.0f) {
+		float f, p, q, t;
+		int i;
+		while (h < 0.0f) h += 360.0f;
+		while (h >= 360.0f) h -= 360.0f;
+		h *= (1.0f / 60.0f);
+		i = (int)h;
+		f = h - i;
+		p = v * (1.0f - s);
+		q = v * (1.0f - s * f);
+		t = v * (1.0f - s * (1.0f - f));
+		switch (i)
+		{
+		case 0: r = v; g = t; b = p; break;
+		case 1: r = q; g = v; b = p; break;
+		case 2: r = p; g = v; b = t; break;
+		case 3: r = p; g = q; b = v; break;
+		case 4: r = t; g = p; b = v; break;
+		case 5: r = v; g = p; b = q; break;
+		case 6: r = v; g = t; b = p; break;
+		}
+	}
+	R = (IINT32)(r * 255.0f);
+	G = (IINT32)(g * 255.0f);
+	B = (IINT32)(b * 255.0f);
+	return IRGBA_TO_A8R8G8B8(R, G, B, 0);
+}
+
+// RGB -> HSL
+static inline void ipixel_cvt_rgb_to_hsl(int r, int g, int b, 
+	float *H, float *S, float *L)
+{
+	int minval = (r < g)? ((r < b)? r : b) : ((g < b)? g : b);
+	int maxval = (r > g)? ((r > b)? r : b) : ((g > b)? g : b);
+	float mdiff = (float)(maxval - minval);
+	float msum = (float)(maxval + minval);
+	float mdiffinv = 1.0f / mdiff;
+	*L = msum * (1.0f / 510.0f);
+	if (maxval == minval) {
+		*S = *H = 0.0f;
+	}	else {
+		float rnorm = (maxval - r) * mdiffinv;
+		float gnorm = (maxval - g) * mdiffinv;
+		float bnorm = (maxval - b) * mdiffinv;
+		*S = (*L <= 0.5f)? (mdiff / msum) : (mdiff / (510.0f - msum));
+		if (r == maxval) *H = 60.0f * (6.0f + bnorm - gnorm);
+		else if (g == maxval) *H = 60.0f * (2.0f + rnorm - bnorm); 
+		else *H = 60.0f * (4.0f + gnorm - rnorm);
+		if (*H > 360.0f) *H -= 360.0f;
+	}
+}
+
+// HUE -> RGB
+static inline IINT32 ipixel_cvt_hue_to_rgb(float rm1, float rm2, float rh)
+{
+	IINT32 n;
+	while (rh > 360.0f) rh -= 360.0f;
+	while (rh < 0.0f) rh += 360.0f;
+	if (rh < 60.0f) rm1 = rm1 + (rm2 - rm1) * rh / 60.0f; 
+	else if (rh < 180.0f) rm1 = rm2;
+	else if (rh < 240.0f) rm1 = rm1 + (rm2 - rm1) * (240.0f - rh) / 60.0f;
+	n = (IINT32)(rm1 * 255);
+	return (n > 255)? 255 : ((n < 0)? 0 : n);
+}
+
+// HSL -> RGB
+static inline IUINT32 ipixel_cvt_hsl_to_rgb(float H, float S, float L)
+{
+	IUINT32 r, g, b;  
+	L = (1.0 < L)? 1.0 : L;
+	S = (1.0 < S)? 1.0 : S;  
+	if (S == 0.0) {
+		r = g = b = (IUINT32)(255 * L);  
+	}   else {  
+		float rm1, rm2;  
+		if (L <= 0.5f) rm2 = L + L * S;  
+		else rm2 = L + S - L * S;  
+		rm1 = 2.0f * L - rm2;     
+		r = ipixel_cvt_hue_to_rgb(rm1, rm2, H + 120.0f);  
+		g = ipixel_cvt_hue_to_rgb(rm1, rm2, H);  
+		b = ipixel_cvt_hue_to_rgb(rm1, rm2, H - 120.0f);  
+	}
+	return IRGBA_TO_A8R8G8B8(r, g, b, 0);  
+}
+
+
 
 #ifdef __cplusplus
 }

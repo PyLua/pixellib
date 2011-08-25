@@ -262,6 +262,10 @@ IBITMAP *ibitmap_glossy_make(IBITMAP *bmp, int radius, int border, int light,
 void ibitmap_adjust_hsv(IBITMAP *bmp, float hue, float saturation, 
 	float value, const IRECT *bound);
 
+// 调整色调
+void ibitmap_adjust_hsl(IBITMAP *bmp, float hue, float saturation, 
+	float lightness, const IRECT *bound);
+
 
 
 #ifdef __cplusplus

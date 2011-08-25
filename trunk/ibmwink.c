@@ -2634,34 +2634,44 @@ IBITMAP *ibitmap_glossy_make(IBITMAP *bmp, int radius, int border, int light,
 	return output;
 }
 
-
+// 更新 HSV
 static int ibitmap_update_hsv(int x, int y, int w, IUINT32 *card, void *user)
 {
 	float h = ((IHSV*)user)->H;
 	float s = ((IHSV*)user)->S;
 	float v = ((IHSV*)user)->V;
+	float H, S, V;
 	IUINT32 cc, r, g, b, a, i;
 	for (i = w; i > 0; card++, i--) {
-		IHSV hsv;
-		IRGB rgb;
 		cc = card[0];
 		IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
-		rgb.r = (unsigned char)r;
-		rgb.g = (unsigned char)g;
-		rgb.b = (unsigned char)b;
-		iconv_RGB_to_HSV(&rgb, 1, &hsv);
-		hsv.H += h;
-		hsv.S *= s;
-		hsv.V *= v;
-		if (hsv.S < 0.0f) hsv.S = 0.0f;
-		else if (hsv.S > 1.0f) hsv.S = 1.0f;
-		if (hsv.V < 0.0f) hsv.V = 0.0f;
-		else if (hsv.V > 1.0f) hsv.V = 1.0f;
-		iconv_HSV_to_RGB(&hsv, 1, &rgb);
-		r = rgb.r;
-		g = rgb.g;
-		b = rgb.b;
-		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, a);
+		ipixel_cvt_rgb_to_hsv(r, g, b, &H, &S, &V);
+		H += h;
+		S *= s;
+		V *= v;
+		cc = ipixel_cvt_hsv_to_rgb(H, S, V);
+		card[0] = cc | (a << 24);
+	}
+	return 0;
+}
+
+// 更新 HSL
+static int ibitmap_update_hsl(int x, int y, int w, IUINT32 *card, void *user)
+{
+	float h = ((IHSV*)user)->H;
+	float s = ((IHSV*)user)->S;
+	float l = ((IHSV*)user)->V;
+	float H, S, L;
+	IUINT32 cc, r, g, b, a, i;
+	for (i = w; i > 0; card++, i--) {
+		cc = card[0];
+		IRGBA_FROM_A8R8G8B8(cc, r, g, b, a);
+		ipixel_cvt_rgb_to_hsl(r, g, b, &H, &S, &L);
+		H += h;
+		S *= s;
+		L *= l;
+		cc = ipixel_cvt_hsl_to_rgb(H, S, L);
+		card[0] = cc | (a << 24);
 	}
 	return 0;
 }
@@ -2677,4 +2687,15 @@ void ibitmap_adjust_hsv(IBITMAP *bmp, float hue, float saturation,
 	ibitmap_update(bmp, bound, ibitmap_update_hsv, 0, &hsv);
 }
 
+
+// 调整色调
+void ibitmap_adjust_hsl(IBITMAP *bmp, float hue, float saturation, 
+	float lightness, const IRECT *bound)
+{
+	IHSV hsv;
+	hsv.H = (float)hue;
+	hsv.S = (float)saturation;
+	hsv.V = (float)lightness;
+	ibitmap_update(bmp, bound, ibitmap_update_hsl, 0, &hsv);
+}
 
