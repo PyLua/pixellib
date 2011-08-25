@@ -3269,3 +3269,324 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
 }
 
 
+
+
+/**********************************************************************
+ * COMPOSITE
+ **********************************************************************/
+static iPixelComposite ipixel_composite_table[32][2];
+static int ipixel_composite_inited = 0;
+
+
+static int ipixel_comp_copy(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	memcpy(dst, src, w * sizeof(IUINT32));
+	return 0;
+}
+
+static int ipixel_comp_blend(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		a1 = ((const IUINT8*)src)[_ipixel_card_alpha];
+		if (a1 == 0) continue;
+		else if (a1 == 255) dst[0] = src[0];
+		else {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+			IBLEND_NORMAL_FAST(r1, g1, b1, a1, r2, g2, b2, a2);
+			dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_add(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		r2 = ICLIP_256(r1 + r2);
+		g2 = ICLIP_256(g1 + g2);
+		b2 = ICLIP_256(b1 + b2);
+		a2 = ICLIP_256(a1 + a2);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_sub(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		r2 = ICLIP_256(r2 - r1);
+		g2 = ICLIP_256(g2 - g1);
+		b2 = ICLIP_256(b2 - b1);
+		a2 = ICLIP_256(a2 - a1);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_sub_inv(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		_ipixel_load_card(src, r1, g1, b1, a1);
+		_ipixel_load_card(dst, r2, g2, b2, a2);
+		r2 = ICLIP_256(r1 - r2);
+		g2 = ICLIP_256(g1 - g2);
+		b2 = ICLIP_256(b1 - b2);
+		a2 = ICLIP_256(a1 - a2);
+		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+	}
+	return 0;
+}
+
+static int ipixel_comp_xor(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	for (; w > 0; dst++, src++, w--) {
+		dst[0] ^= src[0];
+	}
+	return 0;
+}
+
+static int ipixel_comp_allanon(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 c1, c2, c3, c4;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			c1 = src[0] & 0x00ff00ff;
+			c2 = (src[0] >> 8) & 0x00ff00ff;
+			c3 = dst[0] & 0x00ff00ff;
+			c4 = (dst[0] >> 8) & 0x00ff00ff;
+			c1 = (c1 + c3) >> 1;
+			c2 = (c2 + c4) >> 1;
+			dst[0] = (c1 & 0x00ff00ff) | ((c2 & 0x00ff00ff) << 8);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_tint(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+			r1 = r1 * r2;
+			g1 = g1 * g2;
+			b1 = b1 * b2;
+			r1 = _idiv_255(r1);
+			g1 = _idiv_255(g1);
+			b1 = _idiv_255(b1);
+			dst[0] = IRGBA_TO_A8R8G8B8(r1, g1, b1, a2);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_diff(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+			r1 -= r2;
+			g1 -= g2;
+			b1 -= b2;
+			r2 = (r1 < 0)? -r1 : r1;
+			g2 = (g1 < 0)? -g1 : g1;
+			b2 = (b1 < 0)? -b1 : b1;
+			if (a1 > a2) a2 = a1;
+			dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_darken(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+			if (a1 < a2) a2 = a1;
+			if (r1 < r2) r2 = r1;
+			if (g1 < g2) g2 = g1;
+			if (b1 < b2) b2 = b1;
+			dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_lighten(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+			if (a1 > a2) a2 = a1;
+			if (r1 > r2) r2 = r1;
+			if (g1 > g2) g2 = g1;
+			if (b1 > b2) b2 = b1;
+			dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_screen(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, res1, res2;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+
+			#define IPIXEL_SCREEN_VALUE(b, t) do { \
+				res1 = 0xFF - b; res2 = 0xff - t; \
+				res1 = 0xff - ((res1 * res2) >> 8); \
+				b = res1 < 0 ? 0 : res1; } while (0)
+
+			IPIXEL_SCREEN_VALUE(r2, r1);
+			IPIXEL_SCREEN_VALUE(g2, g1);
+			IPIXEL_SCREEN_VALUE(b2, b1);
+
+			#undef IPIXEL_SCREEN_VALUE
+
+			if (a1 > a2) a2 = a1;
+			dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+		}
+	}
+	return 0;
+}
+
+static int ipixel_comp_overlay(IUINT32 *dst, const IUINT32 *src, int w)
+{
+	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2, tmp_screen, tmp_mult, res;
+	for (; w > 0; dst++, src++, w--) {
+		if ((src[0] >> 24) != 0) {
+			_ipixel_load_card(src, r1, g1, b1, a1);
+			_ipixel_load_card(dst, r2, g2, b2, a2);
+
+		#define IPIXEL_OVERLAY_VALUE(b, t) do { \
+				tmp_screen = 0xff - (((0xff - (int)b) * (0xff - t)) >> 8); \
+				tmp_mult   = (b * t) >> 8; \
+				res = (b * tmp_screen + (0xff - b) * tmp_mult) >> 8; \
+				b = res < 0? 0 : res; \
+			}	while (0)
+
+			IPIXEL_OVERLAY_VALUE(r2, r1);
+			IPIXEL_OVERLAY_VALUE(g2, g1);
+			IPIXEL_OVERLAY_VALUE(b2, b1);
+
+		#undef IPIXEL_OVERLAY_VALUE
+
+			if (a1 > a2) a2 = a1;
+			dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
+		}
+	}
+	return 0;
+}
+
+/* initialize compositors */
+static void ipixel_composite_init(void)
+{
+	int i;
+	if (ipixel_composite_inited) return;
+	ipixel_composite_table[IPIXEL_OP_COPY][0] = ipixel_comp_copy;
+	ipixel_composite_table[IPIXEL_OP_COPY][1] = ipixel_comp_copy;
+	ipixel_composite_table[IPIXEL_OP_BLEND][0] = ipixel_comp_blend;
+	ipixel_composite_table[IPIXEL_OP_BLEND][1] = ipixel_comp_blend;
+	ipixel_composite_table[IPIXEL_OP_ADD][0] = ipixel_comp_add;
+	ipixel_composite_table[IPIXEL_OP_ADD][1] = ipixel_comp_add;
+	ipixel_composite_table[IPIXEL_OP_SUB][0] = ipixel_comp_sub;
+	ipixel_composite_table[IPIXEL_OP_SUB][1] = ipixel_comp_sub;
+	ipixel_composite_table[IPIXEL_OP_SUB_INV][0] = ipixel_comp_sub_inv;
+	ipixel_composite_table[IPIXEL_OP_SUB_INV][1] = ipixel_comp_sub_inv;
+	ipixel_composite_table[IPIXEL_OP_XOR][0] = ipixel_comp_xor;
+	ipixel_composite_table[IPIXEL_OP_XOR][1] = ipixel_comp_xor;
+	for (i = IPIXEL_OP_SRC; i < IPIXEL_OP_ALLANON; i++) {
+			ipixel_composite_table[i][0] = NULL;
+			ipixel_composite_table[i][1] = NULL;
+	}
+	ipixel_composite_table[IPIXEL_OP_ALLANON][0] = ipixel_comp_allanon;
+	ipixel_composite_table[IPIXEL_OP_ALLANON][1] = ipixel_comp_allanon;
+	ipixel_composite_table[IPIXEL_OP_TINT][0] = ipixel_comp_tint;
+	ipixel_composite_table[IPIXEL_OP_TINT][1] = ipixel_comp_tint;
+	ipixel_composite_table[IPIXEL_OP_DIFF][0] = ipixel_comp_diff;
+	ipixel_composite_table[IPIXEL_OP_DIFF][1] = ipixel_comp_diff;
+	ipixel_composite_table[IPIXEL_OP_DARKEN][0] = ipixel_comp_darken;
+	ipixel_composite_table[IPIXEL_OP_DARKEN][1] = ipixel_comp_darken;
+	ipixel_composite_table[IPIXEL_OP_LIGHTEN][0] = ipixel_comp_lighten;
+	ipixel_composite_table[IPIXEL_OP_LIGHTEN][1] = ipixel_comp_lighten;
+	ipixel_composite_table[IPIXEL_OP_SCREEN][0] = ipixel_comp_screen;
+	ipixel_composite_table[IPIXEL_OP_SCREEN][1] = ipixel_comp_screen;
+	ipixel_composite_table[IPIXEL_OP_OVERLAY][0] = ipixel_comp_overlay;
+	ipixel_composite_table[IPIXEL_OP_OVERLAY][1] = ipixel_comp_overlay;
+	ipixel_composite_inited = 1;
+}
+
+
+/* get compositor */
+iPixelComposite ipixel_composite_get(int op, int isdefault)
+{
+	if (ipixel_composite_inited == 0) ipixel_composite_init();
+	if (op < 0 || op >= 32) return NULL;
+	return ipixel_composite_table[op][isdefault ? 1 : 0];
+}
+
+/* set compositor */
+void ipixel_composite_set(int op, iPixelComposite composite)
+{
+	if (ipixel_composite_inited == 0) ipixel_composite_init();
+	if (op < 0 || op >= 32) return;
+	if (composite == NULL) composite = ipixel_composite_table[op][1];
+	ipixel_composite_table[op][0] = composite;
+}
+
+/* composite operator names */
+const char *ipixel_composite_opnames[] = {
+	"IPIXEL_OP_COPY",
+	"IPIXEL_OP_BLEND",
+	"IPIXEL_OP_ADD",
+	"IPIXEL_OP_SUB",
+	"IPIXEL_OP_SUB_INV",
+	"IPIXEL_OP_XOR",
+	"IPIXEL_OP_SRC",
+	"IPIXEL_OP_SRC_ATOP",
+	"IPIXEL_OP_SRC_IN",
+	"IPIXEL_OP_SRC_OUT",
+	"IPIXEL_OP_SRC_OVER",
+	"IPIXEL_OP_DST",
+	"IPIXEL_OP_DST_ATOP",
+	"IPIXEL_OP_DST_IN",
+	"IPIXEL_OP_DST_OUT",
+	"IPIXEL_OP_DST_OVER",
+	"IPIXEL_OP_ALLANON",
+	"IPIXEL_OP_TINT",
+	"IPIXEL_OP_DIFF",
+	"IPIXEL_OP_DARKEN",
+	"IPIXEL_OP_LIGHTEN",
+	"IPIXEL_OP_SCREEN",
+	"IPIXEL_OP_OVERLAY",
+};
+
+/* get composite operator names */
+const char *ipixel_composite_opname(int op)
+{
+	if (op < 0 || op >= IPIXEL_OP_OVERLAY) return "UNKNOW";
+	return ipixel_composite_opnames[op];
+}
+
+
+

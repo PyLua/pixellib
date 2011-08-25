@@ -353,33 +353,6 @@ IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound,
 // 像素合成
 //=====================================================================
 
-// 像素合成工具
-#define IPIXEL_OP_COPY			0
-#define IPIXEL_OP_BLEND			1
-#define IPIXEL_OP_ADD			2
-#define IPIXEL_OP_SUB			3
-#define IPIXEL_OP_SUB_INV		4
-#define IPIXEL_OP_XOR			5
-#define IPIXEL_OP_SRC			6
-#define IPIXEL_OP_SRC_ATOP		7
-#define IPIXEL_OP_SRC_IN		8
-#define IPIXEL_OP_SRC_OUT		9
-#define IPIXEL_OP_SRC_OVER		10
-#define IPIXEL_OP_DST			11
-#define IPIXEL_OP_DST_ATOP		12
-#define IPIXEL_OP_DST_IN		13
-#define IPIXEL_OP_DST_OUT		14
-#define IPIXEL_OP_DST_OVER		15
-
-// 像素合成
-typedef int (*iPixelComposite)(IUINT32 *dst, const IUINT32 *src, int w);
-
-// 取得像素合成
-iPixelComposite ipixel_composite_get(int op, int isdefault);
-
-// 设置像素合成 
-void ipixel_composite_set(int op, iPixelComposite composite);
-
 #define IPIXEL_COMPOSITE_SRC_A8R8G8B8	64
 #define IPIXEL_COMPOSITE_DST_A8R8G8B8	128
 #define IPIXEL_COMPOSITE_FORCE_32		256
