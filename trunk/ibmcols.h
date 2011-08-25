@@ -535,8 +535,8 @@ static inline IUINT32 ipixel_cvt_hsv_to_rgb(float h, float s, float v)
 {
 	float r, g, b;
 	IINT32 R, G, B;
-	v = (1.0 < v)? 1.0 : v;
-	s = (1.0 < s)? 1.0 : s;  
+	v = (1.0f < v)? 1.0f : v;
+	s = (1.0f < s)? 1.0f : s;  
 	r = g = b = v;
 	if (s != 0.0f) {
 		float f, p, q, t;
@@ -607,8 +607,8 @@ static inline IINT32 ipixel_cvt_hue_to_rgb(float rm1, float rm2, float rh)
 static inline IUINT32 ipixel_cvt_hsl_to_rgb(float H, float S, float L)
 {
 	IUINT32 r, g, b;  
-	L = (1.0 < L)? 1.0 : L;
-	S = (1.0 < S)? 1.0 : S;  
+	L = (1.0f < L)? 1.0f : L;
+	S = (1.0f < S)? 1.0f : S;  
 	if (S == 0.0) {
 		r = g = b = (IUINT32)(255 * L);  
 	}   else {  
