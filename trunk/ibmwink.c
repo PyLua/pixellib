@@ -2653,6 +2653,10 @@ static int ibitmap_update_hsv(int x, int y, int w, IUINT32 *card, void *user)
 		hsv.H += h;
 		hsv.S *= s;
 		hsv.V *= v;
+		if (hsv.S < 0.0f) hsv.S = 0.0f;
+		else if (hsv.S > 1.0f) hsv.S = 1.0f;
+		if (hsv.V < 0.0f) hsv.V = 0.0f;
+		else if (hsv.V > 1.0f) hsv.V = 1.0f;
 		iconv_HSV_to_RGB(&hsv, 1, &rgb);
 		r = rgb.r;
 		g = rgb.g;
