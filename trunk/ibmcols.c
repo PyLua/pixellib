@@ -3771,120 +3771,6 @@ IBITMAP *ibitmap_resample(const IBITMAP *src, const IRECT *bound,
 //---------------------------------------------------------------------
 // 像素合成
 //---------------------------------------------------------------------
-static iPixelComposite ipixel_composite_table[16][2];
-static int ipixel_composite_inited = 0;
-
-
-static int ipixel_comp_copy(IUINT32 *dst, const IUINT32 *src, int w)
-{
-	memcpy(dst, src, w * sizeof(IUINT32));
-	return 0;
-}
-
-static int ipixel_comp_blend(IUINT32 *dst, const IUINT32 *src, int w)
-{
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
-	for (; w > 0; dst++, src++, w--) {
-		_ipixel_load_card(src, r1, g1, b1, a1);
-		_ipixel_load_card(dst, r2, g2, b2, a2);
-		IBLEND_NORMAL_FAST(r1, g1, b1, a1, r2, g2, b2, a2);
-		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
-	}
-	return 0;
-}
-
-static int ipixel_comp_add(IUINT32 *dst, const IUINT32 *src, int w)
-{
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
-	for (; w > 0; dst++, src++, w--) {
-		_ipixel_load_card(src, r1, g1, b1, a1);
-		_ipixel_load_card(dst, r2, g2, b2, a2);
-		r2 = ICLIP_256(r1 + r2);
-		g2 = ICLIP_256(g1 + g2);
-		b2 = ICLIP_256(b1 + b2);
-		a2 = ICLIP_256(a1 + a2);
-		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
-	}
-	return 0;
-}
-
-static int ipixel_comp_sub(IUINT32 *dst, const IUINT32 *src, int w)
-{
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
-	for (; w > 0; dst++, src++, w--) {
-		_ipixel_load_card(src, r1, g1, b1, a1);
-		_ipixel_load_card(dst, r2, g2, b2, a2);
-		r2 = ICLIP_256(r2 - r1);
-		g2 = ICLIP_256(g2 - g1);
-		b2 = ICLIP_256(b2 - b1);
-		a2 = ICLIP_256(a2 - a1);
-		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
-	}
-	return 0;
-}
-
-static int ipixel_comp_sub_inv(IUINT32 *dst, const IUINT32 *src, int w)
-{
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
-	for (; w > 0; dst++, src++, w--) {
-		_ipixel_load_card(src, r1, g1, b1, a1);
-		_ipixel_load_card(dst, r2, g2, b2, a2);
-		r2 = ICLIP_256(r1 - r2);
-		g2 = ICLIP_256(g1 - g2);
-		b2 = ICLIP_256(b1 - b2);
-		a2 = ICLIP_256(a1 - a2);
-		dst[0] = IRGBA_TO_A8R8G8B8(r2, g2, b2, a2);
-	}
-	return 0;
-}
-
-static int ipixel_comp_xor(IUINT32 *dst, const IUINT32 *src, int w)
-{
-	for (; w > 0; dst++, src++, w--) {
-		dst[0] ^= src[0];
-	}
-	return 0;
-}
-
-
-// 初始化像素合成
-static void ipixel_composite_init(void)
-{
-	int i;
-	if (ipixel_composite_inited) return;
-	ipixel_composite_table[IPIXEL_OP_COPY][0] = ipixel_comp_copy;
-	ipixel_composite_table[IPIXEL_OP_COPY][1] = ipixel_comp_copy;
-	ipixel_composite_table[IPIXEL_OP_BLEND][0] = ipixel_comp_blend;
-	ipixel_composite_table[IPIXEL_OP_BLEND][1] = ipixel_comp_blend;
-	ipixel_composite_table[IPIXEL_OP_ADD][0] = ipixel_comp_add;
-	ipixel_composite_table[IPIXEL_OP_ADD][1] = ipixel_comp_add;
-	ipixel_composite_table[IPIXEL_OP_SUB][0] = ipixel_comp_sub;
-	ipixel_composite_table[IPIXEL_OP_SUB][1] = ipixel_comp_sub;
-	ipixel_composite_table[IPIXEL_OP_SUB_INV][0] = ipixel_comp_sub_inv;
-	ipixel_composite_table[IPIXEL_OP_SUB_INV][1] = ipixel_comp_sub_inv;
-	ipixel_composite_table[IPIXEL_OP_XOR][0] = ipixel_comp_xor;
-	ipixel_composite_table[IPIXEL_OP_XOR][1] = ipixel_comp_xor;
-	for (i = IPIXEL_OP_SRC; i < 16; i++) {
-			ipixel_composite_table[i][0] = NULL;
-			ipixel_composite_table[i][1] = NULL;
-	}
-	ipixel_composite_inited = 1;
-}
-
-// 取得像素合成
-iPixelComposite ipixel_composite_get(int op, int isdefault)
-{
-	if (op < 0 || op >= 16) return NULL;
-	return ipixel_composite_table[op][isdefault ? 1 : 0];
-}
-
-// 设置像素合成 
-void ipixel_composite_set(int op, iPixelComposite composite)
-{
-	if (op < 0 || op >= 16) return;
-	if (composite == NULL) composite = ipixel_composite_table[op][1];
-	ipixel_composite_table[op][0] = composite;
-}
 
 // 位图合成
 int ibitmap_composite(IBITMAP *dst, int dx, int dy, const IBITMAP *src, 
@@ -3912,9 +3798,6 @@ int ibitmap_composite(IBITMAP *dst, int dx, int dy, const IBITMAP *src,
 								clip, flip);
 		if (retval) return -1;
 	}
-
-	if (ipixel_composite_inited == 0) 
-		ipixel_composite_init();
 
 	composite = ipixel_composite_get(op, 0);
 	if (composite == NULL) return -2;

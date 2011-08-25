@@ -351,7 +351,7 @@ extern unsigned char ipixel_blend_lut[2048 * 2];
 
 
 /**********************************************************************
- * Global Interfaces
+ * BITS ACCESSING
  **********************************************************************/
 
 #define IPIXEL_ACCESS_MODE_NORMAL		0		/* fast mode, with lut */
@@ -392,6 +392,11 @@ void ipixel_desemble(int pixfmt, IUINT32 c, IINT32 *r, IINT32 *g,
 /* returns pixel format names */
 const char *ipixelfmt_name(int fmt);
 
+
+
+/**********************************************************************
+ * SPAN DRAWING
+ **********************************************************************/
 
 /* span drawing proc */
 typedef void (*iSpanDrawProc)(void *bits, int startx, int w, 
@@ -443,6 +448,10 @@ long ipixel_blend(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 
 
 
+/**********************************************************************
+ * HLINE
+ **********************************************************************/
+
 /* draw hline routine */
 typedef void (*iHLineDrawProc)(void *bits, int startx, int w,
 	IUINT32 col, const IUINT8 *cover, const iColorIndex *index);
@@ -453,6 +462,11 @@ iHLineDrawProc ipixel_get_hline_proc(int fmt, int isadd, int usedefault);
 /* set a hline drawing function */
 void ipixel_set_hline_proc(int fmt, int isadditive, iHLineDrawProc proc);
 
+
+
+/**********************************************************************
+ * PIXEL BLIT
+ **********************************************************************/
 
 #define IPIXEL_BLIT_NORMAL		0
 #define IPIXEL_BLIT_MASK		4
@@ -495,6 +509,11 @@ void ipixel_blit(int bpp, void *dst, long dpitch, int dx, const void *src,
 	long spitch, int sx, int w, int h, IUINT32 mask, int mode);
 
 
+
+/**********************************************************************
+ * CARD OPERATION
+ **********************************************************************/
+
 /* reverse card */
 void ipixel_card_reverse(IUINT32 *card, int size);
 
@@ -514,6 +533,11 @@ void ipixel_card_over(IUINT32 *dst, int size, const IUINT32 *card,
 /* card proc set */
 void ipixel_card_set_proc(int id, void *proc);
 
+
+
+/**********************************************************************
+ * CONVERTING
+ **********************************************************************/
 
 /* pixel format converting procedure */
 typedef int (*iPixelCvt)(void *dbits, long dpitch, int dx, const void *sbits,
@@ -556,6 +580,10 @@ long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 	int mode, const iColorIndex *didx, const iColorIndex *sidx, void *mem);
 
 
+/**********************************************************************
+ * CLIPPING
+ **********************************************************************/
+
 /*
  * ipixel_clip - clip the rectangle from the src clip and dst clip then
  * caculate a new rectangle which is shared between dst and src cliprect:
@@ -568,6 +596,49 @@ long ipixel_convert(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
  */
 int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
     int *rectsrc, int mode);
+
+
+
+/**********************************************************************
+ * COMPOSITE
+ **********************************************************************/
+
+/* pixel composite procedure */
+typedef int (*iPixelComposite)(IUINT32 *dst, const IUINT32 *src, int width);
+
+/* pixel composite operator */
+#define IPIXEL_OP_COPY			0
+#define IPIXEL_OP_BLEND			1
+#define IPIXEL_OP_ADD			2
+#define IPIXEL_OP_SUB			3
+#define IPIXEL_OP_SUB_INV		4
+#define IPIXEL_OP_XOR			5
+#define IPIXEL_OP_SRC			6
+#define IPIXEL_OP_SRC_ATOP		7
+#define IPIXEL_OP_SRC_IN		8
+#define IPIXEL_OP_SRC_OUT		9
+#define IPIXEL_OP_SRC_OVER		10
+#define IPIXEL_OP_DST			11
+#define IPIXEL_OP_DST_ATOP		12
+#define IPIXEL_OP_DST_IN		13
+#define IPIXEL_OP_DST_OUT		14
+#define IPIXEL_OP_DST_OVER		15
+#define IPIXEL_OP_ALLANON		16
+#define IPIXEL_OP_TINT			17
+#define IPIXEL_OP_DIFF			18
+#define IPIXEL_OP_DARKEN		19
+#define IPIXEL_OP_LIGHTEN		20
+#define IPIXEL_OP_SCREEN		21
+#define IPIXEL_OP_OVERLAY		22
+
+/* get composite operator names */
+iPixelComposite ipixel_composite_get(int op, int isdefault);
+
+/* set compositor */
+void ipixel_composite_set(int op, iPixelComposite composite);
+
+/* get op names */
+const char *ipixel_composite_opname(int op);
 
 
 /**********************************************************************
