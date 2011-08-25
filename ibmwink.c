@@ -2508,7 +2508,7 @@ void iconv_HSV_to_RGB(const IHSV *input, long size, IRGB *output)
 		s = input->S;
 		v = input->V;
 		if (s == 0.0f) {
-			r = g = b = 1.0f;
+			r = g = b = v;
 		}	else {
 			if (h < 0.0f || h >= 360.0f) {
 				while (h < 0.0f) h += 360.0f;
