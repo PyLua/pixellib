@@ -3318,7 +3318,7 @@ static int ipixel_comp_add(IUINT32 *dst, const IUINT32 *src, int w)
 
 static int ipixel_comp_sub(IUINT32 *dst, const IUINT32 *src, int w)
 {
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	IINT32 r1, g1, b1, a1, r2, g2, b2, a2;
 	for (; w > 0; dst++, src++, w--) {
 		_ipixel_load_card(src, r1, g1, b1, a1);
 		_ipixel_load_card(dst, r2, g2, b2, a2);
@@ -3333,7 +3333,7 @@ static int ipixel_comp_sub(IUINT32 *dst, const IUINT32 *src, int w)
 
 static int ipixel_comp_sub_inv(IUINT32 *dst, const IUINT32 *src, int w)
 {
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	IINT32 r1, g1, b1, a1, r2, g2, b2, a2;
 	for (; w > 0; dst++, src++, w--) {
 		_ipixel_load_card(src, r1, g1, b1, a1);
 		_ipixel_load_card(dst, r2, g2, b2, a2);
@@ -3392,7 +3392,7 @@ static int ipixel_comp_tint(IUINT32 *dst, const IUINT32 *src, int w)
 
 static int ipixel_comp_diff(IUINT32 *dst, const IUINT32 *src, int w)
 {
-	IUINT32 r1, g1, b1, a1, r2, g2, b2, a2;
+	IINT32 r1, g1, b1, a1, r2, g2, b2, a2;
 	for (; w > 0; dst++, src++, w--) {
 		if ((src[0] >> 24) != 0) {
 			_ipixel_load_card(src, r1, g1, b1, a1);
