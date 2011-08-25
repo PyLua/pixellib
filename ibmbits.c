@@ -3455,7 +3455,7 @@ static int ipixel_comp_screen(IUINT32 *dst, const IUINT32 *src, int w)
 			#define IPIXEL_SCREEN_VALUE(b, t) do { \
 				res1 = 0xFF - b; res2 = 0xff - t; \
 				res1 = 0xff - ((res1 * res2) >> 8); \
-				b = res1 < 0 ? 0 : res1; } while (0)
+				b = res1; } while (0)
 
 			IPIXEL_SCREEN_VALUE(r2, r1);
 			IPIXEL_SCREEN_VALUE(g2, g1);
@@ -3482,7 +3482,7 @@ static int ipixel_comp_overlay(IUINT32 *dst, const IUINT32 *src, int w)
 				tmp_screen = 0xff - (((0xff - (int)b) * (0xff - t)) >> 8); \
 				tmp_mult   = (b * t) >> 8; \
 				res = (b * tmp_screen + (0xff - b) * tmp_mult) >> 8; \
-				b = res < 0? 0 : res; \
+				b = res; \
 			}	while (0)
 
 			IPIXEL_OVERLAY_VALUE(r2, r1);
