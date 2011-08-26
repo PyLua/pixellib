@@ -2,8 +2,29 @@
  *
  * ibmbits.h - bitmap bits accessing
  *
- * NOTE:
- * for more information, please see the readme file
+ * FEATURES:
+ *
+ * - up to 64 pixel-formats supported
+ * - fetching pixel from any pixel-formats to card(A8R8G8B8)
+ * - storing card(A8R8G8B8) to any pixel-formats
+ * - drawing scanline (copy/blend/additive) to any pixel-formats
+ * - blit (with/without color) between bitmaps
+ * - converting between any formats to another
+ * - compositing with 35 operators
+ * - many useful macros to access/process pixels
+ * - all the routines can be replaced by calling **_set_**
+ * - using 203KB static memory for look-up-tables
+ *
+ * HISTORY:
+ *
+ * 2009.09.12  skywind  create this file and 
+ * 2009.12.07  skywind  optimize fetch and store
+ * 2009.12.30  skywind  optimize 16 bits convertion using lut
+ * 2010.01.05  skywind  implement scanline blending & additive
+ * 2010.03.07  skywind  implement hline blending & additive
+ * 2010.10.25  skywind  implement bliting and converting and cliping
+ * 2011.03.04  skywind  implement card operations
+ * 2011.08.10  skywind  implement compositing
  *
  **********************************************************************/
 #ifndef __IBMBITS_H__
@@ -322,8 +343,12 @@ extern IRGB _ipaletted[256];
 extern const unsigned char IMINMAX256[770];
 extern const unsigned char *iclip256;
 
-/* pixel alpha lookup table */
+/* pixel alpha lookup table: initialized by ipixel_lut_init() */
 extern unsigned char ipixel_blend_lut[2048 * 2];
+
+/* multiplication & division table: initialized by ipixel_lut_init() */
+extern unsigned char _ipixel_mullut[256][256];  /* [x][y] = x * y / 255 */
+extern unsigned char _ipixel_divlut[256][256];  /* [x][y] = y * 255 / x */
 
 #define ICLIP_256(x) IMINMAX256[256 + (x)]
 #define ICLIP_FAST(x) ( (IUINT32) ( (IUINT8) ((x) | (0 - ((x) >> 8))) ) )
@@ -604,34 +629,45 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
  **********************************************************************/
 
 /* pixel composite procedure */
-typedef int (*iPixelComposite)(IUINT32 *dst, const IUINT32 *src, int width);
+typedef void (*iPixelComposite)(IUINT32 *dst, const IUINT32 *src, int width);
 
 /* pixel composite operator */
-#define IPIXEL_OP_COPY			0
-#define IPIXEL_OP_BLEND			1
-#define IPIXEL_OP_ADD			2
-#define IPIXEL_OP_SUB			3
-#define IPIXEL_OP_SUB_INV		4
-#define IPIXEL_OP_XOR			5
-#define IPIXEL_OP_SRC			6
-#define IPIXEL_OP_SRC_OVER		7
-#define IPIXEL_OP_SRC_IN		8
-#define IPIXEL_OP_SRC_OUT		9
-#define IPIXEL_OP_SRC_ATOP		10
-#define IPIXEL_OP_DST			11
-#define IPIXEL_OP_DST_OVER		12
-#define IPIXEL_OP_DST_IN		13
-#define IPIXEL_OP_DST_OUT		14
-#define IPIXEL_OP_DST_ATOP		15
-#define IPIXEL_OP_PLUS			16
-#define IPIXEL_OP_CLEAR			17
-#define IPIXEL_OP_ALLANON		18
-#define IPIXEL_OP_TINT			19
-#define IPIXEL_OP_DIFF			20
-#define IPIXEL_OP_DARKEN		21
-#define IPIXEL_OP_LIGHTEN		22
-#define IPIXEL_OP_SCREEN		23
-#define IPIXEL_OP_OVERLAY		24
+#define IPIXEL_OP_SRC				0
+#define IPIXEL_OP_DST				1
+#define IPIXEL_OP_CLEAR				2
+#define IPIXEL_OP_BLEND				3
+#define IPIXEL_OP_ADD				4
+#define IPIXEL_OP_SUB				5
+#define IPIXEL_OP_SUB_INV			6
+#define IPIXEL_OP_XOR				7
+#define IPIXEL_OP_PLUS				8
+#define IPIXEL_OP_SRC_ATOP			9
+#define IPIXEL_OP_SRC_IN			10
+#define IPIXEL_OP_SRC_OUT			11
+#define IPIXEL_OP_SRC_OVER			12
+#define IPIXEL_OP_DST_ATOP			13
+#define IPIXEL_OP_DST_IN			14
+#define IPIXEL_OP_DST_OUT			15
+#define IPIXEL_OP_DST_OVER			16
+#define IPIXEL_OP_PREMUL_XOR		17
+#define IPIXEL_OP_PREMUL_PLUS		18
+#define IPIXEL_OP_PREMUL_SRC_OVER	19
+#define IPIXEL_OP_PREMUL_SRC_IN		20
+#define IPIXEL_OP_PREMUL_SRC_OUT	21
+#define IPIXEL_OP_PREMUL_SRC_ATOP	22
+#define IPIXEL_OP_PREMUL_DST_OVER	23
+#define IPIXEL_OP_PREMUL_DST_IN		24
+#define IPIXEL_OP_PREMUL_DST_OUT	25
+#define IPIXEL_OP_PREMUL_DST_ATOP	26
+#define IPIXEL_OP_PREMUL_BLEND		27
+#define IPIXEL_OP_ALLANON			28
+#define IPIXEL_OP_TINT				29
+#define IPIXEL_OP_DIFF				30
+#define IPIXEL_OP_DARKEN			31
+#define IPIXEL_OP_LIGHTEN			32
+#define IPIXEL_OP_SCREEN			33
+#define IPIXEL_OP_OVERLAY			34
+
 
 /* get composite operator names */
 iPixelComposite ipixel_composite_get(int op, int isdefault);
@@ -1001,7 +1037,8 @@ const char *ipixel_composite_opname(int op);
 #define _ipixel_norm(color) (((color) >> 7) + (color))
 #define _ipixel_unnorm(color) ((((color) << 8) - (color)) >> 8)
 #define _imul_y_div_255(x, y) (((x) * _ipixel_norm(y)) >> 8)
-#define _idiv_255(x) (((x) + ((x) >> 8) + 1) >> 8)
+#define _idiv_255(x) (((x) + (((x) + 1) >> 8) + 1) >> 8)
+#define _idiv_255_fast(x) (((x) + ((x) >> 8) + 1) >> 8)
 
 #define _ipixel_to_gray(r, g, b) \
         ((19595 * (r) + 38469 * (g) + 7472 * (b)) >> 16)
@@ -2242,6 +2279,79 @@ extern IUINT32 _ipixel_cvt_lut_B2G2R2A2[256];
 		(color_dst) = (__r3 | __r4) + (__r1); \
 	}	while (0)
 
+
+/* compositing */
+#define IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, FD) do { \
+		(dr) = _ipixel_mullut[(FS)][(sr)] + _ipixel_mullut[(FD)][(dr)]; \
+		(dg) = _ipixel_mullut[(FS)][(sg)] + _ipixel_mullut[(FD)][(dg)]; \
+		(db) = _ipixel_mullut[(FS)][(sb)] + _ipixel_mullut[(FD)][(db)]; \
+		(da) = _ipixel_mullut[(FS)][(sa)] + _ipixel_mullut[(FD)][(da)]; \
+	}	while (0)
+
+/* premultiply: src atop */
+#define IBLEND_OP_SRC_ATOP(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FS = (da); \
+		IUINT32 FD = 255 - (sa); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, FD); \
+	}	while (0)
+
+/* premultiply: src in */
+#define IBLEND_OP_SRC_IN(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FS = (da); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, 0); \
+	}	while (0)
+
+/* premultiply: src out */
+#define IBLEND_OP_SRC_OUT(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FS = 255 - (da); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, 0); \
+	}	while (0)
+
+/* premultiply: src over */
+#define IBLEND_OP_SRC_OVER(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FD = 255 - (sa); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, 255, FD); \
+	}	while (0)
+
+/* premultiply: dst atop */
+#define IBLEND_OP_DST_ATOP(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FS = 255 - (da); \
+		IUINT32 FD = (sa); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, FD); \
+	}	while (0)
+
+/* premultiply: dst in */
+#define IBLEND_OP_DST_IN(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FD = (sa); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, 0, FD); \
+	}	while (0)
+
+/* premultiply: dst out */
+#define IBLEND_OP_DST_OUT(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FD = 255 - (sa); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, 0, FD); \
+	}	while (0)
+
+/* premultiply: dst over */
+#define IBLEND_OP_DST_OVER(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FS = 255 - (da); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, 255); \
+	}	while (0)
+
+/* premultiply: xor */
+#define IBLEND_OP_XOR(sr, sg, sb, sa, dr, dg, db, da) do { \
+		IUINT32 FS = 255 - (da); \
+		IUINT32 FD = 255 - (sa); \
+		IBLEND_COMPOSITE(sr, sg, sb, sa, dr, dg, db, da, FS, FD); \
+	}	while (0)
+
+/* premultiply: plus */
+#define IBLEND_OP_PLUS(sr, sg, sb, sa, dr, dg, db, da) do { \
+		(dr) = ICLIP_256((sr) + (dr)); \
+		(dg) = ICLIP_256((sg) + (dg)); \
+		(db) = ICLIP_256((sb) + (db)); \
+		(da) = ICLIP_256((sa) + (da)); \
+	}	while (0)
 
 
 #ifdef __cplusplus
