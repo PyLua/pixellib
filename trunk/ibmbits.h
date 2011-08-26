@@ -614,22 +614,24 @@ typedef int (*iPixelComposite)(IUINT32 *dst, const IUINT32 *src, int width);
 #define IPIXEL_OP_SUB_INV		4
 #define IPIXEL_OP_XOR			5
 #define IPIXEL_OP_SRC			6
-#define IPIXEL_OP_SRC_ATOP		7
+#define IPIXEL_OP_SRC_OVER		7
 #define IPIXEL_OP_SRC_IN		8
 #define IPIXEL_OP_SRC_OUT		9
-#define IPIXEL_OP_SRC_OVER		10
+#define IPIXEL_OP_SRC_ATOP		10
 #define IPIXEL_OP_DST			11
-#define IPIXEL_OP_DST_ATOP		12
+#define IPIXEL_OP_DST_OVER		12
 #define IPIXEL_OP_DST_IN		13
 #define IPIXEL_OP_DST_OUT		14
-#define IPIXEL_OP_DST_OVER		15
-#define IPIXEL_OP_ALLANON		16
-#define IPIXEL_OP_TINT			17
-#define IPIXEL_OP_DIFF			18
-#define IPIXEL_OP_DARKEN		19
-#define IPIXEL_OP_LIGHTEN		20
-#define IPIXEL_OP_SCREEN		21
-#define IPIXEL_OP_OVERLAY		22
+#define IPIXEL_OP_DST_ATOP		15
+#define IPIXEL_OP_PLUS			16
+#define IPIXEL_OP_CLEAR			17
+#define IPIXEL_OP_ALLANON		18
+#define IPIXEL_OP_TINT			19
+#define IPIXEL_OP_DIFF			20
+#define IPIXEL_OP_DARKEN		21
+#define IPIXEL_OP_LIGHTEN		22
+#define IPIXEL_OP_SCREEN		23
+#define IPIXEL_OP_OVERLAY		24
 
 /* get composite operator names */
 iPixelComposite ipixel_composite_get(int op, int isdefault);
