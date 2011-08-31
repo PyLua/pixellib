@@ -1823,7 +1823,130 @@ int CGdiDIBFormat(const DIBSECTION *sect)
 	return -5;
 }
 
+// 将字体转换为 IBITMAP
+IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw, 
+	const char *textc, int ncount, UINT format, LPDRAWTEXTPARAMS param, 
+	IUINT32 color)
+{
+	RECT rect = { 0, 0, 0, 0 };
+	HFONT hFontSaved;
+	HBITMAP hBitmap;
+	HBITMAP hBitmapSaved;
+	IBITMAP *bitmap;
+	int width, height, retval, i;
+	IUINT32 cr, cg, cb, ca;
+	void *pixel;
+	HDC hDC;
 
+	hDC = CreateCompatibleDC(NULL);
+	if (hDC == NULL) return NULL;
+
+	hFontSaved = (HFONT)SelectObject(hDC, hFont);
+
+	format &= ~(DT_END_ELLIPSIS | DT_PATH_ELLIPSIS | DT_MODIFYSTRING);
+
+	if (textw != NULL) {
+		retval = DrawTextExW(hDC, (wchar_t*)textw, ncount, &rect, 
+			format | DT_CALCRECT, param);
+	}
+	else if (textc != NULL) {
+		retval = DrawTextExA(hDC, (char*)textc, ncount, &rect, 
+			format | DT_CALCRECT, param);
+	}
+	else {
+		return NULL;
+	}
+	if (retval <= 0) return NULL;
+
+	width = (int)rect.right - (int)rect.left;
+	height = (int)rect.bottom - (int)rect.top;
+
+	hBitmap = CCreateDIBSection(hDC, width, -height, IPIX_FMT_X8R8G8B8,
+		NULL, &pixel);
+
+	if (hBitmap == NULL) {
+		SelectObject(hDC, hFontSaved);
+		DeleteDC(hDC);
+		return NULL;
+	}
+
+	bitmap = ibitmap_create(width, height, 32);
+
+	if (bitmap == NULL) {
+		DeleteObject(hBitmap);
+		SelectObject(hDC, hFontSaved);
+		DeleteDC(hDC);
+		return NULL;		
+	}
+
+	ibitmap_pixfmt_set(bitmap, IPIX_FMT_A8R8G8B8);
+
+	hBitmapSaved = (HBITMAP)SelectObject(hDC, hBitmap);
+
+	SetTextColor(hDC, RGB(255, 255, 255));
+	SetBkColor(hDC, 0);
+	SetBkMode(hDC, OPAQUE);
+
+	format &= ~((DWORD)(DT_CALCRECT));
+
+	if (textw != NULL) {
+		retval = DrawTextExW(hDC, (wchar_t*)textw, ncount, &rect, 
+			format, param);
+	}	else {
+		retval = DrawTextExA(hDC, (char*)textc, ncount, &rect, 
+			format, param);
+	}
+
+	if (retval <= 0) {
+		SelectObject(hDC, hBitmapSaved);
+		SelectObject(hDC, hFontSaved);
+		DeleteObject(hBitmap);
+		DeleteDC(hDC);
+		ibitmap_release(bitmap);
+		return NULL;
+	}
+	
+	IRGBA_FROM_A8R8G8B8(color, cr, cg, cb, ca);
+
+	for (i = 0; i < height; i++) {
+		const IUINT32 *src = (const IUINT32*)pixel + width * i;
+		IUINT32 *dst = (IUINT32*)bitmap->line[i];
+		IUINT32 sr, sg, sb, sa;
+		int k;
+		for (k = width; k > 0; src++, dst++, k--) {
+			_ipixel_load_card(src, sr, sg, sb, sa);
+			sa = sr + sg + sg + sb;
+			if (sa == 0) {
+				dst[0] = 0;
+			}	else {
+				sa = (sa >> 2) * ca;
+				sa = _idiv_255(sa);
+				dst[0] = IRGBA_TO_A8R8G8B8(cr, cg, cb, sa);
+			}
+		}
+	}
+	
+	SelectObject(hDC, hBitmapSaved);
+	SelectObject(hDC, hFontSaved);
+	DeleteObject(hBitmap);
+	DeleteDC(hDC);
+
+	return bitmap;
+}
+
+// 将字体转换为 IBITMAP
+IBITMAP* CCreateTextW(HFONT hFont, const wchar_t *text, 
+	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color)
+{
+	return CCreateTextCore(hFont, text, NULL, ncount, format, param, color);
+}
+
+// 将字体转换为 IBITMAP
+IBITMAP* CCreateTextA(HFONT hFont, const char *text, 
+	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color)
+{
+	return CCreateTextCore(hFont, NULL, text, ncount, format, param, color);
+}
 
 
 #endif
