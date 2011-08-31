@@ -8,7 +8,7 @@
  * - fetching pixel from any pixel-formats to card(A8R8G8B8)
  * - storing card(A8R8G8B8) to any pixel-formats
  * - drawing scanline (copy/blend/additive) to any pixel-formats
- * - blit (with/without color) between bitmaps
+ * - blit (with/without color key) between bitmaps
  * - converting between any formats to another
  * - compositing with 35 operators
  * - many useful macros to access/process pixels
@@ -17,7 +17,7 @@
  *
  * HISTORY:
  *
- * 2009.09.12  skywind  create this file and 
+ * 2009.09.12  skywind  create this file
  * 2009.12.07  skywind  optimize fetch and store
  * 2009.12.30  skywind  optimize 16 bits convertion using lut
  * 2010.01.05  skywind  implement scanline blending & additive
