@@ -2927,11 +2927,20 @@ IBITMAP *ibitmap_patch_nine(const IBITMAP *src, int nw, int nh, int *code)
 	int sw = (int)src->w;
 	int sh = (int)src->h;
 	int fmt = ibitmap_pixfmt_guess(src);
+	int i, j;
 
 	tmp = ibitmap_create((int)src->w, (int)src->h, 32);
 	if (tmp == NULL) return NULL;
+
 	ibitmap_pixfmt_set(tmp, IPIX_FMT_A8R8G8B8);
 	ibitmap_convert(tmp, 0, 0, src, 0, 0, sw, sh, NULL, 0);
+
+	for (j = 0; j < sh; j++) {
+		IUINT32 *ptr = (IUINT32*)tmp->line[j];
+		for (i = sw; i > 0; ptr++, i--) {
+			if ((ptr[0] >> 24) == 0) ptr[0] = 0;
+		}
+	}
 
 	pp = ibitmap_patch_nine_i(tmp, nw, nh, code);
 	ibitmap_release(tmp);
