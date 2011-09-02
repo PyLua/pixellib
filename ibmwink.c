@@ -2699,3 +2699,343 @@ void ibitmap_adjust_hsl(IBITMAP *bmp, float hue, float saturation,
 	ibitmap_update(bmp, bound, ibitmap_update_hsl, 0, &hsv);
 }
 
+
+
+//---------------------------------------------------------------------
+// Android Patch9 支持
+//---------------------------------------------------------------------
+
+// 计算新大小下面的 Patch9
+int ipixel_patch_nine(const int *patch, int count, int newsize, int *out)
+{
+	int total, white = 0, black = 0;
+	int nblack = 0, i, k, x, t;
+	int srclen = 0;
+	int dstlen = 0;
+	for (i = 0; i < count; i++) {
+		if (patch[i] < 0) {
+			black += (-patch[i]);
+			nblack++;
+		}
+		else if (patch[i] > 0) {
+			white += patch[i];
+		}
+	}
+	total = black + white;
+	if (newsize < white) newsize = white;
+	srclen = black;
+	dstlen = newsize - white;
+	for (i = 0, k = 0, x = 0, t = 0; i < count; i++) {
+		if (patch[i] >= 0) {
+			out[i] = patch[i];
+			t += patch[i];
+		}	else {
+			int oldlen = -patch[i];
+		#ifdef _MSC_VER
+			int newlen = (int)((((__int64)oldlen) * dstlen) / srclen);
+		#else
+			int newlen = (int)((((long long)oldlen) * dstlen) / srclen);
+		#endif
+			if (k == nblack - 1) {
+				int j, z;
+				for (j = i + 1, z = 0; j < count; j++) {
+					if (patch[j] >= 0) z += patch[j];
+					else z += (-patch[j]);
+				}
+				z = newsize - t - z;
+				newlen = z;
+			}
+			out[i] = -newlen;
+			t += newlen;
+			k++;
+		}
+	}
+	return newsize;
+}
+
+// 扫描 Patch
+int ipixel_patch_scan(const void *src, long step, int size, int *patch)
+{
+	const unsigned char *ptr = (const unsigned char*)src;
+	int index = 0, mode = 0, i = 0, count = 0;
+	unsigned long endian = 0x11223344;
+	int lsb = (*((char*)&endian) == 0x44)? 1 : 0;
+	int A = lsb? 3 : 0;
+	int R = lsb? 2 : 1;
+	int G = lsb? 1 : 2;
+	int B = lsb? 0 : 3;
+	for (i = 0; i < size; ptr += step, i++) {
+		unsigned int a1 = ptr[A] + (ptr[A] >> 8);
+		unsigned int a2 = 256 - a1;
+		unsigned int cr = (ptr[R] * a1 + 255 * a2) >> 8;
+		unsigned int cg = (ptr[G] * a1 + 255 * a2) >> 8;
+		unsigned int cb = (ptr[B] * a1 + 255 * a2) >> 8;
+		unsigned int cc = (cr + cg + cg + cb) >> 2;
+		int white = (cc < 128)? 0 : 1;
+		if (mode == 0) {
+			if (white) mode = 1, count = 1;
+			else mode = -1, count = 1;
+		}
+		else if (mode > 0 && white != 0 && i < size - 1) count++;
+		else if (mode < 0 && white == 0 && i < size - 1) count++;
+		else {
+			if (i == size - 1) count++;
+			if (patch) patch[index] = (mode >= 0)? count : -count;
+			index++;
+			mode = white? 1 : -1;
+			count = 1;
+		}
+	}
+	return index;
+}
+
+// 位图 patch 扫描
+int ibitmap_patch_scan(const IBITMAP *src, int n, int *patch)
+{
+	const unsigned char *ptr = (const unsigned char*)src->pixel;
+	long pitch = (long)src->pitch;
+	int w = (int)src->w;
+	int h = (int)src->h;
+	int count;
+	if (src->bpp != 32 || w < 2 || h < 2) return -1;
+	if (n == 0) {
+		count = ipixel_patch_scan(ptr + 4, 4, w - 2, patch);
+		if (count == 1 && patch) patch[0] = -patch[0];
+		return count;
+	}
+	if (n == 1) {
+		count = ipixel_patch_scan(ptr + pitch, pitch, h - 2, patch);
+		if (count == 1 && patch) patch[0] = -patch[0];
+		return count;
+	}
+	if (n == 2) {
+		ptr += pitch * (h - 1);
+		count = ipixel_patch_scan(ptr + 4, 4, w - 2, patch);
+		if (count == 1 && patch) patch[0] = -patch[0];
+		return count;
+	}	else {
+		n = 3;
+		ptr += 4 * (w - 1);
+		count = ipixel_patch_scan(ptr + pitch, pitch, h - 2, patch);
+		if (count == 1 && patch) patch[0] = -patch[0];
+		return count;
+	}
+	return 0;
+}
+
+// 平滑缩放
+int ibitmap_smooth_resize(IBITMAP *dst, const IRECT *rectdst, 
+	const IBITMAP *src, const IRECT *rectsrc);
+
+// 位图 patch
+IBITMAP *ibitmap_patch_nine_i(const IBITMAP *src, int nw, int nh, int *code)
+{
+	int countx, county;
+	int *srcx, *srcy;
+	int *dstx, *dsty;
+	int i, j, sx, sy, dx, dy;
+	IBITMAP *dst;
+
+	countx = ibitmap_patch_scan(src, 0, NULL);
+	if (countx < 0) {
+		if (code) code[0] = 1;
+		return NULL;
+	}
+
+	county = ibitmap_patch_scan(src, 1, NULL);
+	if (county < 0) {
+		if (code) code[0] = 1;
+		return NULL;
+	}
+
+	srcx = (int*)malloc(sizeof(int) * (countx + county) * 4);
+	if (srcx == NULL) {
+		if (code) code[0] = 3;
+		return NULL;
+	}
+
+	srcy = srcx + countx;
+	dstx = srcy + county;
+	dsty = dstx + countx;
+
+	ibitmap_patch_scan(src, 0, srcx);
+	ibitmap_patch_scan(src, 1, srcy);
+
+	nw = ipixel_patch_nine(srcx, countx, nw, dstx);
+	nh = ipixel_patch_nine(srcy, county, nh, dsty);
+
+	dst = ibitmap_create(nw, nh, 32);
+	if (dst == NULL) {
+		free(srcx);
+		if (code) code[0] = 4;
+		return NULL;
+	}
+
+	sx = 1, sy = 1;
+	dx = 0, dy = 0;
+
+	ibitmap_fill(dst, 0, 0, nw, nh, 0, 0);
+	ibitmap_pixfmt_set(dst, ibitmap_pixfmt_guess(src));
+
+	for (j = 0; j < county; j++) {
+		int src_h = (srcy[j] >= 0)? srcy[j] : -srcy[j];
+		int dst_h = (dsty[j] >= 0)? dsty[j] : -dsty[j];
+		IRECT boundsrc;
+		IRECT bounddst;
+		sx = 1; dx = 0;
+
+		for (i = 0; i < countx; i++) {
+			int src_w = (srcx[i] >= 0)? srcx[i] : -srcx[i];
+			int dst_w = (dstx[i] >= 0)? dstx[i] : -dstx[i];
+
+			boundsrc.left = sx;
+			boundsrc.top = sy;
+			boundsrc.right = sx + src_w;
+			boundsrc.bottom = sy + src_h;
+			bounddst.left = dx;
+			bounddst.top = dy;
+			bounddst.right = dx + dst_w;
+			bounddst.bottom = dy + dst_h;
+
+			assert(sx + src_w <= (int)src->w - 0);
+			assert(sy + src_h <= (int)src->h - 0);
+			assert(dx + dst_w <= (int)dst->w);
+			assert(dy + dst_h <= (int)dst->h);
+			
+			if (src_w > 0 && src_h > 0 && dst_w > 0 && dst_h > 0) {
+				ibitmap_smooth_resize(dst, &bounddst, src, &boundsrc);
+			}
+
+			sx += src_w;
+			dx += dst_w;
+		}
+		sy += src_h;
+		dy += dst_h;
+	}
+
+	free(srcx);
+	if (code) code[0] = 0;
+
+	return dst;
+}
+
+
+// 位图 patch
+IBITMAP *ibitmap_patch_nine(const IBITMAP *src, int nw, int nh, int *code)
+{
+	IBITMAP *tmp, *pp;
+	int sw = (int)src->w;
+	int sh = (int)src->h;
+	int fmt = ibitmap_pixfmt_guess(src);
+
+	tmp = ibitmap_create((int)src->w, (int)src->h, 32);
+	if (tmp == NULL) return NULL;
+	ibitmap_pixfmt_set(tmp, IPIX_FMT_A8R8G8B8);
+	ibitmap_convert(tmp, 0, 0, src, 0, 0, sw, sh, NULL, 0);
+
+	pp = ibitmap_patch_nine_i(tmp, nw, nh, code);
+	ibitmap_release(tmp);
+
+	if (pp == NULL) {
+		return NULL;
+	}
+
+	if (fmt == IPIX_FMT_A8R8G8B8) {
+		ibitmap_pixfmt_set(pp, fmt);
+		return pp;
+	}
+
+	tmp = ibitmap_create((int)pp->w, (int)pp->h, src->bpp);
+	ibitmap_pixfmt_set(tmp, fmt);
+
+	if (tmp) {
+		tmp->extra = src->extra;
+		ibitmap_convert(tmp, 0, 0, pp, 0, 0, (int)pp->w, (int)pp->h, 0, 0);
+	}
+
+	ibitmap_release(pp);
+
+	return tmp;
+}
+
+
+// 取得客户区
+int ibitmap_patch_client(const IBITMAP *src, IRECT *client)
+{
+	int _buffer[1024];
+	int *buffer = _buffer;
+	int n3, n4, nn;
+	int *patch3, *patch4;
+	IRECT bound;
+
+	n3 = ibitmap_patch_scan(src, 2, NULL);
+	if (n3 <= 0) return -1;
+	n4 = ibitmap_patch_scan(src, 3, NULL);
+	if (n4 <= 0) return -1;
+	if (n3 < 3) n3 = 3;
+	if (n4 < 3) n4 = 3;
+	nn = n3 + n4;
+
+	if (nn > 1024) buffer = (int*)malloc(sizeof(int) * nn);
+	if (buffer == NULL) return -2;
+
+	patch3 = buffer;
+	patch4 = patch3 + n3;
+
+	ibitmap_patch_scan(src, 2, patch3);
+	ibitmap_patch_scan(src, 3, patch4);
+
+	memset(&bound, 0, sizeof(bound));
+
+	for (nn = 0; nn < 2; nn++) {
+		int *patch = (nn == 0)? patch3 : patch4;
+		int count = (nn == 0)? n3 : n4;
+		int total = (nn == 0)? ((int)src->w - 2) : ((int)src->h - 2);
+		int first = 0, last = 0, i, j;
+		for (i = 0, j = -1; i < count; i++) {
+			if (patch[i] < 0) { j = i; break; }
+		}
+		if (j < 0) {
+			patch[0] = 0;
+			patch[1] = -total;
+			patch[2] = 0;
+			first = 0;
+			last = 0;
+			count = 3;
+		}	else {
+			//ipixel_patch_print(patch, count);
+			for (i = 0, first = 0; i < count; i++) {
+				if (patch[i] < 0) break;
+				first += patch[i];
+			}
+			for (j = count - 1, last = 0; j > i; j--) {
+				if (patch[j] < 0) break;
+				last += patch[j];
+			}
+			patch[0] = first;
+			patch[1] = -(total - first - last);
+			patch[2] = last;
+			count = 3;
+		}
+		if (nn == 0) {
+			n3 = count;
+			bound.left = first;
+			bound.right = first + (total - first - last);
+		}
+		else {
+			n4 = count;
+			bound.top = first;
+			bound.bottom = first + (total - first - last);
+		}
+	}
+	
+	if (buffer != _buffer) free(buffer);
+
+	if (client) client[0] = bound;
+
+	return 0;
+}
+
+
+
+

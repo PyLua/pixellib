@@ -214,7 +214,10 @@ IBITMAP* CCreateTextW(HFONT hFont, const wchar_t *text,
 IBITMAP* CCreateTextA(HFONT hFont, const char *text, 
 	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color);
 
+
+
 #endif
+
 
 #ifdef __cplusplus
 }

@@ -214,10 +214,11 @@ void ibitmap_convert(IBITMAP *dst, int dx, int dy, const IBITMAP *src,
 		buffer = (unsigned char*)icmalloc(w * 4);
 		if (buffer == NULL) return;
 	}
-
-	ipixel_blend(dfmt, dst->line[dy], (long)dst->pitch, dx, sfmt,
-		src->line[sy], (long)src->pitch, sx, w, h, 0xffffffff, 
-		IPIXEL_BLEND_OP_COPY, flip, dindex, sindex, buffer);
+	
+	// execute converting
+	ipixel_convert(dfmt, dst->line[dy], (long)dst->pitch, dx, sfmt,
+		src->line[sy], (long)src->pitch, sx, w, h, 0, 
+		flip, dindex, sindex, buffer);
 
 	if (buffer != _buffer) {
 		icfree(buffer);

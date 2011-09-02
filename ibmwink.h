@@ -266,6 +266,11 @@ void ibitmap_adjust_hsv(IBITMAP *bmp, float hue, float saturation,
 void ibitmap_adjust_hsl(IBITMAP *bmp, float hue, float saturation, 
 	float lightness, const IRECT *bound);
 
+// Android: patch 9 生成
+IBITMAP *ibitmap_patch_nine(const IBITMAP *src, int nw, int nh, int *code);
+
+// Android: 取得客户区
+int ibitmap_patch_client(const IBITMAP *src, IRECT *client);
 
 
 #ifdef __cplusplus

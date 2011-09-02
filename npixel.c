@@ -1952,6 +1952,3 @@ IBITMAP* CCreateTextA(HFONT hFont, const char *text,
 #endif
 
 
-
-
-
