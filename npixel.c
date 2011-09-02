@@ -1913,7 +1913,7 @@ IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw,
 		for (k = width; k > 0; src++, dst++, k--) {
 			_ipixel_load_card(src, sr, sg, sb, sa);
 			sa = sr + sg + sg + sb;
-			dst[0] = sa >> 2;
+			dst[0] = (IUINT8)((sa >> 2) & 0xff);
 		}
 	}
 	

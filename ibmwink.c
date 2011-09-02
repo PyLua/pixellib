@@ -2765,7 +2765,7 @@ int ipixel_patch_scan(const void *src, long step, int size, int *patch)
 	int G = lsb? 1 : 2;
 	int B = lsb? 0 : 3;
 	for (i = 0; i < size; ptr += step, i++) {
-		unsigned int a1 = ptr[A] + (ptr[A] >> 8);
+		unsigned int a1 = ptr[A] + (ptr[A] >> 7);
 		unsigned int a2 = 256 - a1;
 		unsigned int cr = (ptr[R] * a1 + 255 * a2) >> 8;
 		unsigned int cg = (ptr[G] * a1 + 255 * a2) >> 8;
