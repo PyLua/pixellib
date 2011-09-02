@@ -1823,10 +1823,10 @@ int CGdiDIBFormat(const DIBSECTION *sect)
 	return -5;
 }
 
-// 将字体转换为 IBITMAP
+
+// 将字体转换为 IBITMAP: IPIX_FMT_A8
 IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw, 
-	const char *textc, int ncount, UINT format, LPDRAWTEXTPARAMS param, 
-	IUINT32 color)
+	const char *textc, int ncount, UINT format, LPDRAWTEXTPARAMS param)
 {
 	RECT rect = { 0, 0, 0, 0 };
 	HFONT hFontSaved;
@@ -1834,7 +1834,6 @@ IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw,
 	HBITMAP hBitmapSaved;
 	IBITMAP *bitmap;
 	int width, height, retval, i;
-	IUINT32 cr, cg, cb, ca;
 	void *pixel;
 	HDC hDC;
 
@@ -1870,7 +1869,7 @@ IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw,
 		return NULL;
 	}
 
-	bitmap = ibitmap_create(width, height, 32);
+	bitmap = ibitmap_create(width, height, 8);
 
 	if (bitmap == NULL) {
 		DeleteObject(hBitmap);
@@ -1879,7 +1878,7 @@ IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw,
 		return NULL;		
 	}
 
-	ibitmap_pixfmt_set(bitmap, IPIX_FMT_A8R8G8B8);
+	ibitmap_pixfmt_set(bitmap, IPIX_FMT_A8);
 
 	hBitmapSaved = (HBITMAP)SelectObject(hDC, hBitmap);
 
@@ -1905,24 +1904,16 @@ IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw,
 		ibitmap_release(bitmap);
 		return NULL;
 	}
-	
-	IRGBA_FROM_A8R8G8B8(color, cr, cg, cb, ca);
 
 	for (i = 0; i < height; i++) {
 		const IUINT32 *src = (const IUINT32*)pixel + width * i;
-		IUINT32 *dst = (IUINT32*)bitmap->line[i];
+		IUINT8 *dst = (IUINT8*)bitmap->line[i];
 		IUINT32 sr, sg, sb, sa;
 		int k;
 		for (k = width; k > 0; src++, dst++, k--) {
 			_ipixel_load_card(src, sr, sg, sb, sa);
 			sa = sr + sg + sg + sb;
-			if (sa == 0) {
-				dst[0] = 0;
-			}	else {
-				sa = (sa >> 2) * ca;
-				sa = _idiv_255(sa);
-				dst[0] = IRGBA_TO_A8R8G8B8(cr, cg, cb, sa);
-			}
+			dst[0] = sa >> 2;
 		}
 	}
 	
@@ -1934,18 +1925,18 @@ IBITMAP* CCreateTextCore(HFONT hFont, const wchar_t *textw,
 	return bitmap;
 }
 
-// 将字体转换为 IBITMAP
+// 将字体转换为 IBITMAP: IPIX_FMT_A8
 IBITMAP* CCreateTextW(HFONT hFont, const wchar_t *text, 
-	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color)
+	int ncount, UINT format, LPDRAWTEXTPARAMS param)
 {
-	return CCreateTextCore(hFont, text, NULL, ncount, format, param, color);
+	return CCreateTextCore(hFont, text, NULL, ncount, format, param);
 }
 
-// 将字体转换为 IBITMAP
+// 将字体转换为 IBITMAP: IPIX_FMT_A8
 IBITMAP* CCreateTextA(HFONT hFont, const char *text, 
-	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color)
+	int ncount, UINT format, LPDRAWTEXTPARAMS param)
 {
-	return CCreateTextCore(hFont, NULL, text, ncount, format, param, color);
+	return CCreateTextCore(hFont, NULL, text, ncount, format, param);
 }
 
 

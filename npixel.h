@@ -206,13 +206,13 @@ void CGdiReleaseDIB(IBITMAP *bmp);
 // 取得 DIB的 pixel format
 int CGdiDIBFormat(const DIBSECTION *sect);
 
-// 将字体转换为 IBITMAP
+// 将字体转换为 IBITMAP: IPIX_FMT_A8
 IBITMAP* CCreateTextW(HFONT hFont, const wchar_t *text, 
-	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color);
+	int ncount, UINT format, LPDRAWTEXTPARAMS param);
 
-// 将字体转换为 IBITMAP
+// 将字体转换为 IBITMAP: IPIX_FMT_A8
 IBITMAP* CCreateTextA(HFONT hFont, const char *text, 
-	int ncount, UINT format, LPDRAWTEXTPARAMS param, IUINT32 color);
+	int ncount, UINT format, LPDRAWTEXTPARAMS param);
 
 
 
