@@ -2211,7 +2211,7 @@ extern IUINT32 _ipixel_cvt_lut_B2G2R2A2[256];
 		IUINT32 __lutpos = (((da) & 0xf8) << 4) | (((sa) & 0xfc) >> 1); \
 		IINT32 SA = ipixel_blend_lut[(__lutpos) + 0]; \
 		IINT32 FA = ipixel_blend_lut[(__lutpos) + 1]; \
-		SA = _ipixel_norm((sa)); \
+		SA = _ipixel_norm((SA)); \
 		(da) = FA; \
 		(dr) = (((((IINT32)(sr)) - ((IINT32)(dr))) * SA) >> 8) + (dr); \
 		(dg) = (((((IINT32)(sg)) - ((IINT32)(dg))) * SA) >> 8) + (dg); \
