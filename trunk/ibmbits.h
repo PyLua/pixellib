@@ -1037,8 +1037,7 @@ const char *ipixel_composite_opname(int op);
 #define _ipixel_norm(color) (((color) >> 7) + (color))
 #define _ipixel_unnorm(color) ((((color) << 8) - (color)) >> 8)
 #define _imul_y_div_255(x, y) (((x) * _ipixel_norm(y)) >> 8)
-#define _idiv_255(x) (((x) + (((x) + 1) >> 8) + 1) >> 8)
-#define _idiv_255_fast(x) (((x) + ((x) >> 8) + 1) >> 8)
+#define _idiv_255(x) (((x) + (((x) + 257) >> 8)) >> 8)
 
 #define _ipixel_to_gray(r, g, b) \
         ((19595 * (r) + 38469 * (g) + 7472 * (b)) >> 16)
