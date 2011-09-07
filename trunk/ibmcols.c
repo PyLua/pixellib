@@ -1113,6 +1113,10 @@ void ibitmap_scanline_fixed(const IBITMAP *bmp, IUINT32 *card, int w,
 }
 
 
+//---------------------------------------------------------------------
+// 快速取点函数
+//---------------------------------------------------------------------
+
 // 读取像素
 static inline IUINT32 ibitmap_fetch_pixel_int_A8R8G8B8(
 	const IBITMAP *bmp, int x, int y, const IRECT *clip) 
@@ -1202,10 +1206,12 @@ static inline IUINT32 ibitmap_fetch_pixel_bilinear_A8R8G8B8(
 	y2 = y1 + 1; 
 	if (x1 >= clip->left && y1 >= clip->top && x2 < clip->right && 
 		y2 < clip->bottom) { 
-		c00 = _ipixel_fetch(32, bmp->line[y1], x1); 
-		c01 = _ipixel_fetch(32, bmp->line[y1], x2); 
-		c10 = _ipixel_fetch(32, bmp->line[y2], x1); 
-		c11 = _ipixel_fetch(32, bmp->line[y2], x2); 
+		const IUINT8 *ptr1 = (const IUINT8*)bmp->line[y1];
+		const IUINT8 *ptr2 = (const IUINT8*)bmp->line[y2];
+		c00 = _ipixel_fetch(32, ptr1, x1); 
+		c01 = _ipixel_fetch(32, ptr1, x2); 
+		c10 = _ipixel_fetch(32, ptr2, x1); 
+		c11 = _ipixel_fetch(32, ptr2, x2); 
 	}	
 	else { 
 		if (mode == IBOM_TRANSPARENT) { 
@@ -1238,10 +1244,12 @@ static inline IUINT32 ibitmap_fetch_pixel_bilinear_X8R8G8B8(
 	y2 = y1 + 1; 
 	if (x1 >= clip->left && y1 >= clip->top && x2 < clip->right && 
 		y2 < clip->bottom) { 
-		c00 = _ipixel_fetch(32, bmp->line[y1], x1); 
-		c01 = _ipixel_fetch(32, bmp->line[y1], x2); 
-		c10 = _ipixel_fetch(32, bmp->line[y2], x1); 
-		c11 = _ipixel_fetch(32, bmp->line[y2], x2); 
+		const IUINT8 *ptr1 = (const IUINT8*)bmp->line[y1];
+		const IUINT8 *ptr2 = (const IUINT8*)bmp->line[y2];
+		c00 = _ipixel_fetch(32, ptr1, x1); 
+		c01 = _ipixel_fetch(32, ptr1, x2); 
+		c10 = _ipixel_fetch(32, ptr2, x1); 
+		c11 = _ipixel_fetch(32, ptr2, x2); 
 		return ipixel_biline_interp(c00, c01, c10, c11, distx, disty) |
 			0xff000000;
 	}	
@@ -1277,10 +1285,12 @@ static inline IUINT32 ibitmap_fetch_pixel_bilinear_R8G8B8(
 	y2 = y1 + 1; 
 	if (x1 >= clip->left && y1 >= clip->top && x2 < clip->right && 
 		y2 < clip->bottom) { 
-		c00 = _ipixel_fetch(24, bmp->line[y1], x1); 
-		c01 = _ipixel_fetch(24, bmp->line[y1], x2); 
-		c10 = _ipixel_fetch(24, bmp->line[y2], x1); 
-		c11 = _ipixel_fetch(24, bmp->line[y2], x2); 
+		const IUINT8 *ptr1 = (const IUINT8*)bmp->line[y1];
+		const IUINT8 *ptr2 = (const IUINT8*)bmp->line[y2];
+		c00 = _ipixel_fetch(24, ptr1, x1); 
+		c01 = _ipixel_fetch(24, ptr1, x2); 
+		c10 = _ipixel_fetch(24, ptr2, x1); 
+		c11 = _ipixel_fetch(24, ptr2, x2); 
 		return ipixel_biline_interp(c00, c01, c10, c11, distx, disty) |
 			0xff000000;
 	}	
@@ -1298,6 +1308,9 @@ static inline IUINT32 ibitmap_fetch_pixel_bilinear_R8G8B8(
 	return ipixel_biline_interp(c00, c01, c10, c11, distx, disty);
 }
 
+//---------------------------------------------------------------------
+// 通用读点模板
+//---------------------------------------------------------------------
 
 // 通用读点的模板
 #define IBITMAP_FETCH_PIXEL(fmt, bpp) \
@@ -1306,14 +1319,13 @@ static inline IUINT32 ibitmap_fetch_pixel_int_##fmt( \
 { \
 	enum IBOM mode = ibitmap_overflow_get_fast(bmp); \
 	const iColorIndex *_ipixel_src_index = (const iColorIndex*)bmp->extra; \
-	IUINT32 c, r, g, b, a; \
+	IUINT32 c; \
 	if (ipixel_overflow(&x, &y, clip, mode) != 0) { \
 		return (IUINT32)bmp->mask; \
 	} \
 	c = _ipixel_fetch(bpp, bmp->line[y], x); \
-	IRGBA_FROM_PIXEL(fmt, c, r, g, b, a); \
 	_ipixel_src_index = _ipixel_src_index; \
-	return IRGBA_TO_PIXEL(A8R8G8B8, r, g, b, a); \
+	return IPIXEL_FROM(fmt, c); \
 } \
 static inline IUINT32 ibitmap_fetch_pixel_nearest_##fmt( \
 	const IBITMAP *bmp, cfixed x, cfixed y, const IRECT *clip) \
@@ -1322,14 +1334,13 @@ static inline IUINT32 ibitmap_fetch_pixel_nearest_##fmt( \
 	const iColorIndex *_ipixel_src_index = (const iColorIndex*)bmp->extra; \
 	int x0 = cfixed_to_int(x - cfixed_const_e); \
 	int y0 = cfixed_to_int(y - cfixed_const_e); \
-	IUINT32 c, r, g, b, a; \
+	IUINT32 c; \
 	if (ipixel_overflow(&x0, &y0, clip, mode) != 0) { \
 		return (IUINT32)bmp->mask; \
 	} \
 	c = _ipixel_fetch(bpp, bmp->line[y0], x0); \
-	IRGBA_FROM_PIXEL(fmt, c, r, g, b, a); \
 	_ipixel_src_index = _ipixel_src_index; \
-	return IRGBA_TO_PIXEL(A8R8G8B8, r, g, b, a); \
+	return IPIXEL_FROM(fmt, c); \
 } \
 static inline IUINT32 ibitmap_fetch_pixel_bilinear_##fmt( \
 	const IBITMAP *bmp, cfixed x, cfixed y, const IRECT *clip) \
@@ -1349,19 +1360,14 @@ static inline IUINT32 ibitmap_fetch_pixel_bilinear_##fmt( \
 	y2 = y1 + 1; \
 	if (x1 >= clip->left && y1 >= clip->top && x2 < clip->right && \
 		y2 < clip->bottom) { \
-		IUINT32 r1, g1, b1, a1, r2, g2, b2, a2; \
 		c00 = _ipixel_fetch(bpp, bmp->line[y1], x1); \
 		c01 = _ipixel_fetch(bpp, bmp->line[y1], x2); \
 		c10 = _ipixel_fetch(bpp, bmp->line[y2], x1); \
 		c11 = _ipixel_fetch(bpp, bmp->line[y2], x2); \
-		IRGBA_FROM_PIXEL(fmt, c00, r1, g1, b1, a1); \
-		IRGBA_FROM_PIXEL(fmt, c01, r2, g2, b2, a2); \
-		c00 = IRGBA_TO_PIXEL(A8R8G8B8, r1, g1, b1, a1); \
-		c01 = IRGBA_TO_PIXEL(A8R8G8B8, r2, g2, b2, a2); \
-		IRGBA_FROM_PIXEL(fmt, c10, r1, g1, b1, a1); \
-		IRGBA_FROM_PIXEL(fmt, c11, r2, g2, b2, a2); \
-		c10 = IRGBA_TO_PIXEL(A8R8G8B8, r1, g1, b1, a1); \
-		c11 = IRGBA_TO_PIXEL(A8R8G8B8, r2, g2, b2, a2); \
+		c00 = IPIXEL_FROM(fmt, c00); \
+		c01 = IPIXEL_FROM(fmt, c01); \
+		c10 = IPIXEL_FROM(fmt, c10); \
+		c11 = IPIXEL_FROM(fmt, c11); \
 	}	\
 	else { \
 		if (mode == IBOM_TRANSPARENT) { \

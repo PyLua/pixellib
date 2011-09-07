@@ -1925,6 +1925,8 @@ extern IUINT32 _ipixel_cvt_lut_B2G2R2A2[256];
  **********************************************************************/
 #define IRGBA_FROM_PIXEL(fmt, c, r, g, b, a) IRGBA_FROM_##fmt(c, r, g, b, a)
 #define IRGBA_TO_PIXEL(fmt, r, g, b, a) IRGBA_TO_##fmt(r, g, b, a)
+#define IPIXEL_FROM(fmt, c) IPIXEL_FROM_##fmt(c)
+#define IPIXEL_TO(fmt, c) IPIXEL_TO_##fmt(c)
 #define IPIX_FMT_NBITS(fmt) IPIX_FMT_BPP_##fmt
 
 #define IRGBA_FROM_COLOR(c, fmt, r, g, b, a) do { \
