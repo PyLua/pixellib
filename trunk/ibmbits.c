@@ -3721,4 +3721,33 @@ const char *ipixel_composite_opname(int op)
 }
 
 
+/**********************************************************************
+ * Palette
+ **********************************************************************/
+
+/* fetch card from IPIX_FMT_C8 */
+void ipixel_palette_fetch(const unsigned char *src, int w, IUINT32 *card,
+	const IRGB *palette)
+{
+	IUINT32 r, g, b;
+	for (; w > 0; src++, card++, w--) {
+		r = palette[*src].r;
+		g = palette[*src].g;
+		b = palette[*src].b;
+		card[0] = IRGBA_TO_A8R8G8B8(r, g, b, 255);
+	}
+}
+
+/* store card into IPIX_FMT_C8 */
+void ipixel_palette_store(unsigned char *dst, int w, const IUINT32 *card,
+	const IRGB *palette, int palsize)
+{
+	IUINT32 r, g, b;
+	for (; w > 0; dst++, card++, w--) {
+		ISPLIT_RGB(card[0], r, g, b);
+		dst[0] = ibestfit_color(palette, r, g, b, palsize);
+	}
+}
+
+
 

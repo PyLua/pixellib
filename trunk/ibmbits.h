@@ -623,7 +623,6 @@ int ipixel_clip(const int *clipdst, const int *clipsrc, int *x, int *y,
     int *rectsrc, int mode);
 
 
-
 /**********************************************************************
  * COMPOSITE
  **********************************************************************/
@@ -677,6 +676,19 @@ void ipixel_composite_set(int op, iPixelComposite composite);
 
 /* get op names */
 const char *ipixel_composite_opname(int op);
+
+
+/**********************************************************************
+ * Palette
+ **********************************************************************/
+
+/* fetch card from IPIX_FMT_C8 */
+void ipixel_palette_fetch(const unsigned char *src, int w, IUINT32 *card, 
+	const IRGB *palette);
+
+/* store card into IPIX_FMT_C8 */
+void ipixel_palette_store(unsigned char *dst, int w, const IUINT32 *card, 
+	const IRGB *palette, int palsize);
 
 
 /**********************************************************************
