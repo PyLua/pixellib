@@ -2649,6 +2649,8 @@ static int ibitmap_update_hsv(int x, int y, int w, IUINT32 *card, void *user)
 		H += h;
 		S *= s;
 		V *= v;
+		if (S > 1.0f) S = 1.0f;
+		if (V > 1.0f) V = 1.0f;
 		cc = ipixel_cvt_hsv_to_rgb(H, S, V);
 		card[0] = cc | (a << 24);
 	}
@@ -2670,6 +2672,8 @@ static int ibitmap_update_hsl(int x, int y, int w, IUINT32 *card, void *user)
 		H += h;
 		S *= s;
 		L *= l;
+		if (S > 1.0f) S = 1.0f;
+		if (L > 1.0f) L = 1.0f;
 		cc = ipixel_cvt_hsl_to_rgb(H, S, L);
 		card[0] = cc | (a << 24);
 	}
