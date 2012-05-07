@@ -690,9 +690,9 @@ int ipixel_matrix_init_scale(ipixel_matrix_t *matrix,
 #define STEP_X_BIG(n)   (cfixed_const_1 - (N_X_FRAC(n) - 1) * STEP_X_SMALL(n))
 
 #define Y_FRAC_FIRST(n)	(STEP_Y_BIG(n) / 2)
-#define Y_FRAC_LAST(n)  (Y_FRAC_FIRST(n) + (N_Y_FRAC(n) - 1) * STEP_Y_SMALL(n))
+#define Y_FRAC_LAST(n) (Y_FRAC_FIRST(n) + (N_Y_FRAC(n) - 1) * STEP_Y_SMALL(n))
 #define X_FRAC_FIRST(n) (STEP_X_BIG(n) / 2)
-#define X_FRAC_LAST(n)  (X_FRAC_FIRST(n) + (N_X_FRAC(n) - 1) * STEP_X_SMALL(n))
+#define X_FRAC_LAST(n) (X_FRAC_FIRST(n) + (N_X_FRAC(n) - 1) * STEP_X_SMALL(n))
 
 #define RENDER_SAMPLE_X(x, n) \
 		((n) == 1? 0 : (cfixed_frac(x) + X_FRAC_FIRST(n)) / STEP_X_SMALL(n))
@@ -1323,7 +1323,8 @@ static void ipixel_raster_edges_bits_1(IBITMAP *image, ipixel_edge_t *l,
 				ap[lxi] = ipixel_clip_255(ap[lxi] + (rxs - lxs) * 255);
 			}
 			else {
-				ap[lxi] = ipixel_clip_255(ap[lxi] + (N_X_FRAC(1) - lxs) * 255);
+				ap[lxi] = ipixel_clip_255(ap[lxi] + 
+					(N_X_FRAC(1) - lxs) * 255);
 				lxi++;
 				ipixel_saturate_add_1(ap + lxi, N_X_FRAC(1), rxi - lxi);
 				if (rxs) {
@@ -2529,8 +2530,11 @@ void ipixel_gradient_walker_reset(ipixel_gradient_walker_t *walker,
 	}	
 	else {
 		IINT64 width = (IINT64)(right_x - left_x);
-		if (width > 0) walker->stepper = (IINT32)(((1 << 24) + width / 2) / width);
-		else walker->stepper = 0;
+		if (width > 0) {
+			walker->stepper = (IINT32)(((1 << 24) + width / 2) / width);
+		}	else {
+			walker->stepper = 0;
+		}
 	}
 
 	walker->need_reset = 0;
