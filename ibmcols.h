@@ -574,11 +574,11 @@ static inline void ipixel_cvt_rgb_to_hsl(int r, int g, int b,
 	int maxval = (r > g)? ((r > b)? r : b) : ((g > b)? g : b);
 	float mdiff = (float)(maxval - minval);
 	float msum = (float)(maxval + minval);
-	float mdiffinv = 1.0f / mdiff;
 	*L = msum * (1.0f / 510.0f);
 	if (maxval == minval) {
 		*S = *H = 0.0f;
 	}	else {
+		float mdiffinv = 1.0f / mdiff;
 		float rnorm = (maxval - r) * mdiffinv;
 		float gnorm = (maxval - g) * mdiffinv;
 		float bnorm = (maxval - b) * mdiffinv;
