@@ -678,6 +678,7 @@ void ipixel_composite_set(int op, iPixelComposite composite);
 const char *ipixel_composite_opname(int op);
 
 
+
 /**********************************************************************
  * Palette
  **********************************************************************/
@@ -2255,7 +2256,7 @@ extern IUINT32 _ipixel_cvt_lut_B2G2R2A2[256];
 /* premutiplied 32bits blending: 
    dst = src + (255 - src.alpha) * dst / 255 */
 #define IBLEND_PARGB(color_dst, color_src) do { \
-		IUINT32 __A = 255 - ((color_src) >> 8); \
+		IUINT32 __A = 255 - ((color_src) >> 24); \
 		IUINT32 __DST_RB = (color_dst) & 0xff00ff; \
 		IUINT32 __DST_AG = ((color_dst) >> 8) & 0xff00ff; \
 		__DST_RB *= __A; \

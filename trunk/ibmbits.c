@@ -1219,13 +1219,28 @@ void ipixel_set_proc(int pixfmt, int type, void *proc)
 	assert(pixfmt >= 0 && pixfmt < IPIX_FMT_COUNT);
 	if (pixfmt < 0 || pixfmt >= IPIX_FMT_COUNT) return;
 	if (type == IPIXEL_PROC_TYPE_FETCH) {
-		ipixel_access_proc[pixfmt].fetch = (iFetchProc)proc;
+		if (proc != NULL) {
+			ipixel_access_proc[pixfmt].fetch = (iFetchProc)proc;
+		}	else {
+			ipixel_access_proc[pixfmt].fetch = 
+				ipixel_access_proc[pixfmt].fetch_default;
+		}
 	}
 	else if (type == IPIXEL_PROC_TYPE_STORE) {
-		ipixel_access_proc[pixfmt].store = (iStoreProc)proc;
+		if (proc != NULL) {
+			ipixel_access_proc[pixfmt].store = (iStoreProc)proc;
+		}	else {
+			ipixel_access_proc[pixfmt].store = 
+				ipixel_access_proc[pixfmt].store_default;
+		}
 	}
 	else if (type == IPIXEL_PROC_TYPE_FETCHPIXEL) {
-		ipixel_access_proc[pixfmt].fetchpixel = (iFetchPixelProc)proc;
+		if (proc != NULL) {
+			ipixel_access_proc[pixfmt].fetchpixel = (iFetchPixelProc)proc;
+		}	else {
+			ipixel_access_proc[pixfmt].fetchpixel = 
+				ipixel_access_proc[pixfmt].fetchpixel_default;
+		}
 	}
 }
 
@@ -1851,12 +1866,52 @@ IPIXEL_SPAN_DRAW_MAIN(PAL, C1, 1, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(BITS, G1, 1, 1, STATIC)
 IPIXEL_SPAN_DRAW_MAIN(BITS, A1, 1, 1, NORMAL_FAST)
 
+
+/* draw span over in A8R8G8B8 or X8R8G8B8 */
+static void ipixel_span_draw_proc_over_32(void *bits,
+	int offset, int w, const IUINT32 *card, const IUINT8 *cover,
+	const iColorIndex *_ipixel_src_index)
+{
+	IUINT32 *dst = ((IUINT32*)bits) + offset;
+	IUINT32 alpha, cc;
+	int inc;
+	if (cover == NULL) {
+		for (inc = w; inc > 0; inc--) {
+			alpha = card[0] >> 24;
+			if (alpha == 255) {
+				dst[0] = card[0];
+			}
+			else if (alpha > 0) {
+				IBLEND_PARGB(dst[0], card[0]);
+			}
+			card++;
+			dst++;
+		}
+	}	else {
+		for (inc = w; inc > 0; inc--) {
+			alpha = card[0] >> 24;
+			cc = cover[0];
+			if (cc + alpha == 510) {
+				dst[0] = card[0];
+			}
+			else if (cc && alpha) {
+				IBLEND_PARGB_COVER(dst[0], card[0], cc);
+			}
+			card++;
+			dst++;
+			cover++;
+		}
+	}
+}
+
+
 #undef IPIXEL_SPAN_DRAW_MAIN
 #undef IPIXEL_SPAN_DRAW_PROC_N
 #undef IPIXEL_SPAN_DRAW_PROC_X
 #undef IPIXEL_SPAN_DRAW_PROC_1
 #undef IPIXEL_SPAN_DRAW_PROC_BITS
 #undef IPIXEL_SPAN_DRAW_PROC_PAL
+
 
 struct iPixelSpanDrawProc
 {
@@ -1937,18 +1992,22 @@ static struct iPixelSpanDrawProc ipixel_span_proc_list[IPIX_FMT_COUNT] =
 
 #undef ITABLE_ITEM
 
+static iSpanDrawProc ipixel_span_draw_over = ipixel_span_draw_proc_over_32;
+
 iSpanDrawProc ipixel_get_span_proc(int fmt, int isadditive, int usedefault)
 {
 	assert(fmt >= 0 && fmt < IPIX_FMT_COUNT);
-	if (fmt < 0 || fmt >= IPIX_FMT_COUNT) {
+	if (fmt < -1 || fmt >= IPIX_FMT_COUNT) {
 		abort();
 		return NULL;
 	}
 	if (ipixel_lut_inited == 0) ipixel_lut_init();
 	if (usedefault) {
+		if (fmt < 0) return ipixel_span_draw_proc_over_32;
 		if (isadditive == 0) return ipixel_span_proc_list[fmt].blend_default;
 		else return ipixel_span_proc_list[fmt].additive_default;
 	}	else {
+		if (fmt < 0) return ipixel_span_draw_over;
 		if (isadditive == 0) return ipixel_span_proc_list[fmt].blend;
 		else return ipixel_span_proc_list[fmt].additive;
 	}
@@ -1957,13 +2016,34 @@ iSpanDrawProc ipixel_get_span_proc(int fmt, int isadditive, int usedefault)
 void ipixel_set_span_proc(int fmt, int isadditive, iSpanDrawProc proc)
 {
 	assert(fmt >= 0 && fmt < IPIX_FMT_COUNT);
-	if (fmt < 0 || fmt >= IPIX_FMT_COUNT) {
+	if (fmt < -1 || fmt >= IPIX_FMT_COUNT) {
 		abort();
 		return;
 	}
 	if (ipixel_lut_inited == 0) ipixel_lut_init();
-	if (isadditive == 0) ipixel_span_proc_list[fmt].blend = proc;
-	else ipixel_span_proc_list[fmt].additive = proc;
+	if (fmt < 0) {
+		if (proc != NULL) {
+			ipixel_span_draw_over = proc;
+		}	else {
+			ipixel_span_draw_over = ipixel_span_draw_proc_over_32;
+		}
+	}	else {
+		if (isadditive == 0) {
+			if (proc != NULL) {
+				ipixel_span_proc_list[fmt].blend = proc;
+			}	else {
+				ipixel_span_proc_list[fmt].blend = 
+					ipixel_span_proc_list[fmt].blend_default;
+			}
+		}	else {
+			if (proc != NULL) {
+				ipixel_span_proc_list[fmt].additive = proc;
+			}	else {
+				ipixel_span_proc_list[fmt].additive =
+					ipixel_span_proc_list[fmt].additive_default;
+			}
+		}
+	}
 }
 
 
@@ -2585,8 +2665,21 @@ void ipixel_set_hline_proc(int fmt, int isadditive, iHLineDrawProc proc)
 		return;
 	}
 	if (ipixel_lut_inited == 0) ipixel_lut_init();
-	if (isadditive == 0) ipixel_hline_proc_list[fmt].blend = proc;
-	else ipixel_hline_proc_list[fmt].additive = proc;
+	if (isadditive == 0) {
+		if (proc != NULL) {
+			ipixel_hline_proc_list[fmt].blend = proc;
+		}	else {
+			ipixel_hline_proc_list[fmt].blend = 
+				ipixel_hline_proc_list[fmt].blend_default;
+		}
+	}	else {
+		if (proc != NULL) {
+			ipixel_hline_proc_list[fmt].additive = proc;
+		}	else {
+			ipixel_hline_proc_list[fmt].additive = 
+				ipixel_hline_proc_list[fmt].additive_default;
+		}
+	}
 }
 
 
@@ -2642,6 +2735,14 @@ long ipixel_blend(int dfmt, void *dbits, long dpitch, int dx, int sfmt,
 	if ((flip & IPIXEL_FLIP_VFLIP) != 0) {
 		sline = sline + spitch * (h - 1);
 		spitch = -spitch;
+	}
+
+	if (sfmt == IPIX_FMT_P8R8G8B8 && dfmt == IPIX_FMT_P8R8G8B8) {
+		if (op == IPIXEL_BLEND_OP_BLEND && color == 0xffffffff) {
+			sfmt = IPIX_FMT_A8R8G8B8;
+			dfmt = IPIX_FMT_A8R8G8B8;
+			drawspan = ipixel_get_span_proc(-1, 0, 0);
+		}
 	}
 
 	if (sfmt == IPIX_FMT_A8R8G8B8 && (flip & IPIXEL_FLIP_HFLIP) == 0 &&
@@ -2950,9 +3051,19 @@ void ipixel_set_blit_proc(int bpp, int istransparent, iBlitProc proc)
 	index = ipixel_lookup_bpp[bpp];
 	if (index < 0) return;
 	if (istransparent == 0) {
-		ipixel_blit_proc_list[index].normal = proc;
+		if (proc != NULL) {
+			ipixel_blit_proc_list[index].normal = proc;
+		}	else {
+			ipixel_blit_proc_list[index].normal = 
+				ipixel_blit_proc_list[index].normal_default;
+		}
 	}	else {
-		ipixel_blit_proc_list[index].mask = proc;
+		if (proc != NULL) {
+			ipixel_blit_proc_list[index].mask = proc;
+		}	else {
+			ipixel_blit_proc_list[index].mask = 
+				ipixel_blit_proc_list[index].mask_default;
+		}
 	}
 }
 
